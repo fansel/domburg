@@ -1,0 +1,328 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Plus, Copy, Trash2, Check, X } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { createGuestToken, toggleGuestToken, deleteGuestToken } from "@/app/actions/settings";
+import type { GuestAccessToken } from "@prisma/client";
+import { useTranslation } from "@/contexts/LanguageContext";
+
+interface GuestCodeManagerProps {
+  initialTokens: GuestAccessToken[];
+}
+
+export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
+  const { t } = useTranslation();
+  const [tokens, setTokens] = useState(initialTokens);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newToken, setNewToken] = useState({
+    description: "",
+    maxUsage: "",
+    expiresInDays: "",
+    useFamilyPrice: false,
+  });
+  const { toast } = useToast();
+
+  // Reset newToken wenn Dialog geschlossen wird
+  useEffect(() => {
+    if (!isCreateOpen) {
+      setNewToken({ description: "", maxUsage: "", expiresInDays: "", useFamilyPrice: false });
+    }
+  }, [isCreateOpen]);
+
+  const handleCreate = async () => {
+    if (!newToken.description) {
+      toast({
+        title: "Fehler",
+        description: "Bitte geben Sie eine Bezeichnung ein",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    const result = await createGuestToken({
+      description: newToken.description,
+      maxUsage: newToken.maxUsage ? parseInt(newToken.maxUsage) : undefined,
+      expiresInDays: newToken.expiresInDays ? parseInt(newToken.expiresInDays) : undefined,
+      useFamilyPrice: newToken.useFamilyPrice,
+    });
+
+    if (result.success && result.token) {
+      setTokens([result.token, ...tokens]);
+      setIsCreateOpen(false);
+      setNewToken({ description: "", maxUsage: "", expiresInDays: "", useFamilyPrice: false });
+      toast({
+        title: "Code erstellt",
+        description: "Der neue Gäste-Code wurde erfolgreich erstellt",
+      });
+    } else {
+      toast({
+        title: "Fehler",
+        description: result.error || "Code konnte nicht erstellt werden",
+        variant: "destructive",
+      });
+    }
+    setIsCreating(false);
+  };
+
+  const handleCopy = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({
+      title: "Kopiert",
+      description: "Code wurde in die Zwischenablage kopiert",
+    });
+  };
+
+  const handleToggle = async (id: string, currentState: boolean) => {
+    const result = await toggleGuestToken(id, !currentState);
+    if (result.success && result.token) {
+      setTokens(tokens.map((t) => (t.id === id ? result.token! : t)));
+      toast({
+        title: currentState ? "Deaktiviert" : "Aktiviert",
+        description: `Code wurde ${currentState ? "deaktiviert" : "aktiviert"}`,
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Möchten Sie diesen Code wirklich löschen?")) return;
+
+    const result = await deleteGuestToken(id);
+    if (result.success) {
+      setTokens(tokens.filter((t) => t.id !== id));
+      toast({
+        title: "Gelöscht",
+        description: "Code wurde erfolgreich gelöscht",
+      });
+    }
+  };
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return t("settings.unlimited");
+    return new Intl.DateTimeFormat("de-DE", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(date));
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>{t("settings.guestAccessCodes")}</CardTitle>
+              <CardDescription>
+                {t("settings.guestAccessCodesDescription")}
+              </CardDescription>
+            </div>
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t("settings.newCode")}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t("settings.addCode")}</DialogTitle>
+                  <DialogDescription>
+                    {t("settings.guestAccessCodesDescription")}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="description">{t("settings.label")}</Label>
+                    <Input
+                      id="description"
+                      placeholder="z.B. Hauptcode 2025"
+                      value={newToken.description}
+                      onChange={(e) =>
+                        setNewToken({ ...newToken, description: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="maxUsage">
+                      Maximale Verwendungen (optional)
+                    </Label>
+                    <Input
+                      id="maxUsage"
+                      type="number"
+                      placeholder="Unbegrenzt"
+                      value={newToken.maxUsage}
+                      onChange={(e) =>
+                        setNewToken({ ...newToken, maxUsage: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expiresInDays">
+                      Gültig für (Tage, optional)
+                    </Label>
+                    <Input
+                      id="expiresInDays"
+                      type="number"
+                      placeholder="Unbegrenzt"
+                      value={newToken.expiresInDays}
+                      onChange={(e) =>
+                        setNewToken({
+                          ...newToken,
+                          expiresInDays: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2 border rounded-lg p-4 bg-muted/50">
+                    <Switch
+                      id="useFamilyPrice"
+                      checked={newToken.useFamilyPrice}
+                      onCheckedChange={(checked) =>
+                        setNewToken({ ...newToken, useFamilyPrice: checked })
+                      }
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="useFamilyPrice" className="cursor-pointer font-semibold">
+                        Family-Preis aktivieren
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Dieser Code erhält den ermäßigten Family-Preis (120€ statt 180€ pro Nacht)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateOpen(false)}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button onClick={handleCreate} disabled={isCreating}>
+                    {isCreating ? "Erstelle..." : "Erstellen"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {tokens.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              Keine Gäste-Codes vorhanden
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("settings.label")}</TableHead>
+                  <TableHead>{t("settings.code")}</TableHead>
+                  <TableHead>{t("settings.status")}</TableHead>
+                  <TableHead>{t("settings.uses")}</TableHead>
+                  <TableHead>{t("settings.validUntil")}</TableHead>
+                  <TableHead className="text-right">{t("settings.actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tokens.map((token) => {
+                  const isExpired =
+                    token.expiresAt && new Date(token.expiresAt) < new Date();
+                  const isMaxUsageReached =
+                    token.maxUsage &&
+                    token.usageCount >= token.maxUsage;
+
+                  return (
+                    <TableRow key={token.id}>
+                      <TableCell className="font-medium">
+                        {token.description || "Kein Name"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                            {token.token}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopy(token.token)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          {isExpired || isMaxUsageReached ? (
+                            <Badge variant="destructive">Abgelaufen</Badge>
+                          ) : token.isActive ? (
+                            <Badge variant="default">Aktiv</Badge>
+                          ) : (
+                            <Badge variant="secondary">Inaktiv</Badge>
+                          )}
+                          {(token as any).useFamilyPrice && (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                              {t("settings.family")}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {token.usageCount}
+                        {token.maxUsage && ` / ${token.maxUsage}`}
+                      </TableCell>
+                      <TableCell>{formatDate(token.expiresAt)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Switch
+                            checked={token.isActive}
+                            onCheckedChange={() =>
+                              handleToggle(token.id, token.isActive)
+                            }
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(token.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+

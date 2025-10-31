@@ -1,0 +1,241 @@
+// Prisma Schema für Domburg Ferienhaus Buchungssystem
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Benutzermodell
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  username      String?   @unique // Optional: für Username/Passwort Login
+  password      String?   // Optional: gehashtes Passwort (bcrypt)
+  role          UserRole  @default(GUEST)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  // Beziehungen
+  bookings      Booking[]
+  magicLinks    MagicLink[]
+  activityLogs  ActivityLog[]
+  messages      Message[]
+
+  @@index([email])
+  @@index([username])
+  @@index([role])
+}
+
+enum UserRole {
+  GUEST
+  ADMIN
+}
+
+// Buchungsmodell
+model Booking {
+  id              String        @id @default(cuid())
+  bookingCode     String        @unique @default(cuid()) // Eindeutiger Tracking-Code
+  
+  // Gast-Informationen (unabhängig von User-Account)
+  guestEmail      String
+  guestName       String?
+  
+  // Optional: User-ID wenn über Admin-Account gebucht
+  userId          String?
+  
+  startDate       DateTime
+  endDate         DateTime
+  numberOfGuests  Int           @default(1)
+  status          BookingStatus @default(PENDING)
+  message         String?       @db.Text
+  totalPrice      Decimal?      @db.Decimal(10, 2)
+  pricingDetails  Json?         // Details zur Preisberechnung
+  
+  // Google Calendar
+  googleEventId   String?       @unique
+  
+  // Admin Aktionen
+  adminNotes      String?       @db.Text
+  approvedAt      DateTime?
+  approvedById    String?
+  rejectedAt      DateTime?
+  rejectedById    String?
+  rejectionReason String?       @db.Text
+  cancelledAt     DateTime?
+  cancellationReason String?    @db.Text
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Beziehungen
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages        Message[]
+
+  @@index([userId])
+  @@index([bookingCode])
+  @@index([guestEmail])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@index([googleEventId])
+}
+
+enum BookingStatus {
+  PENDING       // Anfrage gestellt
+  APPROVED      // Von Admin genehmigt
+  REJECTED      // Von Admin abgelehnt
+  CANCELLED     // Vom Gast oder Admin storniert
+}
+
+// Preisphasen (z.B. Hauptsaison, Nebensaison)
+model PricingPhase {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  startDate         DateTime
+  endDate           DateTime
+  pricePerNight     Decimal  @db.Decimal(10, 2) // Standard-Preis
+  familyPricePerNight Decimal? @db.Decimal(10, 2) // Family-Preis (optional, sonst = Standard)
+  isActive          Boolean  @default(true)
+  priority          Int      @default(0) // Höhere Priorität überschreibt
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([startDate, endDate])
+  @@index([isActive])
+}
+
+// Basis-Preiseinstellungen
+model PricingSetting {
+  id            String  @id @default(cuid())
+  key           String  @unique
+  value         String
+  value2        String? // Für Dual-Werte wie Family-Preis
+  description   String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Magic Link Tokens für passwortlose Authentifizierung
+model MagicLink {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+
+  // Beziehungen
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Gastcodes für direkten Zugriff
+model GuestAccessToken {
+  id               String   @id @default(cuid())
+  token            String   @unique
+  description      String?
+  isActive         Boolean  @default(true)
+  expiresAt        DateTime?
+  usageCount       Int      @default(0)
+  maxUsage         Int?     // null = unbegrenzt
+  useFamilyPrice   Boolean  @default(false) // Ermäßigter Family-Preis
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([token])
+  @@index([isActive])
+}
+
+// Aktivitätsprotokolle
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entity      String?  // z.B. "Booking", "User"
+  entityId    String?
+  details     Json?
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+
+  // Beziehungen
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Systemeinstellungen
+model Setting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  isPublic    Boolean  @default(false) // Sichtbar für nicht-Admins
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}
+
+// Nachrichten zwischen Admins und Gästen
+model Message {
+  id          String   @id @default(cuid())
+  bookingId   String
+  userId      String?  // Null wenn von Gast
+  senderEmail String
+  senderName  String?
+  content     String   @db.Text
+  isFromGuest Boolean  @default(false)
+  readAt      DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Beziehungen
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([bookingId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Email Templates
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique // z.B. "booking_confirmation", "booking_approved"
+  name        String   // Anzeigename im Admin-Panel
+  subject     String   // Email-Betreff mit Variablen
+  bodyHtml    String   @db.Text // HTML-Body mit Variablen
+  bodyText    String   @db.Text // Plain-Text Alternative
+  description String?  // Beschreibung für Admins
+  variables   String[] // Erlaubte Variablen: ["guestName", "bookingCode", etc.]
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+  @@index([isActive])
+}
+
