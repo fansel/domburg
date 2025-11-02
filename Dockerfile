@@ -8,6 +8,9 @@
 # ---------- 1. Builder Stage ----------
     FROM oven/bun:1.1.30 AS builder
     WORKDIR /app
+
+
+    RUN apt-get update -y && apt-get install -y openssl
     
     # Copy only package manifest first for caching
     COPY package.json ./
