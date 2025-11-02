@@ -53,6 +53,12 @@ RUN npm install -g tsx prisma
 # Kopiere prisma Verzeichnis für Migrationen und Seeding
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
+# Kopiere src/template Verzeichnis für email-templates-seed.ts
+COPY --from=builder --chown=nextjs:nodejs /app/src/template ./src/template
+
+# Kopiere tsconfig.json für TypeScript-Pfad-Auflösung
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+
 # Kopiere package.json für npm scripts
 COPY --from=builder --chown=nextjs:nodejs /app/package*.json ./
 
