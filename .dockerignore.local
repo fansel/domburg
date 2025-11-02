@@ -1,0 +1,17 @@
+# .dockerignore für lokales Build (Dockerfile.local)
+# Dies ignoriert alles außer dem, was für den lokalen Build benötigt wird
+
+node_modules
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+
+# WICHTIG: .next wird NICHT ignoriert, damit .next/standalone kopiert werden kann
+
