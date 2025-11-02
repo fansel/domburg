@@ -47,6 +47,9 @@
     ENV PORT=3000
     ENV HOSTNAME="0.0.0.0"
     
+    # Install OpenSSL for Prisma (required at runtime)
+    RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+    
     # Install tsx globally for running seed scripts (as root, before switching to node user)
     RUN npm install -g tsx
     
