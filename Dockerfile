@@ -1,41 +1,58 @@
-# -------- Dependencies + Build (ULTRA FAST) --------
+# =========================================================
+# 🚀 Ultra-Fast Next.js + Prisma Production Dockerfile
+#   - Uses Bun (super fast) for build
+#   - Works even without bun.lockb
+#   - Produces small, clean final image
+# =========================================================
+
+# ---------- 1. Builder Stage ----------
     FROM oven/bun:1.1.30 AS builder
     WORKDIR /app
     
-    # Copy only what's needed first for cache
-    COPY package.json bun.lockb ./
-    RUN bun install --frozen-lockfile
+    # Copy only package manifest first for caching
+    COPY package.json ./
+    # If you already have a bun.lockb locally, uncomment the next line:
+    # COPY bun.lockb ./
     
-    # Copy rest of the source
+    # Install dependencies with Bun (fastest)
+    RUN bun install
+    
+    # Copy the rest of the source code
     COPY . .
     
-    # Environment
+    # Environment variables for optimized build
     ENV NODE_ENV=production
     ENV NEXT_TELEMETRY_DISABLED=1
-    ENV NEXT_DEBUG=1
     ENV CI=1
     ENV NODE_OPTIONS="--max-old-space-size=4096"
     
-    # Generate Prisma Client
-    RUN bunx prisma generate
+    # Generate Prisma client (faster via bunx)
+    RUN echo "=== Generating Prisma client ===" && \
+        bunx prisma generate && \
+        echo "=== Prisma client generated ==="
     
-    # Build Next.js with Bun (super fast)
-    RUN bun run build
+    # Build Next.js (ultra fast with Bun)
+    RUN echo "=== Starting Next.js build ===" && \
+        bun run build && \
+        echo "=== Build completed successfully ==="
     
-    # -------- Runner (small, clean image) --------
+    # ---------- 2. Runner Stage ----------
     FROM node:20-bookworm-slim AS runner
     WORKDIR /app
+    
     ENV NODE_ENV=production
     ENV PORT=3000
     ENV HOSTNAME="0.0.0.0"
     
-    # Copy only what’s needed to run
+    # Copy only what's needed for runtime
     COPY --from=builder /app/.next/standalone ./
     COPY --from=builder /app/.next/static ./.next/static
     COPY --from=builder /app/public ./public
     COPY --from=builder /app/prisma ./prisma
     
+    # Run as non-root user for safety
     USER node
+    
     EXPOSE 3000
     CMD ["node", "server.js"]
     
