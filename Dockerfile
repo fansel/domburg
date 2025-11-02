@@ -54,6 +54,11 @@
     COPY --from=builder /app/prisma ./prisma
     # Copy template directory for seed script
     COPY --from=builder /app/src/template ./src/template
+    # Copy node_modules for seed script (bcryptjs, @prisma/client, etc.)
+    COPY --from=builder /app/node_modules ./node_modules
+    # Copy package.json and tsconfig.json for proper module resolution with tsx
+    COPY --from=builder /app/package.json ./package.json
+    COPY --from=builder /app/tsconfig.json ./tsconfig.json
     
     # Run as non-root user for safety
     USER node
