@@ -28,8 +28,11 @@ ENV NEXT_DEBUG=1
 # Build with verbose output
 # Note: Next.js build can take 5-15 minutes for large projects - this is NORMAL
 # The build process compiles TypeScript, optimizes images, bundles code, etc.
+# Docker kann den Output verzögert anzeigen, auch wenn der Build läuft
 RUN echo "=== Starting Next.js build process (this may take 5-15 minutes) ===" && \
+    echo "=== Build started at: $(date) ===" && \
     NODE_OPTIONS="--max-old-space-size=4096" npm run build && \
+    echo "=== Build completed at: $(date) ===" && \
     echo "=== Next.js build completed successfully ===" && \
     echo "=== Checking build output ===" && \
     ls -lah .next/ 2>/dev/null && \
