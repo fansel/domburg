@@ -2,15 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 
 // Pricing Settings
 
 export async function updatePricingSetting(key: string, value: string) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Prüfe ob User Preise verwalten darf
+    if (!user.canManagePricing && user.role !== "SUPERADMIN") {
+      return { success: false, error: "Sie haben keine Berechtigung, Preise zu verwalten" };
     }
 
     const setting = await prisma.pricingSetting.update({
@@ -48,11 +53,19 @@ export async function createPricingPhase(data: {
   familyPricePerNight?: number;
   priority: number;
   isActive: boolean;
+  minNights?: number | null;
+  saturdayToSaturday?: boolean;
+  warningMessage?: string | null;
 }) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Prüfe ob User Preise verwalten darf
+    if (!user.canManagePricing && user.role !== "SUPERADMIN") {
+      return { success: false, error: "Sie haben keine Berechtigung, Preise zu verwalten" };
     }
 
     // Validierung
@@ -68,7 +81,8 @@ export async function createPricingPhase(data: {
       return { success: false, error: "Der Preis muss größer als 0 sein" };
     }
 
-    const phase = await prisma.pricingPhase.create({
+    // Verwende Type-Assertion für neue Felder (falls Prisma-Client noch nicht neu generiert wurde)
+    const phase = await (prisma.pricingPhase as any).create({
       data: {
         name: data.name,
         description: data.description,
@@ -78,6 +92,9 @@ export async function createPricingPhase(data: {
         familyPricePerNight: data.familyPricePerNight || null,
         priority: data.priority,
         isActive: data.isActive,
+        minNights: data.minNights || null,
+        saturdayToSaturday: data.saturdayToSaturday || false,
+        warningMessage: data.warningMessage || null,
       },
     });
 
@@ -104,19 +121,27 @@ export async function updatePricingPhase(
   id: string,
   data: Partial<{
     name: string;
-    description: string;
+    description: string | null;
     startDate: Date;
     endDate: Date;
     pricePerNight: number;
-    familyPricePerNight: number;
+    familyPricePerNight: number | null;
     priority: number;
     isActive: boolean;
+    minNights: number | null;
+    saturdayToSaturday: boolean;
+    warningMessage: string | null;
   }>
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Prüfe ob User Preise verwalten darf
+    if (!user.canManagePricing && user.role !== "SUPERADMIN") {
+      return { success: false, error: "Sie haben keine Berechtigung, Preise zu verwalten" };
     }
 
     // Validierung
@@ -132,15 +157,20 @@ export async function updatePricingPhase(
 
     const updateData: any = {};
     if (data.name) updateData.name = data.name;
-    if (data.description !== undefined) updateData.description = data.description;
+    if (data.description !== undefined) updateData.description = data.description || null;
     if (data.startDate) updateData.startDate = new Date(data.startDate);
     if (data.endDate) updateData.endDate = new Date(data.endDate);
     if (data.pricePerNight) updateData.pricePerNight = data.pricePerNight;
     if (data.familyPricePerNight !== undefined) updateData.familyPricePerNight = data.familyPricePerNight || null;
     if (data.priority !== undefined) updateData.priority = data.priority;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    // Neue Felder für Saison-Regeln
+    if (data.minNights !== undefined) updateData.minNights = data.minNights || null;
+    if (data.saturdayToSaturday !== undefined) updateData.saturdayToSaturday = data.saturdayToSaturday;
+    if (data.warningMessage !== undefined) updateData.warningMessage = data.warningMessage || null;
 
-    const phase = await prisma.pricingPhase.update({
+    // Verwende Type-Assertion für neue Felder (falls Prisma-Client noch nicht neu generiert wurde)
+    const phase = await (prisma.pricingPhase as any).update({
       where: { id },
       data: updateData,
     });
@@ -167,8 +197,13 @@ export async function updatePricingPhase(
 export async function deletePricingPhase(id: string) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Prüfe ob User Preise verwalten darf
+    if (!user.canManagePricing && user.role !== "SUPERADMIN") {
+      return { success: false, error: "Sie haben keine Berechtigung, Preise zu verwalten" };
     }
 
     await prisma.pricingPhase.delete({
@@ -191,6 +226,158 @@ export async function deletePricingPhase(id: string) {
   } catch (error) {
     console.error("Error deleting pricing phase:", error);
     return { success: false, error: "Fehler beim Löschen der Preisphase" };
+  }
+}
+
+// Beach Hut Sessions
+
+export async function createBeachHutSession(data: {
+  name: string;
+  description?: string;
+  startDate: Date;
+  endDate: Date;
+  isActive: boolean;
+}) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !hasAdminRights(user.role)) {
+      return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Prüfe ob User Preise verwalten darf
+    if (!user.canManagePricing && user.role !== "SUPERADMIN") {
+      return { success: false, error: "Sie haben keine Berechtigung, Preise zu verwalten" };
+    }
+
+    // Validierung
+    if (!data.name || !data.startDate || !data.endDate) {
+      return { success: false, error: "Bitte füllen Sie alle Pflichtfelder aus" };
+    }
+
+    if (new Date(data.startDate) >= new Date(data.endDate)) {
+      return { success: false, error: "Das Enddatum muss nach dem Startdatum liegen" };
+    }
+
+    const session = await prisma.beachHutSession.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        isActive: data.isActive,
+      },
+    });
+
+    // Activity Log
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: "BEACH_HUT_SESSION_CREATED",
+        entity: "BeachHutSession",
+        entityId: session.id,
+        details: JSON.parse(JSON.stringify({ name: data.name })),
+      },
+    });
+
+    revalidatePath("/admin/pricing");
+    return { success: true, session };
+  } catch (error) {
+    console.error("Error creating beach hut session:", error);
+    return { success: false, error: "Fehler beim Erstellen der Strandbuden-Session" };
+  }
+}
+
+export async function updateBeachHutSession(
+  id: string,
+  data: Partial<{
+    name: string;
+    description: string | null;
+    startDate: Date;
+    endDate: Date;
+    isActive: boolean;
+  }>
+) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !hasAdminRights(user.role)) {
+      return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Prüfe ob User Preise verwalten darf
+    if (!user.canManagePricing && user.role !== "SUPERADMIN") {
+      return { success: false, error: "Sie haben keine Berechtigung, Preise zu verwalten" };
+    }
+
+    // Validierung
+    if (data.startDate && data.endDate) {
+      if (new Date(data.startDate) >= new Date(data.endDate)) {
+        return { success: false, error: "Das Enddatum muss nach dem Startdatum liegen" };
+      }
+    }
+
+    const updateData: any = {};
+    if (data.name) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description || null;
+    if (data.startDate) updateData.startDate = new Date(data.startDate);
+    if (data.endDate) updateData.endDate = new Date(data.endDate);
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+    const session = await prisma.beachHutSession.update({
+      where: { id },
+      data: updateData,
+    });
+
+    // Activity Log
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: "BEACH_HUT_SESSION_UPDATED",
+        entity: "BeachHutSession",
+        entityId: session.id,
+        details: JSON.parse(JSON.stringify({ name: session.name })),
+      },
+    });
+
+    revalidatePath("/admin/pricing");
+    return { success: true, session };
+  } catch (error) {
+    console.error("Error updating beach hut session:", error);
+    return { success: false, error: "Fehler beim Aktualisieren der Strandbuden-Session" };
+  }
+}
+
+export async function deleteBeachHutSession(id: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !hasAdminRights(user.role)) {
+      return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Prüfe ob User Preise verwalten darf
+    if (!user.canManagePricing && user.role !== "SUPERADMIN") {
+      return { success: false, error: "Sie haben keine Berechtigung, Preise zu verwalten" };
+    }
+
+    await prisma.beachHutSession.delete({
+      where: { id },
+    });
+
+    // Activity Log
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: "BEACH_HUT_SESSION_DELETED",
+        entity: "BeachHutSession",
+        entityId: id,
+        details: JSON.parse(JSON.stringify({})),
+      },
+    });
+
+    revalidatePath("/admin/pricing");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting beach hut session:", error);
+    return { success: false, error: "Fehler beim Löschen der Strandbuden-Session" };
   }
 }
 

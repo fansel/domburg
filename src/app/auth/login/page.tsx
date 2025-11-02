@@ -1,22 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Home, Mail, User, Lock } from "lucide-react";
+import { Home, User, Lock, Loader2, Mail } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
-export default function LoginPage() {
-  const [email, setEmail] = useState("");
+function LoginPageContent() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [isSendingReset, setIsSendingReset] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -36,54 +38,26 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
+        if (data.mustChangePassword) {
+          toast({
+            title: t("auth.passwordChangeRequired"),
+            description: t("auth.pleaseChangePassword"),
+          });
+          router.push("/change-password");
+          router.refresh();
+        } else {
         toast({
-          title: "Angemeldet",
-          description: `Willkommen zurück!`,
+          title: t("auth.loginSuccess"),
+          description: t("auth.welcomeBack"),
         });
         router.push("/admin/bookings");
         router.refresh();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Fehler",
-          description: data.error || "Anmeldung fehlgeschlagen",
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Ein Fehler ist aufgetreten",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const response = await fetch("/api/auth/magic-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setEmailSent(true);
-        toast({
-          title: t("auth.magicLinkSent"),
-          description: t("auth.checkEmail"),
-        });
+        }
       } else {
         toast({
           variant: "destructive",
           title: t("errors.general"),
-          description: data.error || t("errors.general"),
+          description: data.error || t("auth.invalidCredentials"),
         });
       }
     } catch (error) {
@@ -97,9 +71,58 @@ export default function LoginPage() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotPasswordEmail.trim()) {
+      toast({
+        variant: "destructive",
+        title: t("errors.general"),
+        description: t("auth.pleaseEnterEmailOrUsername"),
+      });
+      return;
+    }
+
+    setIsSendingReset(true);
+
+    try {
+      const response = await fetch("/api/auth/request-password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotPasswordEmail.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast({
+          title: t("auth.emailSent"),
+          description: t("auth.resetEmailDescription"),
+        });
+        setShowForgotPassword(false);
+        setForgotPasswordEmail("");
+      } else {
+        toast({
+          variant: "destructive",
+          title: t("errors.general"),
+          description: data.error || t("auth.emailSendError"),
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: t("errors.general"),
+        description: t("errors.general"),
+      });
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <LanguageSwitcher />
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg border-2 border-border">
@@ -111,48 +134,16 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {emailSent ? (
-            <div className="space-y-4 py-6">
-              <div className="rounded-lg border-2 border-green-600 bg-green-50 dark:bg-green-950 p-6 text-center">
-                <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2">
-                  {t("auth.magicLinkSent")}
-                </h3>
-                <p className="text-sm text-green-700 dark:text-green-300">
-                  {t("auth.checkEmail")} <strong>{email}</strong>
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setEmailSent(false)}
-              >
-                {t("common.back")}
-              </Button>
-            </div>
-          ) : (
-            <Tabs defaultValue="password" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="password">
-                  <Lock className="h-4 w-4 mr-2" />
-                  Passwort
-                </TabsTrigger>
-                <TabsTrigger value="magic-link">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Magic Link
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="password">
-                <form onSubmit={handlePasswordLogin} className="space-y-4 py-4">
+          <form onSubmit={handlePasswordLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="username" className="flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      Username
+                      {t("auth.username")} {t("common.or")} {t("auth.email")}
                     </Label>
                     <Input
                       id="username"
                       type="text"
-                      placeholder="admin"
+                      placeholder={t("auth.username") + " " + t("common.or") + " " + t("auth.email")}
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
@@ -162,7 +153,7 @@ export default function LoginPage() {
                   <div className="space-y-2">
                     <Label htmlFor="password" className="flex items-center gap-2">
                       <Lock className="h-4 w-4" />
-                      Passwort
+                      {t("auth.password")}
                     </Label>
                     <Input
                       id="password"
@@ -175,41 +166,108 @@ export default function LoginPage() {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? t("common.loading") : "Anmelden"}
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </span>
+                    ) : (
+                      t("auth.login")
+                    )}
                   </Button>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="magic-link">
-                <form onSubmit={handleEmailLogin} className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      {t("auth.email")}
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="admin@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      disabled={isLoading}
-                    />
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="text-sm"
+                      onClick={() => setShowForgotPassword(true)}
+                    >
+                      {t("auth.forgotPassword")}
+                    </Button>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? t("common.loading") : t("auth.sendMagicLink")}
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="link"
+                className="text-sm"
+                onClick={() => router.push("/")}
+              >
+                {t("auth.backToHome")}
                   </Button>
-                  <p className="text-xs text-muted-foreground text-center">
-                    {t("auth.validFor")}
-                  </p>
+                  </div>
                 </form>
-              </TabsContent>
-            </Tabs>
-          )}
         </CardContent>
       </Card>
+
+      <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              {t("auth.resetPassword")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("auth.resetPasswordDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleForgotPassword} className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="resetEmail">{t("auth.email")} {t("common.or")} {t("auth.username")}</Label>
+              <Input
+                id="resetEmail"
+                type="text"
+                placeholder={t("auth.email") + " " + t("common.or") + " " + t("auth.username")}
+                value={forgotPasswordEmail}
+                onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                required
+                disabled={isSendingReset}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setForgotPasswordEmail("");
+                }}
+                disabled={isSendingReset}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={isSendingReset}>
+                {isSendingReset ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {t("email.sending")}
+                  </>
+                ) : (
+                  t("auth.sendEmail")
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg border-2 border-border">
+              <Home className="h-6 w-6" />
+            </div>
+            <CardTitle className="text-2xl">Laden...</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   );
 }
 

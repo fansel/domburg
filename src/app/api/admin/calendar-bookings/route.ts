@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/lib/google-calendar";
+import prisma from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return NextResponse.json(
         { error: "Keine Berechtigung" },
         { status: 403 }
@@ -18,11 +19,38 @@ export async function GET(request: NextRequest) {
       new Date(new Date().setFullYear(new Date().getFullYear() + 2))
     );
 
+    // Hole alle Buchungen mit googleEventId aus der Datenbank
+    const bookingsWithEventId = await prisma.booking.findMany({
+      where: {
+        googleEventId: { not: null },
+      },
+      select: {
+        googleEventId: true,
+      },
+    });
+    const appBookingEventIds = new Set(
+      bookingsWithEventId
+        .map((b) => b.googleEventId)
+        .filter((id): id is string => id !== null)
+    );
+
     // Filtere nur manuelle Einträge (keine App-Buchungen)
+    // Eine App-Buchung ist identifizierbar durch:
+    // 1. Hat eine googleEventId die in der Datenbank verlinkt ist, ODER
+    // 2. Beginnt mit "Buchung:" (genaues Format wie bei der Erstellung), ODER
+    // 3. Enthält das 🏠 Emoji, ODER
+    // 4. Enthält Preis-Format (z.B. "100€/200€")
     const manualBookings = allEvents.filter((date) => {
-      const isAppBooking = date.summary?.includes("🏠") || 
-                           date.summary?.includes("Buchung") ||
+      // Prüfe ob Event-ID in der Datenbank verlinkt ist
+      if (date.id && appBookingEventIds.has(date.id)) {
+        return false; // Es ist eine App-Buchung
+      }
+      
+      // Prüfe Titel-Format (App-Buchungen beginnen immer mit "Buchung:")
+      const isAppBooking = date.summary?.startsWith("Buchung:") || 
+                           date.summary?.includes("🏠") ||
                            date.summary?.match(/\d+€\/\d+€/); // Preis-Einträge
+      
       return !isAppBooking;
     });
 
@@ -49,7 +77,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return NextResponse.json(
         { error: "Keine Berechtigung" },
         { status: 403 }
@@ -97,7 +125,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return NextResponse.json(
         { error: "Keine Berechtigung" },
         { status: 403 }
@@ -138,7 +166,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return NextResponse.json(
         { error: "Keine Berechtigung" },
         { status: 403 }
@@ -154,13 +182,52 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Lösche Event aus Google Calendar
+    // Prüfe ob es eine interne Buchung ist (über googleEventId verlinkt)
+    const booking = await prisma.booking.findUnique({
+      where: { googleEventId: id },
+    });
+
+    if (booking) {
+      // Es ist eine interne Buchung - storniere sie statt nur das Calendar Event zu löschen
+      // Google Calendar Event löschen
+      await deleteCalendarEvent(id);
+
+      // Buchung stornieren
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: "CANCELLED",
+          cancelledAt: new Date(),
+          cancellationReason: "Vom Admin aus dem Kalender gelöscht",
+        },
+      });
+
+      // Activity Log
+      await prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: "BOOKING_CANCELLED",
+          entity: "Booking",
+          entityId: booking.id,
+          details: { reason: "Vom Admin aus dem Kalender gelöscht", calendarEventId: id },
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Buchung wurde storniert",
+        bookingCancelled: true,
+      });
+    } else {
+      // Es ist ein externes Event - nur aus Google Calendar löschen
     await deleteCalendarEvent(id);
 
     return NextResponse.json({
       success: true,
       message: "Kalendereintrag wurde gelöscht",
+        bookingCancelled: false,
     });
+    }
   } catch (error: any) {
     console.error("Error deleting calendar booking:", error);
     return NextResponse.json(

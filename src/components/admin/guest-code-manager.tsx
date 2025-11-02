@@ -41,16 +41,18 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newToken, setNewToken] = useState({
     description: "",
+    code: "",
     maxUsage: "",
     expiresInDays: "",
     useFamilyPrice: false,
+    accessType: "GUEST" as "GUEST" | "CLEANING",
   });
   const { toast } = useToast();
 
   // Reset newToken wenn Dialog geschlossen wird
   useEffect(() => {
     if (!isCreateOpen) {
-      setNewToken({ description: "", maxUsage: "", expiresInDays: "", useFamilyPrice: false });
+      setNewToken({ description: "", code: "", maxUsage: "", expiresInDays: "", useFamilyPrice: false, accessType: "GUEST" });
     }
   }, [isCreateOpen]);
 
@@ -58,7 +60,7 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
     if (!newToken.description) {
       toast({
         title: "Fehler",
-        description: "Bitte geben Sie eine Bezeichnung ein",
+        description: "Bezeichnung fehlt",
         variant: "destructive",
       });
       return;
@@ -70,15 +72,16 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
       maxUsage: newToken.maxUsage ? parseInt(newToken.maxUsage) : undefined,
       expiresInDays: newToken.expiresInDays ? parseInt(newToken.expiresInDays) : undefined,
       useFamilyPrice: newToken.useFamilyPrice,
+      accessType: newToken.accessType,
     });
 
     if (result.success && result.token) {
       setTokens([result.token, ...tokens]);
       setIsCreateOpen(false);
-      setNewToken({ description: "", maxUsage: "", expiresInDays: "", useFamilyPrice: false });
+      setNewToken({ description: "", code: "", maxUsage: "", expiresInDays: "", useFamilyPrice: false, accessType: "GUEST" });
       toast({
         title: "Code erstellt",
-        description: "Der neue Gäste-Code wurde erfolgreich erstellt",
+        description: "Gäste-Code erstellt",
       });
     } else {
       toast({
@@ -134,11 +137,11 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="space-y-2 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <CardTitle>{t("settings.guestAccessCodes")}</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-lg sm:text-xl">{t("settings.guestAccessCodes")}</CardTitle>
+              <CardDescription className="text-sm">
                 {t("settings.guestAccessCodesDescription")}
               </CardDescription>
             </div>
@@ -167,6 +170,24 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                         setNewToken({ ...newToken, description: e.target.value })
                       }
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="code">
+                      Code (optional - wird automatisch generiert wenn leer)
+                    </Label>
+                    <Input
+                      id="code"
+                      placeholder="z.B. DOMBURG2024"
+                      value={newToken.code}
+                      onChange={(e) => {
+                        // Automatisch zu Großbuchstaben konvertieren
+                        const upperValue = e.target.value.toUpperCase();
+                        setNewToken({ ...newToken, code: upperValue });
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Wenn leer gelassen, wird automatisch ein Code generiert
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="maxUsage">
@@ -198,6 +219,27 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                         })
                       }
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="accessType" className="text-sm font-medium">
+                      Zugangstyp
+                    </Label>
+                    <select
+                      id="accessType"
+                      value={newToken.accessType}
+                      onChange={(e) =>
+                        setNewToken({ ...newToken, accessType: e.target.value as "GUEST" | "CLEANING" })
+                      }
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="GUEST">Normal (Buchungen)</option>
+                      <option value="CLEANING">Housekeeper (nur Kalender)</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      {newToken.accessType === "CLEANING"
+                        ? "Gibt Zugang zum Housekeeper-Kalender (ohne Namen, nur Ankunft/Abreise)"
+                        : "Standard-Zugang für Buchungen"}
+                    </p>
                   </div>
                   <div className="flex items-center space-x-2 border rounded-lg p-4 bg-muted/50">
                     <Switch
@@ -238,8 +280,11 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
               Keine Gäste-Codes vorhanden
             </div>
           ) : (
-            <Table>
-              <TableHeader>
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
                 <TableRow>
                   <TableHead>{t("settings.label")}</TableHead>
                   <TableHead>{t("settings.code")}</TableHead>
@@ -277,7 +322,7 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           {isExpired || isMaxUsageReached ? (
                             <Badge variant="destructive">Abgelaufen</Badge>
                           ) : token.isActive ? (
@@ -288,6 +333,11 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                           {(token as any).useFamilyPrice && (
                             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
                               {t("settings.family")}
+                            </Badge>
+                          )}
+                          {(token as any).accessType === 'CLEANING' && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                              Housekeeper
                             </Badge>
                           )}
                         </div>
@@ -319,6 +369,103 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                 })}
               </TableBody>
             </Table>
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden space-y-4">
+                {tokens.map((token) => {
+                  const isExpired =
+                    token.expiresAt && new Date(token.expiresAt) < new Date();
+                  const isMaxUsageReached =
+                    token.maxUsage &&
+                    token.usageCount >= token.maxUsage;
+
+                  return (
+                    <Card key={token.id}>
+                      <CardContent className="pt-6">
+                        <div className="space-y-4">
+                          <div>
+                            <h3 className="font-medium text-base mb-3 break-words">
+                              {token.description || "Kein Name"}
+                            </h3>
+                            <div className="flex items-center gap-2 mb-3">
+                              <code className="px-2 py-1.5 bg-muted rounded text-xs font-mono break-all flex-1">
+                                {token.token}
+                              </code>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 flex-shrink-0"
+                                onClick={() => handleCopy(token.token)}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            {isExpired || isMaxUsageReached ? (
+                              <Badge variant="destructive">Abgelaufen</Badge>
+                            ) : token.isActive ? (
+                              <Badge variant="default">Aktiv</Badge>
+                            ) : (
+                              <Badge variant="secondary">Inaktiv</Badge>
+                            )}
+                            {(token as any).useFamilyPrice && (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                                {t("settings.family")}
+                              </Badge>
+                            )}
+                            {(token as any).accessType === 'CLEANING' && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                                Putzhilfe
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">{t("settings.uses")}</p>
+                              <p className="font-medium">
+                                {token.usageCount}
+                                {token.maxUsage && ` / ${token.maxUsage}`}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">{t("settings.validUntil")}</p>
+                              <p className="font-medium">{formatDate(token.expiresAt)}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-3 border-t">
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={token.isActive}
+                                onCheckedChange={() =>
+                                  handleToggle(token.id, token.isActive)
+                                }
+                              />
+                              <span className="text-sm text-muted-foreground">
+                                {token.isActive ? "Aktiv" : "Inaktiv"}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(token.id)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Löschen
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

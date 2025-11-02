@@ -16,8 +16,12 @@ model User {
   name          String?
   username      String?   @unique // Optional: für Username/Passwort Login
   password      String?   // Optional: gehashtes Passwort (bcrypt)
+  mustChangePassword Boolean @default(false) // Passwort muss bei nächstem Login geändert werden
   role          UserRole  @default(GUEST)
   isActive      Boolean   @default(true)
+  canSeeBookings Boolean  @default(true) // Kann Buchungen sehen
+  canApproveBookings Boolean @default(true) // Kann Buchungen genehmigen/ablehnen
+  canManagePricing Boolean @default(false) // Kann Preise verwalten
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   lastLoginAt   DateTime?
@@ -27,6 +31,7 @@ model User {
   magicLinks    MagicLink[]
   activityLogs  ActivityLog[]
   messages      Message[]
+  notificationPreferences AdminNotificationPreferences?
 
   @@index([email])
   @@index([username])
@@ -36,6 +41,7 @@ model User {
 enum UserRole {
   GUEST
   ADMIN
+  SUPERADMIN
 }
 
 // Buchungsmodell
@@ -46,13 +52,17 @@ model Booking {
   // Gast-Informationen (unabhängig von User-Account)
   guestEmail      String
   guestName       String?
+  guestPhone      String?
+  guestCode       String?         // Zugangscode der für die Buchung verwendet wurde
   
   // Optional: User-ID wenn über Admin-Account gebucht
   userId          String?
   
   startDate       DateTime
   endDate         DateTime
-  numberOfGuests  Int           @default(1)
+  numberOfAdults  Int           @default(1)
+  numberOfChildren Int          @default(0)
+  useBeachHut     Boolean       @default(false) // Strandbude gewünscht
   status          BookingStatus @default(PENDING)
   message         String?       @db.Text
   totalPrice      Decimal?      @db.Decimal(10, 2)
@@ -104,6 +114,25 @@ model PricingPhase {
   familyPricePerNight Decimal? @db.Decimal(10, 2) // Family-Preis (optional, sonst = Standard)
   isActive          Boolean  @default(true)
   priority          Int      @default(0) // Höhere Priorität überschreibt
+  minNights         Int?     // Mindestanzahl Nächte für diese Saison (optional)
+  saturdayToSaturday Boolean @default(false) // Nur Buchungen von Samstag zu Samstag erlauben
+  warningMessage    String?  @db.Text // Benutzerdefinierte Warnung wenn Regeln nicht eingehalten werden
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([startDate, endDate])
+  @@index([isActive])
+}
+
+// Strandbuden-Sessions (Zeiträume in denen Strandbude verfügbar ist)
+model BeachHutSession {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean  @default(true)
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -146,20 +175,27 @@ model MagicLink {
 
 // Gastcodes für direkten Zugriff
 model GuestAccessToken {
-  id               String   @id @default(cuid())
-  token            String   @unique
+  id               String        @id @default(cuid())
+  token            String        @unique
   description      String?
-  isActive         Boolean  @default(true)
+  isActive         Boolean       @default(true)
   expiresAt        DateTime?
-  usageCount       Int      @default(0)
-  maxUsage         Int?     // null = unbegrenzt
-  useFamilyPrice   Boolean  @default(false) // Ermäßigter Family-Preis
+  usageCount       Int           @default(0)
+  maxUsage         Int?          // null = unbegrenzt
+  useFamilyPrice   Boolean       @default(false) // Ermäßigter Family-Preis
+  accessType       AccessType    @default(GUEST) // Art des Zugangs
   
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   @@index([token])
   @@index([isActive])
+  @@index([accessType])
+}
+
+enum AccessType {
+  GUEST      // Normaler Gastzugang für Buchungen
+  CLEANING   // Putzhilfe/Haushaltshilfe - nur Kalenderansicht
 }
 
 // Aktivitätsprotokolle
@@ -237,5 +273,50 @@ model EmailTemplate {
 
   @@index([key])
   @@index([isActive])
+}
+
+// Email Log - Protokoll aller versendeten E-Mails
+model EmailLog {
+  id          String   @id @default(cuid())
+  templateKey String?  // Template-Schlüssel (z.B. "booking_confirmation")
+  emailType   String   // Art der E-Mail (z.B. "booking_confirmation", "password_reset")
+  to          String
+  from        String?  // Absender E-Mail
+  fromName    String?  // Absender Name
+  replyTo     String?  // Reply-To E-Mail
+  subject     String
+  bodyHtml    String   @db.Text
+  bodyText    String   @db.Text
+  status      String   @default("sent") // "sent", "failed", "pending"
+  error       String?  @db.Text // Fehlermeldung falls fehlgeschlagen
+  sentVia     String?  // "SMTP", "Resend", "Dev"
+  metadata    Json?    // Zusätzliche Metadaten (z.B. bookingCode, userId, etc.)
+  
+  createdAt   DateTime @default(now())
+
+  @@index([to])
+  @@index([templateKey])
+  @@index([emailType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Admin-Benachrichtigungseinstellungen
+model AdminNotificationPreferences {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  
+  // Benachrichtigungstypen
+  newBooking              Boolean  @default(true) // Neue Buchung
+  bookingApproved         Boolean  @default(false) // Buchung genehmigt
+  bookingRejected         Boolean  @default(false) // Buchung abgelehnt
+  
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  
+  // Beziehungen
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
 }
 

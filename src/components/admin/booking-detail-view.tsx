@@ -10,8 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Calendar, User, Mail, Users, MessageSquare, Edit, Trash2, 
-  Save, X, Send, Clock 
+  Calendar, User, Mail, Users, Edit, Trash2, 
+  Save, X, RotateCcw
 } from "lucide-react";
 import {
   Dialog,
@@ -22,10 +22,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { cancelBooking } from "@/app/actions/booking";
+import { cancelBooking, restoreBooking } from "@/app/actions/booking";
 import {
   updateBooking,
-  sendMessageToGuest,
 } from "@/app/actions/booking-management";
 import type { Booking, Message, User as UserType } from "@prisma/client";
 
@@ -37,7 +36,13 @@ interface BookingWithMessages extends Booking {
 
 interface BookingDetailViewProps {
   booking: BookingWithMessages;
-  currentUser: Pick<UserType, "id" | "name" | "email" | "role">;
+  currentUser: {
+    id: string;
+    name: string | null;
+    email: string;
+    role: string;
+    canApproveBookings?: boolean;
+  };
 }
 
 export function BookingDetailView({
@@ -47,15 +52,15 @@ export function BookingDetailView({
   const [booking, setBooking] = useState(initialBooking);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [newMessage, setNewMessage] = useState("");
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
   
   const [editData, setEditData] = useState({
     startDate: new Date(booking.startDate).toISOString().split("T")[0],
     endDate: new Date(booking.endDate).toISOString().split("T")[0],
-    numberOfGuests: booking.numberOfGuests,
+    numberOfAdults: (booking as any).numberOfAdults ?? (booking as any).numberOfGuests ?? 1,
+    numberOfChildren: (booking as any).numberOfChildren ?? 0,
     guestName: booking.guestName || "",
     guestEmail: booking.guestEmail,
+    guestPhone: (booking as any).guestPhone || "",
     adminNotes: booking.adminNotes || "",
   });
 
@@ -65,9 +70,11 @@ export function BookingDetailView({
       setEditData({
         startDate: new Date(booking.startDate).toISOString().split("T")[0],
         endDate: new Date(booking.endDate).toISOString().split("T")[0],
-        numberOfGuests: booking.numberOfGuests,
+        numberOfAdults: (booking as any).numberOfAdults ?? (booking as any).numberOfGuests ?? 1,
+        numberOfChildren: (booking as any).numberOfChildren ?? 0,
         guestName: booking.guestName || "",
         guestEmail: booking.guestEmail,
+        guestPhone: (booking as any).guestPhone || "",
         adminNotes: booking.adminNotes || "",
       });
     }
@@ -80,9 +87,11 @@ export function BookingDetailView({
     const result = await updateBooking(booking.id, {
       startDate: editData.startDate,
       endDate: editData.endDate,
-      numberOfGuests: editData.numberOfGuests,
+      numberOfAdults: editData.numberOfAdults,
+      numberOfChildren: editData.numberOfChildren,
       guestName: editData.guestName,
       guestEmail: editData.guestEmail,
+      guestPhone: editData.guestPhone,
       adminNotes: editData.adminNotes,
     });
 
@@ -91,7 +100,7 @@ export function BookingDetailView({
       setIsEditing(false);
       toast({
         title: "Gespeichert",
-        description: "Buchung wurde erfolgreich aktualisiert",
+        description: "Buchung aktualisiert",
       });
     } else {
       toast({
@@ -120,21 +129,13 @@ export function BookingDetailView({
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
-
-    setIsSendingMessage(true);
-    const result = await sendMessageToGuest(booking.id, newMessage);
-    
-    if (result.success && result.message) {
-      setBooking({
-        ...booking,
-        messages: [...booking.messages, result.message as any],
-      });
-      setNewMessage("");
+  const handleRestore = async (restoreToStatus: "PENDING" | "APPROVED") => {
+    const result = await restoreBooking(booking.id, restoreToStatus);
+    if (result.success) {
+      window.location.reload();
       toast({
-        title: "Gesendet",
-        description: "Nachricht wurde an den Gast gesendet",
+        title: "Wiederhergestellt",
+        description: `Buchung wurde wiederhergestellt (Status: ${restoreToStatus === "APPROVED" ? "Genehmigt" : "Ausstehend"})`,
       });
     } else {
       toast({
@@ -143,7 +144,6 @@ export function BookingDetailView({
         variant: "destructive",
       });
     }
-    setIsSendingMessage(false);
   };
 
   const formatDate = (date: Date) => {
@@ -151,16 +151,6 @@ export function BookingDetailView({
       year: "numeric",
       month: "long",
       day: "numeric",
-    }).format(new Date(date));
-  };
-
-  const formatDateTime = (date: Date) => {
-    return new Intl.DateTimeFormat("de-DE", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
     }).format(new Date(date));
   };
 
@@ -198,7 +188,7 @@ export function BookingDetailView({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {!isEditing && booking.status !== "CANCELLED" && (
-                <>
+                (currentUser.role === "SUPERADMIN" || currentUser.canApproveBookings !== false) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -206,11 +196,19 @@ export function BookingDetailView({
                     onClick={() => setIsEditing(true)}
                   >
                     <Edit className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Bearbeiten</span>
-                    <span className="sm:hidden">Edit</span>
+                    Bearbeiten
                   </Button>
+                )
+              )}
+              {!isEditing && booking.status === "CANCELLED" && (
+                (currentUser.role === "SUPERADMIN" || currentUser.canApproveBookings !== false) && (
+                  <RestoreDialog onRestore={handleRestore} />
+                )
+              )}
+              {!isEditing && booking.status === "APPROVED" && (
+                (currentUser.role === "SUPERADMIN" || currentUser.canApproveBookings !== false) && (
                   <CancelDialog onCancel={handleCancel} />
-                </>
+                )
               )}
               {isEditing && (
                 <>
@@ -232,9 +230,11 @@ export function BookingDetailView({
                       setEditData({
                         startDate: new Date(booking.startDate).toISOString().split("T")[0],
                         endDate: new Date(booking.endDate).toISOString().split("T")[0],
-                        numberOfGuests: booking.numberOfGuests,
+                        numberOfAdults: (booking as any).numberOfAdults ?? (booking as any).numberOfGuests ?? 1,
+                        numberOfChildren: (booking as any).numberOfChildren ?? 0,
                         guestName: booking.guestName || "",
                         guestEmail: booking.guestEmail,
+                        guestPhone: (booking as any).guestPhone || "",
                         adminNotes: booking.adminNotes || "",
                       });
                     }}
@@ -284,6 +284,40 @@ export function BookingDetailView({
                   <p className="text-sm">{booking.guestEmail}</p>
                 )}
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="guestPhone">Telefonnummer</Label>
+                {isEditing ? (
+                  <Input
+                    id="guestPhone"
+                    type="tel"
+                    value={editData.guestPhone}
+                    onChange={(e) =>
+                      setEditData({ ...editData, guestPhone: e.target.value })
+                    }
+                  />
+                ) : (
+                  <p className="text-sm">
+                    {(booking as any).guestPhone ? (
+                      <a 
+                        href={`tel:${(booking as any).guestPhone.replace(/\s/g, '')}`}
+                        className="text-primary hover:underline"
+                      >
+                        {(booking as any).guestPhone}
+                      </a>
+                    ) : (
+                      "Nicht angegeben"
+                    )}
+                  </p>
+                )}
+              </div>
+              {(booking as any).guestCode && (
+                <div className="space-y-2">
+                  <Label>Verwendeter Zugangscode</Label>
+                  <p className="text-sm font-mono bg-muted px-3 py-2 rounded-md">
+                    {(booking as any).guestCode}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -327,22 +361,41 @@ export function BookingDetailView({
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="numberOfGuests">Anzahl Gäste</Label>
+                <Label htmlFor="numberOfAdults">Anzahl Erwachsene</Label>
                 {isEditing ? (
                   <Input
-                    id="numberOfGuests"
+                    id="numberOfAdults"
                     type="number"
                     min="1"
-                    value={editData.numberOfGuests}
+                    value={editData.numberOfAdults}
                     onChange={(e) =>
                       setEditData({
                         ...editData,
-                        numberOfGuests: parseInt(e.target.value),
+                        numberOfAdults: parseInt(e.target.value) || 1,
                       })
                     }
                   />
                 ) : (
-                  <p className="text-sm font-medium">{booking.numberOfGuests}</p>
+                  <p className="text-sm font-medium">{(booking as any).numberOfAdults ?? (booking as any).numberOfGuests ?? 1}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="numberOfChildren">Anzahl Kinder</Label>
+                {isEditing ? (
+                  <Input
+                    id="numberOfChildren"
+                    type="number"
+                    min="0"
+                    value={editData.numberOfChildren}
+                    onChange={(e) =>
+                      setEditData({
+                        ...editData,
+                        numberOfChildren: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                ) : (
+                  <p className="text-sm font-medium">{(booking as any).numberOfChildren ?? 0}</p>
                 )}
               </div>
             </div>
@@ -388,93 +441,6 @@ export function BookingDetailView({
           </div>
         </CardContent>
       </Card>
-
-      {/* Chat/Nachrichten */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Kommunikation
-          </CardTitle>
-          <CardDescription>
-            Nachrichten mit dem Gast
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Nachrichtenverlauf */}
-          <div className="space-y-3 max-h-64 sm:max-h-96 overflow-y-auto px-1">
-            {booking.messages.length === 0 ? (
-              <p className="text-xs sm:text-sm text-muted-foreground text-center py-8">
-                Noch keine Nachrichten
-              </p>
-            ) : (
-              booking.messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.isFromGuest ? "justify-start" : "justify-end"
-                  }`}
-                >
-                  <div
-                    className={`max-w-[85%] sm:max-w-[70%] rounded-lg p-2 sm:p-3 ${
-                      message.isFromGuest
-                        ? "bg-muted"
-                        : "bg-primary text-primary-foreground"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1">
-                      <span className="text-[10px] sm:text-xs font-semibold">
-                        {message.isFromGuest
-                          ? message.senderName || message.senderEmail
-                          : "Admin"}
-                      </span>
-                      <Clock className="h-2 w-2 sm:h-3 sm:w-3" />
-                      <span className="text-[10px] sm:text-xs opacity-70">
-                        {formatDateTime(message.createdAt)}
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <Separator />
-
-          {/* Neue Nachricht */}
-          <div className="space-y-2">
-            <Label htmlFor="newMessage" className="text-xs sm:text-sm">Neue Nachricht an Gast</Label>
-            <Textarea
-              id="newMessage"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Nachricht an den Gast schreiben... (Gast kann per Email-Antwort zurückschreiben)"
-              rows={3}
-              className="text-xs sm:text-sm"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && e.ctrlKey) {
-                  handleSendMessage();
-                }
-              }}
-            />
-            <div className="flex justify-between items-center flex-wrap gap-2">
-              <p className="text-[10px] sm:text-xs text-muted-foreground">
-                📧 Gast erhält Email und kann direkt antworten
-              </p>
-              <Button
-                size="sm"
-                onClick={handleSendMessage}
-                disabled={!newMessage.trim() || isSendingMessage}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">{isSendingMessage ? "Sende..." : "Senden (Ctrl+Enter)"}</span>
-                <span className="sm:hidden">{isSendingMessage ? "..." : "Senden"}</span>
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -488,6 +454,7 @@ function CancelDialog({ onCancel }: { onCancel: (reason: string) => void }) {
     if (reason.trim()) {
       onCancel(reason);
       setIsOpen(false);
+      setReason("");
     }
   };
 
@@ -529,6 +496,61 @@ function CancelDialog({ onCancel }: { onCancel: (reason: string) => void }) {
             disabled={!reason.trim()}
           >
             Stornieren bestätigen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Restore Dialog Component
+function RestoreDialog({ onRestore }: { onRestore: (status: "PENDING" | "APPROVED") => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="default" size="sm" className="w-full sm:w-auto">
+          <RotateCcw className="h-4 w-4 mr-2" />
+          <span className="hidden sm:inline">Wiederherstellen</span>
+          <span className="sm:hidden">Restore</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Buchung wiederherstellen</DialogTitle>
+          <DialogDescription>
+            Wählen Sie, ob die Buchung als ausstehend oder genehmigt wiederhergestellt werden soll.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Die Buchung wird wiederhergestellt und kann anschließend bearbeitet werden.
+            </p>
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              onRestore("PENDING");
+              setOpen(false);
+            }}
+          >
+            Als ausstehend
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => {
+              onRestore("APPROVED");
+              setOpen(false);
+            }}
+          >
+            Als genehmigt
+          </Button>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Abbrechen
           </Button>
         </DialogFooter>
       </DialogContent>

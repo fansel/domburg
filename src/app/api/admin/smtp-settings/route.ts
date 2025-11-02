@@ -5,9 +5,9 @@ import prisma from "@/lib/prisma";
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "SUPERADMIN") {
       return NextResponse.json(
-        { error: "Keine Berechtigung" },
+        { error: "Keine Berechtigung - Nur Superadmins können SMTP-Einstellungen ändern" },
         { status: 403 }
       );
     }

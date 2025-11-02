@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: domburg-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-domburg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-domburg}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - domburg-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-domburg}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: domburg-app-prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Datenbank (erforderlich)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-domburg}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-domburg}?schema=public
+      
+      # JWT & Security (erforderlich)
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: production
+      
+      # App Config (optional)
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Domburg Ferienhaus}
+      
+      # Admin Setup (optional - nur für initiales Setup)
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - domburg-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  domburg-network:
+    driver: bridge
+

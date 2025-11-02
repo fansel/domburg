@@ -22,15 +22,34 @@ export async function POST(request: NextRequest) {
       useFamilyPrice = token?.useFamilyPrice || false;
     }
 
+    // Preisberechnung (Strandbude wird automatisch aktiviert wenn in aktiver Session)
     const pricing = await calculateBookingPrice(
       new Date(startDate),
       new Date(endDate),
       useFamilyPrice
     );
 
+    // Extrahiere minNights aus warnings falls vorhanden (für Frontend)
+    let minNights: number | undefined;
+    if (pricing.warnings && pricing.warnings.length > 0) {
+      // Versuche minNights aus der Warnung zu extrahieren
+      for (const warning of pricing.warnings) {
+        const match = warning.match(/Mindestbuchung von (\d+) Nächten?/);
+        if (match) {
+          minNights = parseInt(match[1]);
+          break;
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      pricing,
+      pricing: {
+        ...pricing,
+        // Füge minNights hinzu falls vorhanden (für einfacheren Zugriff im Frontend)
+        ...(minNights && { minNights }),
+      },
+      useFamilyPrice,
     });
   } catch (error: any) {
     console.error("Error calculating price:", error);

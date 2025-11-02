@@ -13,10 +13,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Gastcode verifizieren
-    const isValid = await verifyGuestAccessToken(code);
+    const result = await verifyGuestAccessToken(code);
 
     return NextResponse.json({
-      valid: isValid,
+      valid: result.valid,
+      accessType: result.accessType,
     });
   } catch (error) {
     console.error('Error validating guest code:', error);

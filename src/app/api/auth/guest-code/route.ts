@@ -14,17 +14,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Gastcode verifizieren
-    const isValid = await verifyGuestAccessToken(code);
+    const result = await verifyGuestAccessToken(code);
 
-    if (!isValid) {
+    if (!result.valid) {
       return NextResponse.json(
         { error: 'Gastcode ist ungültig oder abgelaufen' },
         { status: 401 }
       );
     }
 
+    // Für Cleaning-Codes auch einen User erstellen (aber mit speziellem Namen)
     // Standard-Gastbenutzer erstellen oder finden
-    const guestEmail = `guest-${code}@domburg.local`;
+    const guestEmail = result.accessType === 'CLEANING' 
+      ? `housekeeper-${code}@domburg.local`
+      : `guest-${code}@domburg.local`;
+    
     let user = await prisma.user.findUnique({
       where: { email: guestEmail },
     });
@@ -33,7 +37,7 @@ export async function POST(request: NextRequest) {
       user = await prisma.user.create({
         data: {
           email: guestEmail,
-          name: 'Gast',
+          name: result.accessType === 'CLEANING' ? 'Housekeeper' : 'Gast',
           role: 'GUEST',
         },
       });
@@ -72,6 +76,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         role: user.role,
       },
+      accessType: result.accessType || 'GUEST',
     });
 
     // Cookie direkt im Response-Header setzen

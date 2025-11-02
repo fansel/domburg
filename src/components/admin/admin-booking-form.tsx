@@ -38,9 +38,11 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
   const { t } = useTranslation();
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const [numberOfGuests, setNumberOfGuests] = useState(2);
+  const [numberOfAdults, setNumberOfAdults] = useState(2);
+  const [numberOfChildren, setNumberOfChildren] = useState(0);
   const [guestEmail, setGuestEmail] = useState("");
   const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pricing, setPricing] = useState<PriceCalculation | null>(null);
@@ -63,9 +65,11 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
     if (!open) {
       setStartDate(initialStartDate?.toISOString().split("T")[0] || "");
       setEndDate(initialEndDate?.toISOString().split("T")[0] || "");
-      setNumberOfGuests(2);
+      setNumberOfAdults(2);
+      setNumberOfChildren(0);
       setGuestEmail("");
       setGuestName("");
+      setGuestPhone("");
       setMessage("");
       setPricing(null);
     }
@@ -112,7 +116,7 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
       toast({
         variant: "destructive",
         title: "Fehler",
-        description: "Bitte wählen Sie einen Zeitraum aus.",
+        description: "Zeitraum auswählen",
       });
       return;
     }
@@ -121,7 +125,16 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
       toast({
         variant: "destructive",
         title: "Fehler",
-        description: "Bitte geben Sie eine E-Mail-Adresse ein.",
+        description: "E-Mail-Adresse fehlt",
+      });
+      return;
+    }
+
+    if (!guestPhone || !guestPhone.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Fehler",
+        description: "Telefonnummer fehlt",
       });
       return;
     }
@@ -132,16 +145,18 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
       const result = await createBooking({
         startDate,
         endDate,
-        numberOfGuests,
+        numberOfAdults,
+        numberOfChildren,
         guestEmail: guestEmail.trim(),
         guestName: guestName.trim() || undefined,
+        guestPhone: guestPhone.trim(),
         message: message.trim() || undefined,
       });
 
       if (result.success) {
         toast({
           title: "Erfolgreich",
-          description: "Buchung wurde erstellt.",
+          description: "Buchung erstellt",
         });
         onOpenChange(false);
         router.refresh();
@@ -157,7 +172,7 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
       toast({
         variant: "destructive",
         title: "Fehler",
-        description: "Ein Fehler ist aufgetreten",
+        description: "Fehler aufgetreten",
       });
     } finally {
       setIsSubmitting(false);
@@ -242,18 +257,49 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="numberOfGuests" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Anzahl Gäste
+            <Label htmlFor="guestPhone" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Telefonnummer *
             </Label>
             <Input
-              id="numberOfGuests"
+              id="guestPhone"
+              type="tel"
+              value={guestPhone}
+              onChange={(e) => setGuestPhone(e.target.value)}
+              placeholder="+49 123 456789"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="numberOfAdults" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Anzahl Erwachsene
+            </Label>
+            <Input
+              id="numberOfAdults"
               type="number"
               min="1"
               max="20"
-              value={numberOfGuests}
-              onChange={(e) => setNumberOfGuests(parseInt(e.target.value) || 1)}
+              value={numberOfAdults}
+              onChange={(e) => setNumberOfAdults(parseInt(e.target.value) || 1)}
               required
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="numberOfChildren">
+              Anzahl Kinder
+            </Label>
+            <Input
+              id="numberOfChildren"
+              type="number"
+              min="0"
+              max="20"
+              value={numberOfChildren}
+              onChange={(e) => setNumberOfChildren(parseInt(e.target.value) || 0)}
               disabled={isSubmitting}
             />
           </div>

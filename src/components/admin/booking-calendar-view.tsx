@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, User, Calendar, RefreshCw, Info, X, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, Calendar, RefreshCw, Info, X, Plus, ExternalLink } from "lucide-react";
 import type { Booking } from "@prisma/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,6 +12,15 @@ import { markEventAsInfo, unmarkEventAsInfo } from "@/app/actions/google-calenda
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { AdminBookingForm } from "@/components/admin/admin-booking-form";
+import { getBookingColorClass, getBookingTextColorClass } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { formatDate } from "@/lib/utils";
 
 interface CalendarEvent {
   id: string;
@@ -21,8 +30,13 @@ interface CalendarEvent {
   colorId?: string;
 }
 
+// Serialisierte Booking für Client Component (Decimal als String)
+type SerializedBooking = Omit<Booking, 'totalPrice'> & {
+  totalPrice: string | null;
+};
+
 interface BookingCalendarViewProps {
-  bookings: Booking[];
+  bookings: SerializedBooking[];
   calendarEvents?: CalendarEvent[];
   initialMonth?: number;
   initialYear?: number;
@@ -41,6 +55,8 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
+  const [selectedDayForDetails, setSelectedDayForDetails] = useState<number | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -139,19 +155,67 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   ];
 
   // Buchungen für den aktuellen Monat gruppieren
+  // WICHTIG: Gleiche Logik wie in availability/route.ts:
+  // - Check-in Tag wird angezeigt
+  // - Tage zwischen Check-in und Check-out werden angezeigt
+  // - Check-out Tag wird nur angezeigt, wenn er auch Check-in Tag ist
   const bookingsByDate = useMemo(() => {
     const map = new Map<string, Booking[]>();
     
+    // Sammle alle Check-in und Check-out Daten für Buchungen
+    const bookingCheckInDates = new Set<string>();
+    const bookingCheckOutDates = new Set<string>();
+    
     bookings.forEach((booking) => {
       const start = new Date(booking.startDate);
+      start.setHours(0, 0, 0, 0);
       const end = new Date(booking.endDate);
+      end.setHours(0, 0, 0, 0);
       
-      // Für jeden Tag der Buchung einen Eintrag erstellen
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        if (d.getMonth() === month && d.getFullYear() === year) {
-          const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const startKey = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
+      const endKey = `${end.getFullYear()}-${end.getMonth()}-${end.getDate()}`;
+      
+      bookingCheckInDates.add(startKey);
+      bookingCheckOutDates.add(endKey);
+    });
+    
+    bookings.forEach((booking) => {
+      const start = new Date(booking.startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(booking.endDate);
+      end.setHours(0, 0, 0, 0);
+      
+      const startKey = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
+      const endKey = `${end.getFullYear()}-${end.getMonth()}-${end.getDate()}`;
+      
+      // Check-in Tag immer anzeigen
+      if (start.getMonth() === month && start.getFullYear() === year) {
+        const key = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
+        const existing = map.get(key) || [];
+        existing.push(booking as any);
+        map.set(key, existing);
+      }
+      
+      // Tage zwischen Check-in und Check-out anzeigen
+      let current = new Date(start);
+      current.setDate(current.getDate() + 1); // Überspringe Check-in Tag
+      
+      while (current < end) {
+        if (current.getMonth() === month && current.getFullYear() === year) {
+          const key = `${current.getFullYear()}-${current.getMonth()}-${current.getDate()}`;
           const existing = map.get(key) || [];
-          existing.push(booking);
+          existing.push(booking as any);
+          map.set(key, existing);
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      
+      // Check-out Tag nur anzeigen, wenn er auch ein Check-in Tag ist
+      if (bookingCheckInDates.has(endKey)) {
+        if (end.getMonth() === month && end.getFullYear() === year) {
+          const key = `${end.getFullYear()}-${end.getMonth()}-${end.getDate()}`;
+          const existing = map.get(key) || [];
+          existing.push(booking as any);
           map.set(key, existing);
         }
       }
@@ -161,26 +225,81 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   }, [bookings, month, year]);
 
   // Calendar Events für den aktuellen Monat gruppieren
+  // WICHTIG: Gleiche Logik wie in availability/route.ts:
+  // - Check-in Tag ist NICHT blockiert (kann als Check-out verwendet werden)
+  // - Tage zwischen Check-in und Check-out sind blockiert
+  // - Check-out Tag ist nur blockiert, wenn er auch Check-in Tag ist (bei Calendar Events ODER Buchungen)
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
     
+    // Sammle alle Check-in und Check-out Daten für Events
+    const eventCheckInDates = new Set<string>();
+    const eventCheckOutDates = new Set<string>();
+    
     calendarEvents.forEach((event) => {
       const start = new Date(event.start);
+      start.setHours(0, 0, 0, 0);
       const end = new Date(event.end);
+      end.setHours(0, 0, 0, 0);
       
-      // Für jeden Tag des Events einen Eintrag erstellen
-      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-        if (d.getMonth() === month && d.getFullYear() === year) {
-          const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const startKey = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
+      const endKey = `${end.getFullYear()}-${end.getMonth()}-${end.getDate()}`;
+      
+      eventCheckInDates.add(startKey);
+      eventCheckOutDates.add(endKey);
+    });
+    
+    // Sammle auch alle Check-in Tage der Buchungen (für kombinierte Blockierung)
+    const bookingCheckInDates = new Set<string>();
+    bookings.forEach((booking) => {
+      const start = new Date(booking.startDate);
+      start.setHours(0, 0, 0, 0);
+      const startKey = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
+      bookingCheckInDates.add(startKey);
+    });
+    
+    calendarEvents.forEach((event) => {
+      const start = new Date(event.start);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(event.end);
+      end.setHours(0, 0, 0, 0);
+      
+      // Zeige alle Tage von Check-in bis Check-out (inklusive) im Kalender an
+      // Hinweis: Die Blockierungslogik für Verfügbarkeitsprüfung ist anders (Check-in/Check-out Tage sind verfügbar)
+      // Aber für die Anzeige im Kalender sollen alle Tage sichtbar sein
+      let current = new Date(start);
+      
+      // Zeige alle Tage von Check-in bis einschließlich Check-out Tag an
+      while (current <= end) {
+        if (current.getMonth() === month && current.getFullYear() === year) {
+          const key = `${current.getFullYear()}-${current.getMonth()}-${current.getDate()}`;
           const existing = map.get(key) || [];
           existing.push(event);
           map.set(key, existing);
         }
+        current.setDate(current.getDate() + 1);
       }
     });
     
     return map;
-  }, [calendarEvents, month, year]);
+  }, [calendarEvents, bookings, month, year]);
+
+  // Buchungen des aktuellen Monats filtern und sortieren
+  const monthBookings = useMemo(() => {
+    return bookings
+      .filter(booking => {
+        const start = new Date(booking.startDate);
+        const end = new Date(booking.endDate);
+        // Prüfe ob Buchung im aktuellen Monat liegt
+        return (start.getMonth() === month && start.getFullYear() === year) ||
+               (end.getMonth() === month && end.getFullYear() === year) ||
+               (start < new Date(year, month, 1) && end > new Date(year, month + 1, 0));
+      })
+      .sort((a, b) => {
+        // Sortiere nach Startdatum
+        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      });
+  }, [bookings, month, year]);
 
   // Kalender-Tage generieren
   const calendarDays = [];
@@ -224,7 +343,13 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   // Buchungen für einen Tag abrufen
   const getBookingsForDay = (day: number): Booking[] => {
     const key = `${year}-${month}-${day}`;
-    return bookingsByDate.get(key) || [];
+    const bookings = bookingsByDate.get(key) || [];
+    // Sortiere nach Erstellungsdatum (wer zuerst gebucht hat, kommt zuerst)
+    return bookings.sort((a, b) => {
+      const createdA = new Date(a.createdAt).getTime();
+      const createdB = new Date(b.createdAt).getTime();
+      return createdA - createdB;
+    });
   };
 
   // Prüfe ob ein Tag nur Abreisetag ist (Check-out, aber kein Check-in oder Zwischentag)
@@ -280,13 +405,19 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   const handleDayClick = (day: number) => {
     const clickedDate = new Date(year, month, day);
     const dayBookings = getBookingsForDay(day);
+    const dayEvents = getEventsForDay(day);
     const isCheckOutDay = isCheckOutOnlyDay(day);
     
-    // Erlaube Klicks auf leere Tage oder nur Check-out Tage
-    if (dayBookings.length > 0 && !isCheckOutDay) {
-      return;
+    // Wenn Buchungen vorhanden sind und es kein Check-out Tag ist, öffne Detail-Dialog
+    if (dayBookings.length > 0 || dayEvents.length > 0) {
+      if (!isCheckOutDay) {
+        setSelectedDayForDetails(day);
+        setIsDetailDialogOpen(true);
+        return;
+      }
     }
-
+    
+    // Für neue Buchungen: Erlaube Klicks auf leere Tage oder nur Check-out Tage
     // Wenn noch kein Startdatum gesetzt ist, setze es
     if (!selectedStartDate) {
       setSelectedStartDate(clickedDate);
@@ -360,67 +491,76 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl">
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex-1">
+              <CardTitle className="text-lg sm:text-xl md:text-2xl">
                 {monthNames[month]} {year}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm mt-1">
                 {bookings.length} {bookings.length === 1 ? "Buchung" : "Buchungen"}
                 {calendarEvents.length > 0 && ` • ${calendarEvents.length} blockierte Termine`}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="default"
-                size="sm"
-                onClick={() => setIsFormOpen(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Neue Buchung
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Aktualisieren
-              </Button>
-              <Button variant="outline" size="sm" onClick={goToToday}>
-                Heute
-              </Button>
-              <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={goToNextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="default"
+                  size="default"
+                  onClick={() => setIsFormOpen(true)}
+                  className="flex-1 sm:flex-initial text-sm sm:text-base h-10 sm:h-9"
+                >
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Neue Buchung</span>
+                  <span className="sm:hidden">Neu</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="default"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="flex-1 sm:flex-initial text-sm sm:text-base h-10 sm:h-9"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''} sm:mr-2`} />
+                  <span className="hidden sm:inline">Aktualisieren</span>
+                  <span className="sm:hidden">Aktual.</span>
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="default" onClick={goToToday} className="flex-1 sm:flex-initial text-sm sm:text-sm h-10 sm:h-9">
+                  Heute
+                </Button>
+                <Button variant="outline" size="icon" onClick={goToPreviousMonth} className="h-10 w-10 sm:h-9 sm:w-9">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={goToNextMonth} className="h-10 w-10 sm:h-9 sm:w-9">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-2 sm:p-6">
           {/* Wochentage Header */}
-          <div className="grid grid-cols-7 gap-2 mb-2">
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 sm:mb-3">
             {weekDays.map((day) => (
               <div
                 key={day}
-                className="text-center text-sm font-semibold text-muted-foreground py-2"
+                className="text-center text-sm sm:text-sm font-semibold text-muted-foreground py-2 sm:py-2"
               >
-                {day}
+                <span className="hidden sm:inline">{day}</span>
+                <span className="sm:hidden text-base">{day.substring(0, 2)}</span>
               </div>
             ))}
           </div>
 
           {/* Kalender-Tage */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2 lg:gap-3">
             {calendarDays.map((day, index) => {
               if (day === null) {
-                return <div key={`empty-${index}`} className="aspect-square" />;
+                return <div key={`empty-${index}`} className="min-h-[60px] sm:aspect-square" />;
               }
 
               const dayBookings = getBookingsForDay(day);
@@ -430,82 +570,98 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
               const isSelected = isDaySelected(day);
               const isEmpty = totalItems === 0;
               const isCheckOutDay = isCheckOutOnlyDay(day);
-              const isClickable = isEmpty || isCheckOutDay;
 
               return (
                 <div
                   key={day}
-                  onClick={() => isClickable && handleDayClick(day)}
+                  onClick={() => handleDayClick(day)}
                   className={`
-                    aspect-square border rounded-lg p-2
+                    min-h-[80px] sm:aspect-square border-2 rounded-lg p-2 sm:p-1.5 md:p-2 lg:p-3 cursor-pointer
                     ${today ? "border-primary bg-primary/5" : "border-border"}
                     ${totalItems > 0 && !isCheckOutDay ? "bg-muted/50" : ""}
                     ${isSelected ? "bg-primary/20 border-primary border-2" : ""}
                     ${isCheckOutDay ? "border-dashed border-primary/50" : ""}
-                    ${isClickable ? "cursor-pointer hover:bg-muted/30 transition-colors" : ""}
+                    hover:bg-muted/30 transition-colors
+                    relative touch-manipulation
                   `}
-                  title={isCheckOutDay ? "Check-out Tag - Klicken für neue Buchung möglich" : undefined}
+                  title={isCheckOutDay ? "Check-out Tag - Klicken für neue Buchung möglich" : totalItems > 0 ? "Klicken für Details" : "Klicken für neue Buchung"}
                 >
                   <div className="h-full flex flex-col">
                     <div
                       className={`
-                        text-sm font-medium mb-1
+                        text-base sm:text-sm md:text-base lg:text-lg font-semibold mb-1 sm:mb-1.5 flex-shrink-0
                         ${today ? "text-primary font-bold" : "text-foreground"}
                       `}
                     >
                       {day}
                     </div>
-                    <div className="flex-1 space-y-1 overflow-hidden">
-                      {/* Buchungen anzeigen */}
-                      {dayBookings.slice(0, 2).map((booking) => (
-                        <Link
-                          key={booking.id}
-                          href={`/admin/bookings/${booking.id}?from=calendar&month=${month + 1}&year=${year}`}
-                          className="block"
-                        >
-                          <div
-                            className={`
-                              text-xs p-1 rounded truncate cursor-pointer
-                              hover:opacity-80 transition-opacity
-                              ${
-                                booking.status === "APPROVED"
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-secondary text-secondary-foreground"
-                              }
-                            `}
-                            title={`${booking.guestName || booking.guestEmail} - ${getStatusLabel(booking.status)}`}
-                          >
-                            {booking.guestName?.split(" ")[0] || booking.guestEmail.split("@")[0]}
-                          </div>
-                        </Link>
-                      ))}
-                      
-                      {/* Calendar Events anzeigen */}
-                      {dayEvents.slice(0, Math.max(0, 2 - dayBookings.length)).map((event) => (
-                        <div
-                          key={event.id}
-                          className="text-xs p-1 rounded truncate bg-orange-100 dark:bg-orange-900 text-orange-900 dark:text-orange-100 border border-orange-300 dark:border-orange-700 group relative"
-                          title={`Blockiert: ${event.summary}`}
-                        >
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="truncate">{event.summary}</span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => handleMarkAsInfo(event.id)}
-                              disabled={markingEventId === event.id}
-                              title="Als Info markieren (blockiert nicht mehr)"
+                    <div className="flex-1 overflow-hidden min-h-0">
+                      {totalItems === 0 ? (
+                        <div className="text-xs sm:text-xs text-muted-foreground opacity-50 hidden sm:block">Leer</div>
+                      ) : (
+                        <div className="space-y-1 sm:space-y-0.5 md:space-y-1 overflow-y-auto h-full custom-scrollbar">
+                          {/* Auf mobilen Geräten bis zu 3 Buchungen/Events anzeigen, auf größeren Screens 2 */}
+                          {dayBookings.slice(0, 3).map((booking) => {
+                            const bgColorClass = getBookingColorClass(booking.id);
+                            const textColorClass = getBookingTextColorClass(booking.id);
+                            const isPending = booking.status === "PENDING";
+                            
+                            return (
+                              <div
+                                key={booking.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/admin/bookings/${booking.id}?from=calendar&month=${month + 1}&year=${year}`);
+                                }}
+                                className={`
+                                  text-xs sm:text-[10px] md:text-[11px] p-1.5 sm:p-0.5 md:p-1 rounded cursor-pointer
+                                  hover:opacity-90 transition-opacity flex-shrink-0 font-medium
+                                  ${bgColorClass}
+                                  ${textColorClass}
+                                  ${isPending ? 'opacity-100 border-2 border-dashed border-yellow-500 dark:border-yellow-400 shadow-sm' : ''}
+                                `}
+                                style={isPending ? {
+                                  backgroundImage: `repeating-linear-gradient(
+                                    45deg,
+                                    transparent,
+                                    transparent 3px,
+                                    rgba(255, 193, 7, 0.2) 3px,
+                                    rgba(255, 193, 7, 0.2) 6px
+                                  )`,
+                                  boxShadow: '0 0 0 1px rgba(234, 179, 8, 0.3) inset'
+                                } : {}}
+                                title={`${booking.guestName || booking.guestEmail} - ${getStatusLabel(booking.status)}`}
+                              >
+                                <div className="font-semibold truncate leading-tight">{booking.guestName?.split(" ")[0] || booking.guestEmail.split("@")[0]}</div>
+                              </div>
+                            );
+                          })}
+                          
+                          {/* Calendar Events anzeigen - auf mobilen Geräten bis zu 3 */}
+                          {dayEvents.slice(0, Math.max(0, 3 - dayBookings.length)).map((event) => (
+                            <div
+                              key={event.id}
+                              className="text-xs sm:text-[10px] md:text-[11px] p-1.5 sm:p-0.5 md:p-1 rounded bg-orange-100 dark:bg-orange-900 text-orange-900 dark:text-orange-100 border border-orange-300 dark:border-orange-700 flex-shrink-0"
+                              title={`Blockiert: ${event.summary}`}
                             >
-                              <Info className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {totalItems > 2 && (
-                        <div className="text-xs text-muted-foreground text-center">
-                          +{totalItems - 2}
+                              <div className="flex items-center gap-1 sm:gap-0.5">
+                                <svg className="h-3 w-3 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                                </svg>
+                                <span className="truncate leading-tight font-medium">{event.summary}</span>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {totalItems > 3 && (
+                            <div className="text-xs sm:text-[9px] md:text-[10px] text-muted-foreground text-center pt-1 sm:pt-0.5 flex-shrink-0 font-semibold">
+                              <span className="hidden sm:inline">+{totalItems - 3} {totalItems > 4 ? "weitere" : "weiterer"}</span>
+                              <span className="sm:hidden">+{totalItems - 3}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -517,74 +673,228 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
         </CardContent>
       </Card>
 
-      {/* Buchungsliste */}
+      {/* Liste aller Buchungen des Monats */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("calendar.bookingsInMonth", { month: monthNames[month] })}</CardTitle>
+          <CardTitle className="text-lg sm:text-xl">
+            Alle Buchungen - {monthNames[month]} {year}
+          </CardTitle>
           <CardDescription>
-            {t("calendar.detailedOverview")}
+            {monthBookings.length} {monthBookings.length === 1 ? "Buchung" : "Buchungen"} in diesem Monat
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {bookings.filter((b) => {
-            const start = new Date(b.startDate);
-            const end = new Date(b.endDate);
-            return (
-              (start.getMonth() === month && start.getFullYear() === year) ||
-              (end.getMonth() === month && end.getFullYear() === year) ||
-              (start < new Date(year, month, 1) && end > new Date(year, month + 1, 0))
-            );
-          }).length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              {t("calendar.noBookingsInMonth")}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {bookings
-                .filter((b) => {
-                  const start = new Date(b.startDate);
-                  const end = new Date(b.endDate);
-                  return (
-                    (start.getMonth() === month && start.getFullYear() === year) ||
-                    (end.getMonth() === month && end.getFullYear() === year) ||
-                    (start < new Date(year, month, 1) && end > new Date(year, month + 1, 0))
-                  );
-                })
-                .map((booking) => (
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {monthBookings.map((booking) => {
+                const bgColorClass = getBookingColorClass(booking.id);
+                const textColorClass = getBookingTextColorClass(booking.id);
+                const isPending = booking.status === "PENDING";
+                
+                return (
                   <Link
                     key={booking.id}
                     href={`/admin/bookings/${booking.id}?from=calendar&month=${month + 1}&year=${year}`}
                     className="block"
                   >
-                    <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <div className="font-medium flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            {booking.guestName || booking.guestEmail}
+                    <div className={`
+                      p-3 sm:p-4 border-2 rounded-lg hover:opacity-90 transition-all cursor-pointer
+                      ${isPending ? 'border-dashed border-yellow-500 dark:border-yellow-400 opacity-100 shadow-md bg-yellow-50/50 dark:bg-yellow-900/20' : ''}
+                    `}
+                    style={isPending ? {
+                      backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(234, 179, 8, 0.15) 4px, rgba(234, 179, 8, 0.15) 8px)`,
+                      backgroundColor: bgColorClass.replace('bg-', '').split('-')[0] === 'purple' ? 'rgb(168 85 247 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'green' ? 'rgb(34 197 94 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'slate' ? 'rgb(100 116 139 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'pink' ? 'rgb(236 72 153 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'yellow' ? 'rgb(234 179 8 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'orange' ? 'rgb(249 115 22 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'cyan' ? 'rgb(6 182 212 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'gray' ? 'rgb(75 85 99 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'blue' ? 'rgb(59 130 246 / 0.2)' :
+                                       bgColorClass.replace('bg-', '').split('-')[0] === 'red' ? 'rgb(239 68 68 / 0.2)' : 'transparent'
+                    } : {
+                      backgroundColor: bgColorClass === 'bg-purple-500' ? 'rgb(168 85 247 / 0.08)' :
+                                     bgColorClass === 'bg-green-500' ? 'rgb(34 197 94 / 0.08)' :
+                                     bgColorClass === 'bg-slate-500' ? 'rgb(100 116 139 / 0.08)' :
+                                     bgColorClass === 'bg-pink-500' ? 'rgb(236 72 153 / 0.08)' :
+                                     bgColorClass === 'bg-yellow-500' ? 'rgb(234 179 8 / 0.08)' :
+                                     bgColorClass === 'bg-orange-500' ? 'rgb(249 115 22 / 0.08)' :
+                                     bgColorClass === 'bg-cyan-500' ? 'rgb(6 182 212 / 0.08)' :
+                                     bgColorClass === 'bg-gray-600' ? 'rgb(75 85 99 / 0.08)' :
+                                     bgColorClass === 'bg-blue-500' ? 'rgb(59 130 246 / 0.08)' :
+                                     bgColorClass === 'bg-red-500' ? 'rgb(239 68 68 / 0.08)' : 'transparent'
+                    }}
+                    >
+                      <div className="flex items-start justify-between gap-2 sm:gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-semibold ${isPending ? 'font-bold' : ''} text-sm sm:text-base flex items-center gap-2 mb-1 ${textColorClass} ${isPending ? 'text-yellow-700 dark:text-yellow-300' : ''}`}>
+                            <User className="h-4 w-4 flex-shrink-0" />
+                            <span className="truncate">{booking.guestName || booking.guestEmail}</span>
+                            {isPending && <Badge variant="secondary" className="ml-2 text-xs bg-yellow-500 text-yellow-950 border border-yellow-600 dark:border-yellow-400">Ausstehend</Badge>}
                           </div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(booking.startDate).toLocaleDateString("de-DE")} -{" "}
-                            {new Date(booking.endDate).toLocaleDateString("de-DE")}
+                          <div className="text-xs sm:text-sm text-muted-foreground space-y-0.5 sm:space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3 w-3 flex-shrink-0" />
+                              <span>{formatDate(new Date(booking.startDate))} - {formatDate(new Date(booking.endDate))}</span>
+                            </div>
+                            <div>
+                              {(() => {
+                                const adults = booking.numberOfAdults ?? (booking as any).numberOfGuests ?? 1;
+                                const children = booking.numberOfChildren ?? 0;
+                                const total = adults + children;
+                                return `${total} ${total === 1 ? "Gast" : "Gäste"}${children > 0 ? ` (${children} ${children === 1 ? "Kind" : "Kinder"})` : ""}`;
+                              })()}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-sm text-muted-foreground">
-                          {booking.numberOfGuests} {booking.numberOfGuests === 1 ? "Gast" : "Gäste"}
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <Badge variant={getStatusBadgeVariant(booking.status)} className="text-xs">
+                            {getStatusLabel(booking.status)}
+                          </Badge>
                         </div>
-                        <Badge variant={getStatusBadgeVariant(booking.status)}>
-                          {getStatusLabel(booking.status)}
-                        </Badge>
                       </div>
                     </div>
                   </Link>
-                ))}
-            </div>
-          )}
+                );
+              })}
+            {monthBookings.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                Keine Buchungen in diesem Monat
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      {/* Detail-Dialog für Tag mit Buchungen */}
+      {selectedDayForDetails !== null && (
+        <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {new Date(year, month, selectedDayForDetails).toLocaleDateString("de-DE", { 
+                  weekday: "long", 
+                  day: "numeric", 
+                  month: "long", 
+                  year: "numeric" 
+                })}
+              </DialogTitle>
+              <DialogDescription>
+                Alle Buchungen und Termine für diesen Tag
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 mt-4">
+              {(() => {
+                const dayBookings = getBookingsForDay(selectedDayForDetails);
+                const dayEvents = getEventsForDay(selectedDayForDetails);
+                
+                if (dayBookings.length === 0 && dayEvents.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Keine Buchungen oder Termine an diesem Tag
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    {dayBookings.map((booking) => {
+                      const bgColorClass = getBookingColorClass(booking.id);
+                      const textColorClass = getBookingTextColorClass(booking.id);
+                      const isPending = booking.status === "PENDING";
+                      
+                      return (
+                        <Link
+                          key={booking.id}
+                          href={`/admin/bookings/${booking.id}?from=calendar&month=${month + 1}&year=${year}`}
+                          className="block"
+                        >
+                          <div className={`
+                            p-4 border-2 rounded-lg hover:opacity-90 transition-all cursor-pointer
+                            ${isPending ? 'border-dashed border-yellow-500 dark:border-yellow-400 opacity-100 shadow-md bg-yellow-50/50 dark:bg-yellow-900/20' : ''}
+                          `}
+                          style={isPending ? {
+                            backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(234, 179, 8, 0.15) 4px, rgba(234, 179, 8, 0.15) 8px)`,
+                            backgroundColor: bgColorClass.replace('bg-', '').split('-')[0] === 'purple' ? 'rgb(168 85 247 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'green' ? 'rgb(34 197 94 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'slate' ? 'rgb(100 116 139 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'pink' ? 'rgb(236 72 153 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'yellow' ? 'rgb(234 179 8 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'orange' ? 'rgb(249 115 22 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'cyan' ? 'rgb(6 182 212 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'gray' ? 'rgb(75 85 99 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'blue' ? 'rgb(59 130 246 / 0.2)' :
+                                             bgColorClass.replace('bg-', '').split('-')[0] === 'red' ? 'rgb(239 68 68 / 0.2)' : 'transparent'
+                          } : {
+                            backgroundColor: bgColorClass === 'bg-purple-500' ? 'rgb(168 85 247 / 0.1)' :
+                                           bgColorClass === 'bg-green-500' ? 'rgb(34 197 94 / 0.1)' :
+                                           bgColorClass === 'bg-slate-500' ? 'rgb(100 116 139 / 0.1)' :
+                                           bgColorClass === 'bg-pink-500' ? 'rgb(236 72 153 / 0.1)' :
+                                           bgColorClass === 'bg-yellow-500' ? 'rgb(234 179 8 / 0.1)' :
+                                           bgColorClass === 'bg-orange-500' ? 'rgb(249 115 22 / 0.1)' :
+                                           bgColorClass === 'bg-cyan-500' ? 'rgb(6 182 212 / 0.1)' :
+                                           bgColorClass === 'bg-gray-600' ? 'rgb(75 85 99 / 0.1)' :
+                                           bgColorClass === 'bg-blue-500' ? 'rgb(59 130 246 / 0.1)' :
+                                           bgColorClass === 'bg-red-500' ? 'rgb(239 68 68 / 0.1)' : 'transparent'
+                          }}
+                          >
+                            <div className={`font-medium ${isPending ? 'font-bold' : ''} text-base flex items-center gap-2 mb-2 ${textColorClass} ${isPending ? 'text-yellow-700 dark:text-yellow-300' : ''}`}>
+                              <User className="h-4 w-4" />
+                              {booking.guestName || booking.guestEmail}
+                              {isPending && <Badge variant="secondary" className="ml-2 text-xs bg-yellow-500 text-yellow-950 border border-yellow-600 dark:border-yellow-400">Ausstehend</Badge>}
+                            </div>
+                            <div className="text-sm text-muted-foreground space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(new Date(booking.startDate))} - {formatDate(new Date(booking.endDate))}
+                              </div>
+                              <div>
+                                {(() => {
+                                  const adults = booking.numberOfAdults ?? (booking as any).numberOfGuests ?? 1;
+                                  const children = booking.numberOfChildren ?? 0;
+                                  const total = adults + children;
+                                  return `${total} ${total === 1 ? "Gast" : "Gäste"}${children > 0 ? ` (davon ${children} ${children === 1 ? "Kind" : "Kinder"})` : ""}`;
+                                })()}
+                              </div>
+                              <div>
+                                <Badge variant={getStatusBadgeVariant(booking.status)}>
+                                  {getStatusLabel(booking.status)}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                    
+                    {dayEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800"
+                      >
+                        <div className="font-medium flex items-center gap-2 mb-2">
+                          <svg className="h-4 w-4 text-orange-600 dark:text-orange-400" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                          </svg>
+                          {event.summary}
+                        </div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-2">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(event.start)} - {formatDate(event.end)}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       
       <AdminBookingForm 
         open={isFormOpen} 

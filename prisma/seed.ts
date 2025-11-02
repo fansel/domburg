@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starte Seeding...');
 
-  // Standard-Admin mit Username/Passwort
+  // Standard-Superadmin mit Username/Passwort
   const hashedPassword = await bcrypt.hash('admin123', 10);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@domburg.local' },
@@ -15,16 +15,17 @@ async function main() {
       username: 'admin',
       password: hashedPassword,
       name: 'Administrator',
+      role: 'SUPERADMIN',
     },
     create: {
       email: 'admin@domburg.local',
       name: 'Administrator',
       username: 'admin',
       password: hashedPassword,
-      role: 'ADMIN',
+      role: 'SUPERADMIN',
     },
   });
-  console.log('✅ Admin erstellt:', admin.username, '/', admin.email);
+  console.log('✅ Superadmin erstellt:', admin.username, '/', admin.email);
   console.log('   Login: admin / admin123');
 
   // Test-Gast erstellen
@@ -80,6 +81,26 @@ async function main() {
       key: 'min_stay_nights',
       value: '3',
       description: 'Mindestanzahl Übernachtungen',
+    },
+  });
+
+  await prisma.pricingSetting.upsert({
+    where: { key: 'beach_hut_price_per_week' },
+    update: {},
+    create: {
+      key: 'beach_hut_price_per_week',
+      value: '100.00',
+      description: 'Strandbuden-Preis pro Woche (EUR)',
+    },
+  });
+
+  await prisma.pricingSetting.upsert({
+    where: { key: 'beach_hut_price_per_day' },
+    update: {},
+    create: {
+      key: 'beach_hut_price_per_day',
+      value: '15.00',
+      description: 'Strandbuden-Preis pro Tag (EUR)',
     },
   });
 
@@ -154,21 +175,16 @@ async function main() {
 
   console.log('✅ System-Einstellungen erstellt');
 
-  // Email Templates erstellen
-  console.log('📧 Erstelle Email-Templates...');
+  // Email Templates erstellen (nur wenn nicht vorhanden)
+  console.log('📧 Prüfe Email-Templates...');
   for (const template of emailTemplates) {
-    await prisma.emailTemplate.upsert({
+    const existing = await prisma.emailTemplate.findUnique({
       where: { key: template.key },
-      update: {
-        name: template.name,
-        subject: template.subject,
-        bodyHtml: template.bodyHtml,
-        bodyText: template.bodyText,
-        description: template.description,
-        variables: template.variables,
-        isActive: true,
-      },
-      create: {
+    });
+    
+    if (!existing) {
+      await prisma.emailTemplate.create({
+        data: {
         key: template.key,
         name: template.name,
         subject: template.subject,
@@ -179,9 +195,12 @@ async function main() {
         isActive: true,
       },
     });
-    console.log(`  ✅ ${template.name}`);
+      console.log(`  ✅ ${template.name} erstellt`);
+    } else {
+      console.log(`  ⏭️  ${template.name} existiert bereits - übersprungen`);
+    }
   }
-  console.log('✅ Email-Templates erstellt');
+  console.log('✅ Email-Templates Prüfung abgeschlossen');
 
   console.log('🎉 Seeding abgeschlossen!');
 }

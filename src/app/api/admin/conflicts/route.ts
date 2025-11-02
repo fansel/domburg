@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import { findAllConflicts } from "@/lib/booking-conflicts";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return NextResponse.json(
         { error: "Keine Berechtigung" },
         { status: 403 }

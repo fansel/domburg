@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 interface BookingCalendarProps {
   selectedStartDate: Date | null;
@@ -18,18 +19,66 @@ export function BookingCalendar({
   selectedEndDate,
   onDateSelect,
 }: BookingCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const { t, language } = useTranslation();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const firstAllowedMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  
+  // Initialisiere mit dem ersten erlaubten Monat (nicht in der Vergangenheit)
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const initial = new Date();
+    if (initial < firstAllowedMonth) {
+      return firstAllowedMonth;
+    }
+    return initial;
+  });
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Starte ohne Ladeanzeige
+  const [maxBookingDate, setMaxBookingDate] = useState<Date | null>(null);
+  
+  // Stelle sicher, dass currentMonth nie vor dem ersten erlaubten Monat liegt
+  useEffect(() => {
+    const currentMonthTime = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getTime();
+    const firstAllowedTime = firstAllowedMonth.getTime();
+    if (currentMonthTime < firstAllowedTime) {
+      setCurrentMonth(new Date(firstAllowedMonth));
+    }
+  }, [currentMonth, firstAllowedMonth]);
 
+  // Verfügbarkeit laden beim ersten Render und wenn sich Monat ändert
   useEffect(() => {
     loadAvailability();
   }, [currentMonth]);
 
   const loadAvailability = async () => {
+    // Setze isLoading nur für Klick-Prevention, aber zeige kein Overlay
     setIsLoading(true);
-    const start = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    const end = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 2, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = today; // Ab heute
+    
+    // Lade maximale Buchungsdatum von der API
+    let end: Date;
+    try {
+      const settingResponse = await fetch('/api/admin/booking-advance-setting');
+      const settingData = await settingResponse.json();
+      const enabled = settingData.enabled === true;
+      const currentMonth = today.getMonth() + 1;
+      const currentYear = today.getFullYear();
+      
+      if (enabled && currentMonth >= 10) {
+        // Ab Oktober: Bis Ende des nächsten Jahres
+        end = new Date(currentYear + 1, 11, 31);
+      } else {
+        // Vor Oktober: Bis Ende des aktuellen Jahres
+        end = new Date(currentYear, 11, 31);
+      }
+      setMaxBookingDate(end);
+    } catch {
+      // Fallback: 12 Monate in die Zukunft
+      end = new Date(today.getFullYear(), today.getMonth() + 12, 0);
+      setMaxBookingDate(end);
+    }
 
     try {
       const response = await fetch(
@@ -68,7 +117,12 @@ export function BookingCalendar({
   };
 
   const isDateBlocked = (date: Date): boolean => {
-    const dateStr = date.toISOString().split("T")[0];
+    // Konvertiere lokales Datum zu YYYY-MM-DD String (ohne Timezone-Umwandlung)
+    // date ist bereits in lokaler Zeitzone (z.B. new Date(2025, 10, 10) für 10. November)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
     return blockedDates.includes(dateStr);
   };
 
@@ -77,6 +131,13 @@ export function BookingCalendar({
     today.setHours(0, 0, 0, 0);
     return date < today;
   };
+  
+  const isDateAfterMaxBookingDate = (date: Date): boolean => {
+    if (!maxBookingDate) return false;
+    const maxDate = new Date(maxBookingDate);
+    maxDate.setHours(23, 59, 59, 999);
+    return date > maxDate;
+  };
 
   const isDateSelected = (date: Date): boolean => {
     if (!selectedStartDate || !selectedEndDate) return false;
@@ -84,130 +145,231 @@ export function BookingCalendar({
   };
 
   const handleDateClick = (date: Date) => {
-    if (isDateBlocked(date) || isDateInPast(date)) return;
+    // Warte bis Daten geladen sind
+    if (isLoading) return;
+    // Vergangene Daten können nicht gewählt werden
+    if (isDateInPast(date)) return;
+    // Daten nach maximalem Buchungsdatum können nicht gewählt werden
+    if (isDateAfterMaxBookingDate(date)) return;
 
+    // Wenn noch kein Startdatum gewählt wurde, kann nur ein nicht-blockierter Tag als Startdatum gewählt werden
     if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
-      // Neue Auswahl starten
+      // Neue Auswahl starten - nur wenn Tag nicht blockiert ist
+      if (isDateBlocked(date)) return;
       onDateSelect(date, null);
     } else {
-      // Enddatum setzen
+      // Enddatum setzen - auch blockierte Tage sind als Check-out Tag erlaubt
       if (date > selectedStartDate) {
-        // Prüfen ob Zeitraum verfügbar ist
+        // Prüfen ob Zeitraum verfügbar ist (inklusive Check-out Tag)
         const isRangeAvailable = checkRangeAvailable(selectedStartDate, date);
         if (isRangeAvailable) {
           onDateSelect(selectedStartDate, date);
+        } else {
+          // Wenn Zeitraum nicht verfügbar ist, mache den geklickten Tag zum neuen Startdatum
+          // Nur wenn Tag nicht blockiert ist (kann nicht als Startdatum verwendet werden, wenn blockiert)
+          if (!isDateBlocked(date)) {
+            onDateSelect(date, null);
+          }
         }
       } else {
-        // Wenn vor Startdatum, neues Startdatum
+        // Wenn vor Startdatum, neues Startdatum - nur wenn nicht blockiert
+        if (isDateBlocked(date)) return;
         onDateSelect(date, null);
       }
     }
   };
 
   const checkRangeAvailable = (start: Date, end: Date): boolean => {
+    // Prüfe alle Tage von start bis end (exklusive end)
+    // Diese Tage sind blockiert, wenn sie zwischen Check-in und Check-out einer bestehenden Buchung liegen
     const current = new Date(start);
-    while (current <= end) {
+    while (current < end) {
       if (isDateBlocked(current)) {
         return false;
       }
       current.setDate(current.getDate() + 1);
     }
+    
+    // WICHTIG: Prüfe auch den Check-out Tag (end)
+    // Er ist blockiert, wenn er zwischen Check-in und Check-out einer bestehenden Buchung liegt
+    // (Check-out Tag kann nicht als Check-out verwendet werden, wenn er während einer anderen Buchung liegt)
+    if (isDateBlocked(end)) {
+      return false;
+    }
+    
     return true;
   };
 
   const previousMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+    const newMonthTime = new Date(newMonth.getFullYear(), newMonth.getMonth(), 1).getTime();
+    const firstAllowedTime = firstAllowedMonth.getTime();
+    // Verhindere Zurückblättern vor dem ersten erlaubten Monat
+    if (newMonthTime >= firstAllowedTime) {
+      setCurrentMonth(newMonth);
+    }
   };
 
+  // Maximal erlaubter Monat: Basierend auf maxBookingDate
   const nextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+    if (!maxBookingDate) return;
+    
+    const maxMonth = new Date(maxBookingDate.getFullYear(), maxBookingDate.getMonth(), 1);
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+    const newMonthTime = new Date(newMonth.getFullYear(), newMonth.getMonth(), 1).getTime();
+    const maxAllowedTime = maxMonth.getTime();
+    // Verhindere Vorblättern über maximales Buchungsdatum hinaus
+    if (newMonthTime <= maxAllowedTime) {
+      setCurrentMonth(newMonth);
+    }
   };
+  
+  // Prüfe ob Zurück-Button deaktiviert werden soll
+  const currentMonthTime = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getTime();
+  const firstAllowedTime = firstAllowedMonth.getTime();
+  const canGoBack = currentMonthTime > firstAllowedTime;
+  
+  // Prüfe ob Vorwärts-Button deaktiviert werden soll (basierend auf maxBookingDate)
+  const canGoForward = maxBookingDate ? (() => {
+    const maxMonth = new Date(maxBookingDate.getFullYear(), maxBookingDate.getMonth(), 1);
+    return currentMonthTime < maxMonth.getTime();
+  })() : false;
 
-  const monthName = currentMonth.toLocaleDateString("de-DE", {
-    month: "long",
-    year: "numeric",
-  });
+  // Monatsnamen aus Übersetzungen
+  const monthNames = [
+    t("calendar.months.january"),
+    t("calendar.months.february"),
+    t("calendar.months.march"),
+    t("calendar.months.april"),
+    t("calendar.months.may"),
+    t("calendar.months.june"),
+    t("calendar.months.july"),
+    t("calendar.months.august"),
+    t("calendar.months.september"),
+    t("calendar.months.october"),
+    t("calendar.months.november"),
+    t("calendar.months.december")
+  ];
 
-  const weekDays = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const weekDays = [
+    t("calendar.weekdays.monday"),
+    t("calendar.weekdays.tuesday"),
+    t("calendar.weekdays.wednesday"),
+    t("calendar.weekdays.thursday"),
+    t("calendar.weekdays.friday"),
+    t("calendar.weekdays.saturday"),
+    t("calendar.weekdays.sunday")
+  ];
+
+  const month = currentMonth.getMonth();
+  const year = currentMonth.getFullYear();
+  const monthName = `${monthNames[month]} ${year}`;
   const days = getDaysInMonth(currentMonth);
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3 lg:pb-4">
         <div className="flex items-center justify-between">
-          <Button variant="outline" size="icon" onClick={previousMonth}>
-            <ChevronLeft className="h-4 w-4" />
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="h-9 w-9 lg:h-10 lg:w-10"
+            onClick={previousMonth}
+            disabled={!canGoBack}
+          >
+            <ChevronLeft className="h-4 w-4 lg:h-5 lg:w-5" />
           </Button>
-          <CardTitle className="capitalize">{monthName}</CardTitle>
-          <Button variant="outline" size="icon" onClick={nextMonth}>
-            <ChevronRight className="h-4 w-4" />
+          <CardTitle className="text-lg lg:text-xl font-semibold">{monthName}</CardTitle>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="h-9 w-9 lg:h-10 lg:w-10"
+            onClick={nextMonth}
+            disabled={!canGoForward}
+          >
+            <ChevronRight className="h-4 w-4 lg:h-5 lg:w-5" />
           </Button>
         </div>
-        <CardDescription>
-          Wählen Sie Ihren gewünschten Zeitraum
-        </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-muted-foreground">Lade Kalender...</div>
+        <div className="grid grid-cols-7 gap-2 lg:gap-3 mb-3 lg:mb-4">
+          {weekDays.map((day) => (
+            <div
+              key={day}
+              className="text-center text-sm lg:text-base font-medium text-muted-foreground"
+            >
+              {day}
+            </div>
+          ))}
+        </div>
+        {/* Keine Ladeanzeige - Kalender wird sofort angezeigt, blockierte Termine erscheinen nach dem Laden */}
+        <div className={cn("grid grid-cols-7 gap-2 lg:gap-3", isLoading && "pointer-events-none")}>
+          {days.map((day, index) => {
+            if (!day) {
+              return <div key={`empty-${index}`} />;
+            }
+
+            const blocked = isDateBlocked(day);
+            const past = isDateInPast(day);
+            const afterMax = isDateAfterMaxBookingDate(day);
+            const selected = isDateSelected(day);
+            const isStart = selectedStartDate?.toDateString() === day.toDateString();
+            const isEnd = selectedEndDate?.toDateString() === day.toDateString();
+            
+            // Vergleiche Datum nur auf Tag-Ebene (ohne Zeit)
+            // Normalisiere beide Dates auf Mitternacht für korrekten Vergleich
+            const normalizeDate = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const dayNormalized = normalizeDate(day);
+            const startNormalized = selectedStartDate ? normalizeDate(selectedStartDate) : null;
+            const dayIsAfterStart = startNormalized ? dayNormalized > startNormalized : false;
+            
+            // Ein Tag ist nur disabled wenn:
+            // - Er in der Vergangenheit liegt, ODER
+            // - Er nach dem maximalen Buchungsdatum liegt, ODER
+            // - Er blockiert ist UND (kein Startdatum gewählt ODER er ist vor/vom Startdatum)
+            // Blockierte Tage NACH dem Startdatum können als Check-out gewählt werden
+            const isDisabled = past || afterMax || (blocked && (!selectedStartDate || !dayIsAfterStart));
+            
+            // Ein Tag sollte rot angezeigt werden wenn er blockiert ist UND nicht als Check-out Tag für die aktuelle Auswahl verwendet wird
+            // Blockierte Tage sind immer rot, außer wenn sie als Check-out Tag verwendet werden (selectedEndDate)
+            // WICHTIG: Auch wenn ein Startdatum gewählt wurde, sollten blockierte Tage weiterhin rot sein
+            const isActuallyBlocked = blocked && !selected && !(selectedEndDate && dayNormalized.getTime() === selectedEndDate.getTime());
+
+            return (
+              <button
+                key={day.toISOString()}
+                onClick={() => handleDateClick(day)}
+                disabled={isDisabled || isLoading}
+                className={cn(
+                  "aspect-square rounded-md text-sm lg:text-base font-medium transition-colors",
+                  // Blockierte Tage haben immer die gleiche rote Farbe
+                  isActuallyBlocked && "bg-red-100 hover:bg-red-100",
+                  // Selected hat Priorität über blockiert
+                  selected && "bg-primary text-primary-foreground hover:bg-primary/90",
+                  // Hover nur wenn nicht blockiert und nicht selected
+                  !isActuallyBlocked && !selected && "hover:bg-accent hover:text-accent-foreground",
+                  "disabled:cursor-not-allowed",
+                  // Disabled-Opacity nur wenn nicht blockiert (blockierte Tage sollen immer voll sichtbar sein)
+                  isDisabled && !isActuallyBlocked && "disabled:opacity-50",
+                  (isStart || isEnd) && "font-bold lg:text-lg",
+                  past && "text-muted-foreground"
+                )}
+              >
+                {day.getDate()}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-4 lg:mt-6 flex gap-6 lg:gap-8 text-sm lg:text-base justify-center">
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-4 lg:h-5 lg:w-5 rounded bg-primary" />
+            <span>Ausgewählt</span>
           </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-7 gap-2 mb-2">
-              {weekDays.map((day) => (
-                <div
-                  key={day}
-                  className="text-center text-sm font-medium text-muted-foreground"
-                >
-                  {day}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-2">
-              {days.map((day, index) => {
-                if (!day) {
-                  return <div key={`empty-${index}`} />;
-                }
-
-                const blocked = isDateBlocked(day);
-                const past = isDateInPast(day);
-                const selected = isDateSelected(day);
-                const isStart = selectedStartDate?.toDateString() === day.toDateString();
-                const isEnd = selectedEndDate?.toDateString() === day.toDateString();
-
-                return (
-                  <button
-                    key={day.toISOString()}
-                    onClick={() => handleDateClick(day)}
-                    disabled={blocked || past}
-                    className={cn(
-                      "aspect-square rounded-md text-sm transition-colors",
-                      "hover:bg-accent hover:text-accent-foreground",
-                      "disabled:cursor-not-allowed disabled:opacity-50",
-                      selected && "bg-primary text-primary-foreground hover:bg-primary/90",
-                      (isStart || isEnd) && "font-bold",
-                      blocked && "bg-red-100 hover:bg-red-100",
-                      past && "text-muted-foreground"
-                    )}
-                  >
-                    {day.getDate()}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-4 flex gap-4 text-xs">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded bg-primary" />
-                <span>Ausgewählt</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded bg-red-100" />
-                <span>Belegt</span>
-              </div>
-            </div>
-          </>
-        )}
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-4 lg:h-5 lg:w-5 rounded bg-red-100" />
+            <span>Belegt</span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

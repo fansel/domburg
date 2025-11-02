@@ -5,9 +5,9 @@ import nodemailer from "nodemailer";
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "SUPERADMIN") {
       return NextResponse.json(
-        { error: "Keine Berechtigung" },
+        { error: "Keine Berechtigung - Nur Superadmins können SMTP-Einstellungen testen" },
         { status: 403 }
       );
     }
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create transporter
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       host,
       port: parseInt(port),
       secure: parseInt(port) === 465, // true für Port 465, false für andere Ports

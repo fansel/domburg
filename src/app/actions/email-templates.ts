@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 
 export async function getEmailTemplates() {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
     }
 
@@ -25,7 +25,7 @@ export async function getEmailTemplates() {
 export async function getEmailTemplate(id: string) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
     }
 
@@ -55,7 +55,7 @@ export async function updateEmailTemplate(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
     }
 
@@ -85,7 +85,7 @@ export async function updateEmailTemplate(
 export async function resetEmailTemplate(id: string) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
     }
 

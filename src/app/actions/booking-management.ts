@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import { calculateBookingPrice, validateBookingDates } from "@/lib/pricing";
 import { updateCalendarEvent } from "@/lib/google-calendar";
-import { sendMessageNotificationToGuest } from "@/lib/email";
+import { getBookingColorId } from "@/lib/utils";
 
 // Buchung bearbeiten
 export async function updateBooking(
@@ -13,16 +13,23 @@ export async function updateBooking(
   data: {
     startDate?: string;
     endDate?: string;
-    numberOfGuests?: number;
+    numberOfAdults?: number;
+    numberOfChildren?: number;
     guestName?: string;
     guestEmail?: string;
+    guestPhone?: string;
     adminNotes?: string;
   }
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || !hasAdminRights(user.role)) {
       return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Prüfe ob User Buchungen bearbeiten/genehmigen darf
+    if (!user.canApproveBookings && user.role !== "SUPERADMIN") {
+      return { success: false, error: "Sie haben keine Berechtigung, Buchungen zu bearbeiten" };
     }
 
     const booking = await prisma.booking.findUnique({
@@ -33,23 +40,32 @@ export async function updateBooking(
       return { success: false, error: "Buchung nicht gefunden" };
     }
 
+    // PENDING und APPROVED Buchungen können bearbeitet werden
+    if (!["PENDING", "APPROVED"].includes(booking.status)) {
+      return { success: false, error: "Nur ausstehende oder genehmigte Buchungen können bearbeitet werden" };
+    }
+
     // Prepare update data
     const updateData: any = {};
 
     if (data.startDate) updateData.startDate = new Date(data.startDate);
     if (data.endDate) updateData.endDate = new Date(data.endDate);
-    if (data.numberOfGuests) updateData.numberOfGuests = data.numberOfGuests;
+    if (data.numberOfAdults !== undefined) updateData.numberOfAdults = data.numberOfAdults;
+    if (data.numberOfChildren !== undefined) updateData.numberOfChildren = data.numberOfChildren;
     if (data.guestName !== undefined) updateData.guestName = data.guestName;
     if (data.guestEmail) updateData.guestEmail = data.guestEmail;
+    if (data.guestPhone !== undefined) updateData.guestPhone = data.guestPhone;
     if (data.adminNotes !== undefined) updateData.adminNotes = data.adminNotes;
 
     // Recalculate price if dates or guests changed
-    if (data.startDate || data.endDate || data.numberOfGuests) {
+    if (data.startDate || data.endDate || data.numberOfAdults !== undefined || data.numberOfChildren !== undefined) {
       const startDate = data.startDate
         ? new Date(data.startDate)
         : booking.startDate;
       const endDate = data.endDate ? new Date(data.endDate) : booking.endDate;
-      const numberOfGuests = data.numberOfGuests || booking.numberOfGuests;
+      const numberOfAdults = data.numberOfAdults !== undefined ? data.numberOfAdults : booking.numberOfAdults;
+      const numberOfChildren = data.numberOfChildren !== undefined ? data.numberOfChildren : booking.numberOfChildren;
+      const totalGuests = numberOfAdults + numberOfChildren;
 
       // Validate dates (inkl. Google Calendar-Blockierungen)
       const validation = await validateBookingDates(startDate, endDate, bookingId);
@@ -63,18 +79,21 @@ export async function updateBooking(
       );
 
       updateData.totalPrice = totalPrice;
-      updateData.pricingDetails = pricingDetails;
+      updateData.pricingDetails = pricingDetails as any; // PriceCalculation wird als JSON gespeichert
 
-      // Update Google Calendar Event if exists
-      if (booking.googleEventId && booking.status === "APPROVED") {
+      // Update Google Calendar Event if exists and booking is APPROVED
+      // PENDING Buchungen haben noch kein Calendar Event
+      if (booking.googleEventId && (booking.status === "APPROVED" || updateData.status === "APPROVED")) {
         try {
+          const colorId = getBookingColorId(booking.id);
           await updateCalendarEvent(booking.googleEventId, {
             summary: `Buchung: ${data.guestName || booking.guestName || data.guestEmail || booking.guestEmail}`,
-            description: `Geändert von Admin\n\nAnzahl Gäste: ${numberOfGuests}${
+            description: `Geändert von Admin\n\nAnzahl Erwachsene: ${numberOfAdults}\nAnzahl Kinder: ${numberOfChildren}${
               data.adminNotes ? `\n\nNotizen: ${data.adminNotes}` : ""
             }`,
             startDate: startDate,
             endDate: endDate,
+            colorId,
           });
         } catch (error) {
           console.error("Error updating calendar event:", error);
@@ -106,100 +125,6 @@ export async function updateBooking(
   } catch (error) {
     console.error("Error updating booking:", error);
     return { success: false, error: "Fehler beim Aktualisieren der Buchung" };
-  }
-}
-
-// Nachricht an Gast senden
-export async function sendMessageToGuest(bookingId: string, content: string) {
-  try {
-    const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
-      return { success: false, error: "Keine Berechtigung" };
-    }
-
-    const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-    });
-
-    if (!booking) {
-      return { success: false, error: "Buchung nicht gefunden" };
-    }
-
-    const message = await prisma.message.create({
-      data: {
-        bookingId,
-        userId: user.id,
-        senderEmail: user.email,
-        senderName: user.name,
-        content,
-        isFromGuest: false,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-    });
-
-    // Send email notification to guest
-    await sendMessageNotificationToGuest({
-      guestEmail: booking.guestEmail,
-      bookingCode: booking.bookingCode,
-      guestName: booking.guestName || undefined,
-      messageContent: content,
-      senderName: user.name || "Administrator",
-    });
-
-    revalidatePath(`/admin/bookings/${bookingId}`);
-
-    return { success: true, message };
-  } catch (error) {
-    console.error("Error sending message:", error);
-    return { success: false, error: "Fehler beim Senden der Nachricht" };
-  }
-}
-
-// Nachricht von Gast empfangen (API Route)
-export async function sendMessageFromGuest(
-  bookingCode: string,
-  guestEmail: string,
-  content: string,
-  guestName?: string
-) {
-  try {
-    const booking = await prisma.booking.findUnique({
-      where: { bookingCode },
-    });
-
-    if (!booking) {
-      return { success: false, error: "Buchung nicht gefunden" };
-    }
-
-    if (booking.guestEmail !== guestEmail) {
-      return { success: false, error: "Keine Berechtigung" };
-    }
-
-    const message = await prisma.message.create({
-      data: {
-        bookingId: booking.id,
-        senderEmail: guestEmail,
-        senderName: guestName,
-        content,
-        isFromGuest: true,
-      },
-    });
-
-    // TODO: Send notification to admin
-
-    return { success: true, message };
-  } catch (error) {
-    console.error("Error sending message from guest:", error);
-    return { success: false, error: "Fehler beim Senden der Nachricht" };
   }
 }
 

@@ -28,7 +28,7 @@ export async function createToken(payload: JWTPayload): Promise<string> {
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecretKey());
-    return payload as JWTPayload;
+    return payload as unknown as JWTPayload;
   } catch (error: any) {
     return null;
   }
@@ -57,6 +57,9 @@ export async function getCurrentUser() {
         name: true,
         role: true,
         isActive: true,
+        canSeeBookings: true,
+        canApproveBookings: true,
+        canManagePricing: true,
         createdAt: true,
       },
     });
@@ -72,10 +75,34 @@ export async function getCurrentUser() {
   }
 }
 
-// Prüfen ob Benutzer Admin ist
+// Prüfen ob Benutzer Admin-Rechte hat (ADMIN oder SUPERADMIN)
+// SUPERADMIN hat automatisch alle ADMIN-Rechte - einfache Prüfung
+export function hasAdminRights(role: UserRole | undefined): boolean {
+  return role === 'ADMIN' || role === 'SUPERADMIN';
+}
+
+// Prüfen ob Benutzer Admin ist (ADMIN oder SUPERADMIN)
+// SUPERADMIN ist einfach ein ADMIN mit zusätzlichen Rechten
 export async function isAdmin() {
   const user = await getCurrentUser();
-  return user?.role === 'ADMIN';
+  return hasAdminRights(user?.role);
+}
+
+// Prüfen ob Benutzer Superadmin ist
+export async function isSuperAdmin() {
+  const user = await getCurrentUser();
+  return user?.role === 'SUPERADMIN';
+}
+
+// Prüfen ob Benutzer Admin oder Superadmin ist (Hilfsfunktion für Typen)
+// SUPERADMIN ist einfach ein ADMIN
+export function isAdminRole(role: UserRole | undefined): boolean {
+  return hasAdminRights(role);
+}
+
+// Prüfen ob Rolle Superadmin ist
+export function isSuperAdminRole(role: UserRole | undefined): boolean {
+  return role === 'SUPERADMIN';
 }
 
 // Auth Token in Cookie setzen
@@ -93,6 +120,14 @@ export async function setAuthCookie(token: string) {
 // Auth Token aus Cookie löschen
 export async function clearAuthCookie() {
   const cookieStore = await cookies();
+  // Cookie mit expliziten Optionen löschen, um sicherzustellen dass es wirklich gelöscht wird
+  cookieStore.set('auth_token', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 0, // Sofort ablaufen lassen
+    path: '/',
+  });
   cookieStore.delete('auth_token');
 }
 
@@ -159,30 +194,41 @@ export async function verifyMagicLinkToken(token: string): Promise<string | null
   }
 }
 
-// Gastcode verifizieren
-export async function verifyGuestAccessToken(token: string): Promise<boolean> {
-  const accessToken = await prisma.guestAccessToken.findUnique({
-    where: { token },
+// Gastcode verifizieren und AccessType zurückgeben (case-insensitive)
+export async function verifyGuestAccessToken(token: string): Promise<{ valid: boolean; accessType?: string }> {
+  // Normalisiere Token zu Großbuchstaben für Suche
+  const tokenUpper = token.toUpperCase().trim();
+  
+  // Suche case-insensitive - da Prisma keine case-insensitive unique Suche hat,
+  // müssen wir alle Varianten prüfen oder findFirst verwenden
+  const accessToken = await prisma.guestAccessToken.findFirst({
+    where: {
+      OR: [
+        { token: tokenUpper },
+        { token: token.toLowerCase() },
+        { token: token },
+      ],
+    },
   });
 
   if (!accessToken || !accessToken.isActive) {
-    return false;
+    return { valid: false };
   }
 
   if (accessToken.expiresAt && accessToken.expiresAt < new Date()) {
-    return false;
+    return { valid: false };
   }
 
   if (accessToken.maxUsage && accessToken.usageCount >= accessToken.maxUsage) {
-    return false;
+    return { valid: false };
   }
 
-  // Nutzungszähler erhöhen
+  // Nutzungszähler erhöhen (mit dem gefundenen Token aus DB)
   await prisma.guestAccessToken.update({
-    where: { token },
+    where: { id: accessToken.id },
     data: { usageCount: { increment: 1 } },
   });
 
-  return true;
+  return { valid: true, accessType: accessToken.accessType };
 }
 

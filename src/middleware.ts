@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, hasAdminRights } from '@/lib/auth';
 
-const publicPaths = ['/auth/login', '/auth/verify', '/auth/guest', '/booking/status', '/api/bookings/check', '/book', '/api/auth/validate-guest-code', '/api/auth/check', '/dev/emails', '/api/dev', '/locales'];
+const publicPaths = ['/auth/login', '/auth/reset-password', '/auth/guest', '/booking/status', '/api/bookings/check', '/book', '/calendar', '/api/auth/validate-guest-code', '/api/auth/check', '/api/auth/reset-password', '/api/auth/request-password-reset', '/api/auth/change-password', '/change-password', '/dev/emails', '/api/dev', '/locales', '/api/cleaning', '/housekeeping'];
 const adminPaths = ['/admin'];
 
 export async function middleware(request: NextRequest) {
@@ -38,9 +38,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Admin-Bereich nur für Admins
+  // Admin-Bereich nur für Admins (SUPERADMIN hat automatisch ADMIN-Rechte)
   if (adminPaths.some(path => pathname.startsWith(path))) {
-    if (payload.role !== 'ADMIN') {
+    if (!hasAdminRights(payload.role)) {
       return NextResponse.redirect(new URL('/', request.url));
     }
   }

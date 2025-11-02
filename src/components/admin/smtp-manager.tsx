@@ -181,14 +181,14 @@ export function SmtpManager({ initialSettings }: SmtpManagerProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
+      <CardHeader className="space-y-2 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            <CardTitle>E-Mail-Versand</CardTitle>
+            <Mail className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <CardTitle className="text-lg sm:text-xl">E-Mail-Versand</CardTitle>
           </div>
           <div className="flex items-center gap-2">
-            <Label htmlFor="smtp-enabled" className="text-sm font-normal">
+            <Label htmlFor="smtp-enabled" className="text-xs sm:text-sm font-normal">
               {settings.enabled ? (
                 <span className="text-green-600 dark:text-green-400">SMTP aktiv</span>
               ) : (
@@ -202,7 +202,7 @@ export function SmtpManager({ initialSettings }: SmtpManagerProps) {
             />
           </div>
         </div>
-        <CardDescription>
+        <CardDescription className="text-sm">
           {settings.enabled 
             ? "SMTP ist aktiviert - Alle E-Mails werden über deinen SMTP-Server versendet"
             : "Dev-Modus aktiv - E-Mails werden nur lokal gespeichert"
@@ -210,41 +210,44 @@ export function SmtpManager({ initialSettings }: SmtpManagerProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="host">SMTP Host</Label>
+            <Label htmlFor="host" className="text-sm font-medium">SMTP Host</Label>
             <Input
               id="host"
               placeholder="smtp.gmail.com"
               value={settings.host}
               onChange={(e) => setSettings({ ...settings, host: e.target.value })}
+              className="text-base"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="port">SMTP Port</Label>
+            <Label htmlFor="port" className="text-sm font-medium">SMTP Port</Label>
             <Input
               id="port"
               type="number"
               placeholder="587"
               value={settings.port}
               onChange={(e) => setSettings({ ...settings, port: e.target.value })}
+              className="text-base"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="user">SMTP Benutzername (E-Mail)</Label>
+            <Label htmlFor="user" className="text-sm font-medium">SMTP Benutzername (E-Mail)</Label>
             <Input
               id="user"
               type="email"
               placeholder="deine@email.de"
               value={settings.user}
               onChange={(e) => setSettings({ ...settings, user: e.target.value })}
+              className="text-base"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">SMTP Passwort</Label>
+            <Label htmlFor="password" className="text-sm font-medium">SMTP Passwort</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -255,7 +258,7 @@ export function SmtpManager({ initialSettings }: SmtpManagerProps) {
                   setSettings({ ...settings, password: e.target.value });
                   setPasswordChanged(true);
                 }}
-                className={passwordChanged ? "pr-10" : ""}
+                className={`text-base ${passwordChanged ? "pr-10" : ""}`}
                 readOnly={!passwordChanged && settings.hasPassword}
               />
               {passwordChanged && (
@@ -282,30 +285,32 @@ export function SmtpManager({ initialSettings }: SmtpManagerProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="fromEmail">Absender E-Mail</Label>
+            <Label htmlFor="fromEmail" className="text-sm font-medium">Absender E-Mail</Label>
             <Input
               id="fromEmail"
               type="email"
               placeholder="noreply@ferienhaus.de"
               value={settings.fromEmail}
               onChange={(e) => setSettings({ ...settings, fromEmail: e.target.value })}
+              className="text-base"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="fromName">Absender Name</Label>
+            <Label htmlFor="fromName" className="text-sm font-medium">Absender Name</Label>
             <Input
               id="fromName"
               placeholder="Familie Waubke"
               value={settings.fromName}
               onChange={(e) => setSettings({ ...settings, fromName: e.target.value })}
+              className="text-base"
             />
           </div>
         </div>
 
         <div className="border-t pt-4 space-y-4">
           <div className="bg-muted p-4 rounded-lg space-y-3">
-            <Label>SMTP-Verbindung testen</Label>
+            <Label className="text-sm font-medium">SMTP-Verbindung testen</Label>
             <p className="text-sm text-muted-foreground">
               Testet die Verbindung zum SMTP-Server (ohne E-Mail zu versenden)
             </p>
@@ -322,19 +327,19 @@ export function SmtpManager({ initialSettings }: SmtpManagerProps) {
 
           {settings.host && settings.port && settings.user && (
             <div className="bg-muted p-4 rounded-lg space-y-3">
-              <Label>Test-E-Mail senden</Label>
+              <Label className="text-sm font-medium">Test-E-Mail senden</Label>
               <p className="text-sm text-muted-foreground">
                 Sendet eine Test-E-Mail an die angegebene Adresse
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   type="email"
                   placeholder="test@example.com"
                   value={testEmail}
                   onChange={(e) => setTestEmail(e.target.value)}
-                  className="flex-1"
+                  className="flex-1 text-base"
                 />
-                <Button onClick={handleTest} disabled={isTesting} variant="outline">
+                <Button onClick={handleTest} disabled={isTesting} variant="outline" className="w-full sm:w-auto">
                   <Send className="h-4 w-4 mr-2" />
                   {isTesting ? "Sende..." : "E-Mail senden"}
                 </Button>
@@ -344,7 +349,7 @@ export function SmtpManager({ initialSettings }: SmtpManagerProps) {
         </div>
 
         <div className="flex justify-end pt-4 border-t">
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto">
             <Save className="h-4 w-4 mr-2" />
             {isSaving ? "Speichere..." : "Speichern"}
           </Button>

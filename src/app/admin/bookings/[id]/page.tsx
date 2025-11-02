@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Navbar } from "@/components/navbar";
 import { BookingDetailView } from "@/components/admin/booking-detail-view";
@@ -16,7 +16,12 @@ export default async function BookingDetailPage({
 }) {
   const user = await getCurrentUser();
 
-  if (!user || user.role !== "ADMIN") {
+  if (!user || !hasAdminRights(user.role)) {
+    redirect("/");
+  }
+
+  // Prüfe ob User Buchungen sehen darf
+  if (!user.canSeeBookings) {
     redirect("/");
   }
 

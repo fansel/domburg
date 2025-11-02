@@ -1,22 +1,21 @@
 /**
- * Generiert einen lesbaren Buchungscode
- * Format: DOM-A1B2C3 (6 Zeichen: Buchstaben + Zahlen gemischt)
+ * Generiert einen einfachen, leicht einzugebenden Buchungscode
+ * Format: 6-stellige Zahlen (z.B. 123456)
  */
 export function generateBookingCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Ohne I, O, 0, 1 (Verwechslungsgefahr)
-  let code = '';
+  // Generiere 6-stellige Zahl
+  const min = 100000;
+  const max = 999999;
+  const code = Math.floor(Math.random() * (max - min + 1)) + min;
   
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  
-  return `DOM-${code}`;
+  return code.toString();
 }
 
 /**
  * Validiert ein Buchungscode-Format
  */
 export function isValidBookingCode(code: string): boolean {
-  return /^DOM-[A-Z2-9]{6}$/.test(code);
+  // Prüft ob es eine 6-stellige Zahl ist
+  return /^\d{6}$/.test(code);
 }
 

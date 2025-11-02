@@ -22,14 +22,16 @@ import { CheckCircle, XCircle } from "lucide-react";
 
 interface BookingActionsProps {
   bookingId: string;
+  canApprove?: boolean;
 }
 
-export function BookingActions({ bookingId }: BookingActionsProps) {
+export function BookingActions({ bookingId, canApprove = true }: BookingActionsProps) {
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -42,6 +44,7 @@ export function BookingActions({ bookingId }: BookingActionsProps) {
           title: "Buchung genehmigt",
           description: "Die Buchung wurde erfolgreich genehmigt und im Kalender eingetragen.",
         });
+        setShowApproveDialog(false);
         router.refresh();
       } else {
         toast({
@@ -112,19 +115,31 @@ export function BookingActions({ bookingId }: BookingActionsProps) {
         />
       </div>
 
-      <div className="flex gap-2">
-        <AlertDialog>
+      {canApprove && (
+        <div className="flex gap-2">
+          <AlertDialog 
+          open={showApproveDialog} 
+          onOpenChange={(open) => {
+            if (!isApproving) {
+              setShowApproveDialog(open);
+            }
+          }}
+        >
           <AlertDialogTrigger asChild>
             <Button
               variant="default"
               className="flex-1"
               disabled={isApproving || isRejecting}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
             >
               <CheckCircle className="mr-2 h-4 w-4" />
               Genehmigen
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent 
+          >
             <AlertDialogHeader>
               <AlertDialogTitle>Buchung genehmigen?</AlertDialogTitle>
               <AlertDialogDescription>
@@ -133,26 +148,51 @@ export function BookingActions({ bookingId }: BookingActionsProps) {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-              <AlertDialogAction onClick={handleApprove} disabled={isApproving}>
+              <AlertDialogCancel 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                Abbrechen
+              </AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleApprove();
+                }} 
+                disabled={isApproving}
+              >
                 {isApproving ? "Wird genehmigt..." : "Ja, genehmigen"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <AlertDialog 
+          open={showRejectDialog} 
+          onOpenChange={(open) => {
+            if (!isRejecting) {
+              setShowRejectDialog(open);
+            }
+          }}
+        >
           <AlertDialogTrigger asChild>
             <Button
               variant="destructive"
               className="flex-1"
               disabled={isApproving || isRejecting}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
             >
               <XCircle className="mr-2 h-4 w-4" />
               Ablehnen
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent 
+          >
             <AlertDialogHeader>
               <AlertDialogTitle>Buchung ablehnen?</AlertDialogTitle>
               <AlertDialogDescription>
@@ -171,9 +211,20 @@ export function BookingActions({ bookingId }: BookingActionsProps) {
               />
             </div>
             <AlertDialogFooter>
-              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+              <AlertDialogCancel 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                Abbrechen
+              </AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleReject}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleReject();
+                }}
                 disabled={isRejecting || !rejectionReason.trim()}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
@@ -182,7 +233,13 @@ export function BookingActions({ bookingId }: BookingActionsProps) {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+        </div>
+      )}
+      {!canApprove && (
+        <div className="text-sm text-muted-foreground pt-2 border-t">
+          Sie haben keine Berechtigung, Buchungen zu genehmigen oder abzulehnen.
+        </div>
+      )}
     </div>
   );
 }

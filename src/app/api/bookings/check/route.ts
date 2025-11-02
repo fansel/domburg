@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     // Buchung finden
     const booking = await prisma.booking.findFirst({
       where: {
-        bookingCode: bookingCode.trim().toUpperCase(),
+        bookingCode: bookingCode.trim(),
         guestEmail: email.trim().toLowerCase(),
       },
       select: {
@@ -23,9 +23,11 @@ export async function POST(request: NextRequest) {
         bookingCode: true,
         guestEmail: true,
         guestName: true,
+        guestPhone: true,
         startDate: true,
         endDate: true,
-        numberOfGuests: true,
+        numberOfAdults: true,
+        numberOfChildren: true,
         status: true,
         message: true,
         totalPrice: true,

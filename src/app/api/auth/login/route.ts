@@ -10,16 +10,35 @@ export async function POST(request: NextRequest) {
 
     if (!username || !password) {
       return NextResponse.json(
-        { error: "Username und Passwort erforderlich" },
+        { error: "Benutzername/E-Mail und Passwort erforderlich" },
         { status: 400 }
       );
     }
 
-    // Finde User per Username
+    // Finde User per Username ODER E-Mail-Adresse (case-insensitive)
+    const usernameTrimmed = username.trim();
+    const usernameLower = usernameTrimmed.toLowerCase();
+    const usernameUpper = usernameTrimmed.toUpperCase();
     const user = await prisma.user.findFirst({
       where: { 
-        username,
+        OR: [
+          { username: usernameTrimmed },
+          { username: usernameLower },
+          { username: usernameUpper },
+          { email: usernameLower },
+          { email: usernameTrimmed }, // Auch case-sensitive E-Mail prüfen
+        ],
         isActive: true 
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        username: true,
+        password: true,
+        role: true,
+        isActive: true,
+        mustChangePassword: true,
       },
     });
 
@@ -40,6 +59,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Prüfe ob Passwort geändert werden muss
+    if (user.mustChangePassword) {
+      // Erstelle temporären Token für Passwort-Änderung
+      const tempToken = await createToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      });
+
+      // Set Cookie
+      cookies().set("auth_token", tempToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60, // 1 Stunde (kurzer Token)
+        path: '/',
+      });
+
+      return NextResponse.json({
+        success: true,
+        mustChangePassword: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+      });
+    }
+
     // Update lastLoginAt
     await prisma.user.update({
       where: { id: user.id },
@@ -51,7 +100,10 @@ export async function POST(request: NextRequest) {
       data: {
         userId: user.id,
         action: "USER_LOGIN_PASSWORD",
-        details: { username: user.username },
+        details: { 
+          username: user.username,
+          loginMethod: username.includes('@') ? 'email' : 'username',
+        },
       },
     });
 
@@ -72,6 +124,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      mustChangePassword: false,
       user: {
         id: user.id,
         email: user.email,

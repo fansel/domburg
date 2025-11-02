@@ -11,12 +11,14 @@ export function BookingsHeader() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-8">
-        <PageHeader
-          title="admin.bookingManagement"
-          description="admin.bookingManagementDescription"
-        />
-        <Button onClick={() => setIsFormOpen(true)}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-8">
+        <div className="flex-1">
+          <PageHeader
+            title="admin.bookingManagement"
+            description="admin.bookingManagementDescription"
+          />
+        </div>
+        <Button onClick={() => setIsFormOpen(true)} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Neue Buchung
         </Button>

@@ -18,6 +18,7 @@ export interface BookingConflict {
     end: Date;
   }>;
   severity: "HIGH" | "MEDIUM";
+  isPotentialConflict?: boolean; // true wenn nur PENDING Anfragen betroffen sind (potenzieller Konflikt)
 }
 
 /**
@@ -138,10 +139,54 @@ export async function findOverlappingRequests(): Promise<BookingConflict[]> {
         .join("-");
 
       if (!processed.has(conflictKey)) {
+        // Prüfe ob alle beteiligten Buchungen PENDING sind (potenzieller Konflikt)
+        const allPending = overlappingBookings.every(b => b.status === 'PENDING');
+        
         conflicts.push({
           type: "OVERLAPPING_REQUESTS",
           bookings: overlappingBookings as Booking[],
-          severity: overlappingBookings.length > 2 ? "HIGH" : "MEDIUM",
+          severity: allPending ? "MEDIUM" : (overlappingBookings.length > 2 ? "HIGH" : "MEDIUM"),
+          isPotentialConflict: allPending, // Flag für potenzielle Konflikte (nur PENDING)
+        });
+        processed.add(conflictKey);
+      }
+    }
+  }
+
+  // Prüfe PENDING Anfragen untereinander - mehrere PENDING Anfragen für denselben Zeitraum sind potenzielle Konflikte
+  for (let i = 0; i < pendingBookings.length; i++) {
+    const pending1 = pendingBookings[i];
+    const overlappingPendings: Booking[] = [pending1];
+
+    // Prüfe gegen andere PENDING Anfragen
+    for (let j = i + 1; j < pendingBookings.length; j++) {
+      const pending2 = pendingBookings[j];
+
+      if (
+        datesOverlap(
+          pending1.startDate,
+          pending1.endDate,
+          pending2.startDate,
+          pending2.endDate
+        )
+      ) {
+        overlappingPendings.push(pending2);
+      }
+    }
+
+    // Wenn mehrere PENDING Anfragen für denselben Zeitraum gefunden wurden
+    if (overlappingPendings.length > 1) {
+      const conflictKey = overlappingPendings
+        .map((b) => b.id)
+        .sort()
+        .join("-");
+
+      if (!processed.has(conflictKey)) {
+        conflicts.push({
+          type: "OVERLAPPING_REQUESTS",
+          bookings: overlappingPendings as Booking[],
+          severity: "MEDIUM", // Potenzielle Konflikte - Admin muss entscheiden
+          isPotentialConflict: true, // Flag für potenzielle Konflikte (nur PENDING)
         });
         processed.add(conflictKey);
       }

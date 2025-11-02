@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
@@ -8,13 +10,18 @@ import { EmailTemplateManager } from "@/components/admin/email-template-manager"
 export const dynamic = "force-dynamic";
 
 export default async function EmailTemplatesPage() {
+  const user = await getCurrentUser();
+
+  if (!user || !hasAdminRights(user.role)) {
+    redirect("/");
+  }
   const templates = await prisma.emailTemplate.findMany({
     orderBy: { name: "asc" },
   });
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <Navbar user={user} />
       <div className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <Link href="/admin/settings">

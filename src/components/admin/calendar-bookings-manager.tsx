@@ -224,13 +224,13 @@ export function CalendarBookingsManager() {
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Buchungen über Kalender
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+            <Calendar className="h-5 w-5 flex-shrink-0" />
+            <span>Buchungen über Kalender</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           <div className="flex items-center justify-center py-8">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
@@ -245,33 +245,34 @@ export function CalendarBookingsManager() {
   const BookingList = ({ bookings: listBookings }: { bookings: CalendarBooking[] }) => (
     <>
       {listBookings.length === 0 ? (
-        <div className="text-center py-12">
-          <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Keine Einträge</h3>
-          <p className="text-muted-foreground mb-4">
+        <div className="text-center py-8 sm:py-12">
+          <Calendar className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-4" />
+          <h3 className="text-base sm:text-lg font-semibold mb-2">Keine Einträge</h3>
+          <p className="text-sm sm:text-base text-muted-foreground mb-4">
             Es gibt keine Einträge in dieser Kategorie
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {listBookings.map((booking) => (
             <Card key={booking.id} className="border">
-              <CardContent className="pt-4">
+              <CardContent className="p-3 sm:p-4 sm:pt-4">
                 {editingId === booking.id ? (
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <Label htmlFor={`edit-summary-${booking.id}`}>Titel</Label>
+                      <Label htmlFor={`edit-summary-${booking.id}`} className="text-xs sm:text-sm">Titel</Label>
                       <Input
                         id={`edit-summary-${booking.id}`}
                         value={editForm.summary}
                         onChange={(e) =>
                           setEditForm({ ...editForm, summary: e.target.value })
                         }
+                        className="text-sm sm:text-base"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                       <div className="space-y-2">
-                        <Label htmlFor={`edit-start-${booking.id}`}>Von</Label>
+                        <Label htmlFor={`edit-start-${booking.id}`} className="text-xs sm:text-sm">Von</Label>
                         <Input
                           id={`edit-start-${booking.id}`}
                           type="date"
@@ -279,10 +280,11 @@ export function CalendarBookingsManager() {
                           onChange={(e) =>
                             setEditForm({ ...editForm, start: e.target.value })
                           }
+                          className="text-sm sm:text-base"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor={`edit-end-${booking.id}`}>Bis</Label>
+                        <Label htmlFor={`edit-end-${booking.id}`} className="text-xs sm:text-sm">Bis</Label>
                         <Input
                           id={`edit-end-${booking.id}`}
                           type="date"
@@ -290,6 +292,7 @@ export function CalendarBookingsManager() {
                           onChange={(e) =>
                             setEditForm({ ...editForm, end: e.target.value })
                           }
+                          className="text-sm sm:text-base"
                         />
                       </div>
                     </div>
@@ -303,7 +306,7 @@ export function CalendarBookingsManager() {
                       />
                       <label
                         htmlFor={`edit-info-${booking.id}`}
-                        className="text-sm cursor-pointer"
+                        className="text-xs sm:text-sm cursor-pointer"
                       >
                         Als Info markieren (nicht blockierend)
                       </label>
@@ -312,7 +315,7 @@ export function CalendarBookingsManager() {
                       <Button
                         onClick={() => handleSave(booking.id)}
                         size="sm"
-                        className="flex-1"
+                        className="flex-1 text-xs sm:text-sm"
                       >
                         <Save className="h-4 w-4 mr-2" />
                         Speichern
@@ -321,40 +324,42 @@ export function CalendarBookingsManager() {
                         onClick={() => setEditingId(null)}
                         variant="outline"
                         size="sm"
+                        className="px-3"
                       >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h4 className="font-semibold mb-2">{booking.summary}</h4>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        <span>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm sm:text-base mb-2 break-words">{booking.summary}</h4>
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
+                        <Calendar className="h-4 w-4 flex-shrink-0" />
+                        <span className="break-words">
                           {format(new Date(booking.start), "dd.MM.yyyy", { locale: de })} -{" "}
                           {format(new Date(booking.end), "dd.MM.yyyy", { locale: de })}
                         </span>
                       </div>
                       <div className="flex gap-2 mt-2">
                         {booking.isInfo ? (
-                          <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                          <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-xs">
                             <Info className="h-3 w-3 mr-1" />
                             Info
                           </Badge>
                         ) : (
-                          <Badge variant="secondary">
+                          <Badge variant="secondary" className="text-xs">
                             Blockierung
                           </Badge>
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 sm:gap-1 flex-shrink-0">
                       <Button
                         onClick={() => handleEdit(booking)}
                         variant="ghost"
                         size="sm"
+                        className="h-8 w-8 p-0"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -362,6 +367,7 @@ export function CalendarBookingsManager() {
                         onClick={() => handleDelete(booking.id)}
                         variant="ghost"
                         size="sm"
+                        className="h-8 w-8 p-0"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -378,35 +384,35 @@ export function CalendarBookingsManager() {
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Buchungen über Kalender
+      <CardHeader className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Calendar className="h-5 w-5 flex-shrink-0" />
+              <span className="truncate">Buchungen über Kalender</span>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm mt-1">
               Manuelle Blockierungen und Info-Einträge aus Google Calendar verwalten
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-shrink-0">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto text-xs sm:text-sm">
                   <Plus className="h-4 w-4 mr-2" />
                   Neu
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-[95vw] sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Neue Blockierung erstellen</DialogTitle>
-                  <DialogDescription>
+                  <DialogTitle className="text-base sm:text-lg">Neue Blockierung erstellen</DialogTitle>
+                  <DialogDescription className="text-xs sm:text-sm">
                     Erstelle einen neuen Eintrag im Google Calendar
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="new-summary">Titel</Label>
+                    <Label htmlFor="new-summary" className="text-xs sm:text-sm">Titel</Label>
                     <Input
                       id="new-summary"
                       placeholder="z.B. Renovierung"
@@ -414,29 +420,34 @@ export function CalendarBookingsManager() {
                       onChange={(e) =>
                         setNewBooking({ ...newBooking, summary: e.target.value })
                       }
+                      className="text-sm sm:text-base"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-start">Von</Label>
-                    <Input
-                      id="new-start"
-                      type="date"
-                      value={newBooking.start}
-                      onChange={(e) =>
-                        setNewBooking({ ...newBooking, start: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-end">Bis</Label>
-                    <Input
-                      id="new-end"
-                      type="date"
-                      value={newBooking.end}
-                      onChange={(e) =>
-                        setNewBooking({ ...newBooking, end: e.target.value })
-                      }
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-start" className="text-xs sm:text-sm">Von</Label>
+                      <Input
+                        id="new-start"
+                        type="date"
+                        value={newBooking.start}
+                        onChange={(e) =>
+                          setNewBooking({ ...newBooking, start: e.target.value })
+                        }
+                        className="text-sm sm:text-base"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-end" className="text-xs sm:text-sm">Bis</Label>
+                      <Input
+                        id="new-end"
+                        type="date"
+                        value={newBooking.end}
+                        onChange={(e) =>
+                          setNewBooking({ ...newBooking, end: e.target.value })
+                        }
+                        className="text-sm sm:text-base"
+                      />
+                    </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -448,45 +459,46 @@ export function CalendarBookingsManager() {
                     />
                     <label
                       htmlFor="new-info"
-                      className="text-sm cursor-pointer"
+                      className="text-xs sm:text-sm cursor-pointer"
                     >
                       Als Info markieren (nicht blockierend)
                     </label>
                   </div>
-                  <Button onClick={handleCreate} className="w-full">
+                  <Button onClick={handleCreate} className="w-full text-xs sm:text-sm">
                     Erstellen
                   </Button>
                 </div>
               </DialogContent>
             </Dialog>
-            <Button onClick={loadBookings} variant="outline" size="sm">
+            <Button onClick={loadBookings} variant="outline" size="sm" className="w-full sm:w-auto text-xs sm:text-sm">
               <RefreshCw className="h-4 w-4 mr-2" />
-              Aktualisieren
+              <span className="hidden sm:inline">Aktualisieren</span>
+              <span className="sm:hidden">Aktual.</span>
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="blockings" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="blockings">
-              Blockierungen ({blockingBookings.length})
+      <CardContent className="p-4 sm:p-6">
+        <Tabs defaultValue="blockings" className="space-y-3 sm:space-y-4">
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="blockings" className="text-xs sm:text-sm flex-1 sm:flex-none">
+              Blockierungen <span className="ml-1.5 sm:ml-2">({blockingBookings.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="info" className="flex items-center gap-2">
-              <Info className="h-4 w-4" />
-              Info-Einträge ({infoBookings.length})
+            <TabsTrigger value="info" className="text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-none">
+              <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Info-Einträge <span className="ml-1.5 sm:ml-2">({infoBookings.length})</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="blockings" className="space-y-3">
+          <TabsContent value="blockings" className="space-y-2 sm:space-y-3 mt-4 sm:mt-6">
             {blockingBookings.length === 0 ? (
-              <div className="text-center py-12">
-                <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Keine Blockierungen</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="text-center py-8 sm:py-12">
+                <Calendar className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-4" />
+                <h3 className="text-base sm:text-lg font-semibold mb-2">Keine Blockierungen</h3>
+                <p className="text-sm sm:text-base text-muted-foreground mb-4">
                   Es gibt keine Blockierungen im Google Calendar
                 </p>
-                <Button onClick={() => setIsDialogOpen(true)} variant="outline">
+                <Button onClick={() => setIsDialogOpen(true)} variant="outline" size="sm" className="text-xs sm:text-sm">
                   <Plus className="h-4 w-4 mr-2" />
                   Erste Blockierung erstellen
                 </Button>
@@ -496,18 +508,18 @@ export function CalendarBookingsManager() {
             )}
           </TabsContent>
 
-          <TabsContent value="info" className="space-y-3">
+          <TabsContent value="info" className="space-y-2 sm:space-y-3 mt-4 sm:mt-6">
             {infoBookings.length === 0 ? (
-              <div className="text-center py-12">
-                <Info className="mx-auto h-12 w-12 text-blue-500 mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Keine Info-Einträge</h3>
-                <p className="text-muted-foreground mb-4">
+              <div className="text-center py-8 sm:py-12">
+                <Info className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-blue-500 mb-4" />
+                <h3 className="text-base sm:text-lg font-semibold mb-2">Keine Info-Einträge</h3>
+                <p className="text-sm sm:text-base text-muted-foreground mb-4">
                   Es gibt keine Info-Einträge im Google Calendar
                 </p>
                 <Button onClick={() => {
                   setNewBooking({ summary: "", start: "", end: "", isInfo: true });
                   setIsDialogOpen(true);
-                }} variant="outline">
+                }} variant="outline" size="sm" className="text-xs sm:text-sm">
                   <Plus className="h-4 w-4 mr-2" />
                   Ersten Info-Eintrag erstellen
                 </Button>
