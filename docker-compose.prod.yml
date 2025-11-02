@@ -26,18 +26,18 @@ services:
     environment:
       # Datenbank (erforderlich)
       DATABASE_URL: postgresql://${POSTGRES_USER:-domburg}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-domburg}?schema=public
-
+      
       # JWT & Security (erforderlich)
       JWT_SECRET: ${JWT_SECRET}
       NODE_ENV: production
-
+      
       # App Config (optional)
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Domburg Ferienhaus}
-
+      
       # Admin Setup (optional - nur für initiales Setup)
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
-
+      
     depends_on:
       postgres:
         condition: service_healthy

@@ -407,7 +407,7 @@ export function BookingForm() {
                 <div className="w-full max-w-2xl lg:max-w-4xl relative">
                   <BookingCalendar selectedStartDate={startDate} selectedEndDate={endDate} onDateSelect={handleDateSelect} />
                 </div>
-                {startDate && endDate && (
+              {startDate && endDate && (
                   <div className="mt-4 lg:mt-6 px-4 lg:px-8 w-full max-w-2xl lg:max-w-4xl flex gap-3 lg:gap-4 z-10">
                     <Button
                       variant="outline"
@@ -415,23 +415,23 @@ export function BookingForm() {
                         setStartDate(null);
                         setEndDate(null);
                       }}
-                      className="flex-1 h-11 lg:h-14 text-sm lg:text-lg"
+                    className="flex-1 h-11 lg:h-14 text-sm lg:text-lg"
                     >
                       Zurücksetzen
                     </Button>
-                    <Button 
-                      onClick={() => {
-                        nextStep();
-                      }} 
-                      disabled={!startDate || !endDate} 
+                  <Button 
+                    onClick={() => {
+                      nextStep();
+                    }} 
+                    disabled={!startDate || !endDate} 
                       className="flex-1 h-11 lg:h-14 text-sm lg:text-lg"
-                      type="button"
-                    >
+                    type="button"
+                  >
                       Weiter
-                      <ChevronRight className="ml-1.5 h-4 w-4 lg:h-6 lg:w-6" />
+                    <ChevronRight className="ml-1.5 h-4 w-4 lg:h-6 lg:w-6" />
                     </Button>
                   </div>
-                )}
+              )}
               </div>
             </div>
                   </>

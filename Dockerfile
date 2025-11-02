@@ -44,11 +44,16 @@
     ENV PORT=3000
     ENV HOSTNAME="0.0.0.0"
     
+    # Install tsx globally for running seed scripts (as root, before switching to node user)
+    RUN npm install -g tsx
+    
     # Copy only what's needed for runtime
     COPY --from=builder /app/.next/standalone ./
     COPY --from=builder /app/.next/static ./.next/static
     COPY --from=builder /app/public ./public
     COPY --from=builder /app/prisma ./prisma
+    # Copy template directory for seed script
+    COPY --from=builder /app/src/template ./src/template
     
     # Run as non-root user for safety
     USER node
