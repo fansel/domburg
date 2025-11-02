@@ -66,6 +66,9 @@
     COPY --from=builder /app/package.json ./package.json
     COPY --from=builder /app/tsconfig.json ./tsconfig.json
     
+    # Fix permissions for all copied files (so node user can access everything)
+    RUN chown -R node:node /app
+    
     # Run as non-root user for safety
     USER node
     
