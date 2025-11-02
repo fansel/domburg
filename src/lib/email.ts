@@ -763,7 +763,7 @@ export async function sendMagicLinkEmail({
 }) {
   const appUrl = await getPublicUrl();
   const magicLink = `${appUrl}/auth/verify?token=${token}`;
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Domburg Ferienhaus';
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Hollandhaus';
   const replyTo = await getReplyToEmail();
 
   const htmlContent = `

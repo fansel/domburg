@@ -4,7 +4,7 @@ export const emailTemplates = [
   {
     key: "new_user",
     name: "Neuer Benutzer Willkommens-E-Mail",
-    subject: "Dein Zugang zum Domburg Buchungssystem",
+    subject: "Dein Zugang zum Hollandhaus Buchungssystem",
     description: "Willkommens-E-Mail für neue Admin-Benutzer mit Zugangsdaten",
     variables: ["userName", "username", "password", "loginUrl", "mustChangePassword"],
     bodyHtml: `
@@ -43,7 +43,7 @@ export const emailTemplates = [
   <body>
     <div class="container">
       <h1>Hallo {{userName}}!</h1>
-      <p>Ein Zugang zum Domburg Buchungssystem wurde für dich erstellt.</p>
+      <p>Ein Zugang zum Hollandhaus Buchungssystem wurde für dich erstellt.</p>
       <p>Deine Zugangsdaten:</p>
       <div class="credentials">
         <p><strong>Username:</strong> {{username}}</p>
@@ -65,7 +65,7 @@ export const emailTemplates = [
 </html>`,
     bodyText: `Hallo {{userName}}!
 
-Ein Zugang zum Domburg Buchungssystem wurde für dich erstellt.
+Ein Zugang zum Hollandhaus Buchungssystem wurde für dich erstellt.
 
 Deine Zugangsdaten:
 Username: {{username}}
@@ -86,7 +86,7 @@ Familie Waubke`,
   {
     key: "password_reset",
     name: "Passwort-Zurücksetzen",
-    subject: "Passwort zurücksetzen für Domburg",
+    subject: "Passwort zurücksetzen für Hollandhaus",
     description: "E-Mail zum Zurücksetzen des Admin-Passworts",
     variables: ["adminName", "resetUrl", "expiryMinutes"],
     bodyHtml: `
@@ -112,7 +112,7 @@ Familie Waubke`,
   <body>
     <div class="container">
       <h1>Hallo {{adminName}}!</h1>
-      <p>Du hast eine E-Mail zum Zurücksetzen deines Passworts für das Domburg Buchungssystem angefordert.</p>
+      <p>Du hast eine E-Mail zum Zurücksetzen deines Passworts für das Hollandhaus Buchungssystem angefordert.</p>
       <p>Klicke auf den Button unten, um ein neues Passwort festzulegen:</p>
       <a href="{{resetUrl}}" class="button">Passwort zurücksetzen</a>
       <p>Dieser Link ist {{expiryMinutes}} Minuten gültig.</p>
@@ -182,7 +182,7 @@ Familie Waubke`,
   <body>
     <div class="container">
       <h1>Hallo {{guestName}}!</h1>
-      <p>Vielen Dank für deine Anfrage für unser Ferienhaus in Domburg. Wir freuen uns sehr!</p>
+      <p>Vielen Dank für deine Anfrage für unser Ferienhaus. Wir freuen uns sehr!</p>
       
       <div class="info-box">
         <h3>Deine Anfrage-Details:</h3>
@@ -210,7 +210,7 @@ Familie Waubke`,
 </html>`,
     bodyText: `Hallo {{guestName}}!
 
-Vielen Dank für deine Anfrage für unser Ferienhaus in Domburg. Wir freuen uns sehr!
+Vielen Dank für deine Anfrage für unser Ferienhaus. Wir freuen uns sehr!
 
 DEINE ANFRAGE-DETAILS:
 ----------------------
@@ -654,7 +654,7 @@ Anfrage prüfen: {{adminUrl}}`,
       <a href="{{adminUrl}}" class="button">Buchung anzeigen</a>
       
       <div class="footer">
-        <p>Viele Grüße<br>Domburg Buchungssystem</p>
+        <p>Viele Grüße<br>Hollandhaus Buchungssystem</p>
       </div>
     </div>
   </body>
@@ -671,7 +671,7 @@ Genehmigt von: {{approvedByName}}
 Buchung anzeigen: {{adminUrl}}
 
 Viele Grüße
-Domburg Buchungssystem`,
+Hollandhaus Buchungssystem`,
   },
   {
     key: "admin_booking_rejected",
@@ -724,7 +724,7 @@ Domburg Buchungssystem`,
       <a href="{{adminUrl}}" class="button">Buchung anzeigen</a>
       
       <div class="footer">
-        <p>Viele Grüße<br>Domburg Buchungssystem</p>
+        <p>Viele Grüße<br>Hollandhaus Buchungssystem</p>
       </div>
     </div>
   </body>
@@ -746,7 +746,7 @@ GRUND:
 Buchung anzeigen: {{adminUrl}}
 
 Viele Grüße
-Domburg Buchungssystem`,
+Hollandhaus Buchungssystem`,
   },
   {
     key: "admin_new_message_from_guest",
@@ -794,7 +794,7 @@ Domburg Buchungssystem`,
       <a href="{{adminUrl}}" class="button">Nachricht beantworten</a>
       
       <div class="footer">
-        <p>Viele Grüße<br>Domburg Buchungssystem</p>
+        <p>Viele Grüße<br>Hollandhaus Buchungssystem</p>
       </div>
     </div>
   </body>
@@ -810,7 +810,7 @@ VON: {{guestName}} ({{guestEmail}})
 Nachricht beantworten: {{adminUrl}}
 
 Viele Grüße
-Domburg Buchungssystem`,
+Hollandhaus Buchungssystem`,
   },
   {
     key: "admin_booking_cancelled",
@@ -863,7 +863,7 @@ Domburg Buchungssystem`,
       <a href="{{adminUrl}}" class="button">Buchung anzeigen</a>
       
       <div class="footer">
-        <p>Viele Grüße<br>Domburg Buchungssystem</p>
+        <p>Viele Grüße<br>Hollandhaus Buchungssystem</p>
       </div>
     </div>
   </body>
@@ -885,7 +885,7 @@ GRUND:
 Buchung anzeigen: {{adminUrl}}
 
 Viele Grüße
-Domburg Buchungssystem`,
+Hollandhaus Buchungssystem`,
   },
 ];
 

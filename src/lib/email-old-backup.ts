@@ -12,7 +12,7 @@ interface SendMagicLinkEmailParams {
 export async function sendMagicLinkEmail({ to, token, name }: SendMagicLinkEmailParams) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const magicLink = `${appUrl}/auth/verify?token=${token}`;
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Domburg Ferienhaus';
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Hollandhaus';
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -118,7 +118,7 @@ Wenn Sie diese E-Mail nicht angefordert haben, können Sie sie ignorieren.
   if (resend) {
     try {
       const { data, error } = await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@domburg.local',
+        from: process.env.EMAIL_FROM || 'noreply@hollandhaus.local',
         to,
         subject: `Ihr Magic Link für ${appName}`,
         html: htmlContent,
@@ -177,7 +177,7 @@ export async function sendBookingConfirmationToGuest({
 }: SendBookingConfirmationParams) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const statusUrl = `${appUrl}/booking/status`;
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Domburg Ferienhaus';
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Hollandhaus';
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('de-DE', {
@@ -354,7 +354,7 @@ ${appName}
   if (resend) {
     try {
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@domburg.local',
+        from: process.env.EMAIL_FROM || 'noreply@hollandhaus.local',
         to,
         subject: `Ihre Buchungsanfrage ${bookingCode} - ${appName}`,
         html: htmlContent,
@@ -391,7 +391,7 @@ export async function sendBookingApprovalToGuest({
 }) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const statusUrl = `${appUrl}/booking/status`;
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Domburg Ferienhaus';
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Hollandhaus';
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('de-DE', {
@@ -519,7 +519,7 @@ ${appName}
   if (resend) {
     try {
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@domburg.local',
+        from: process.env.EMAIL_FROM || 'noreply@hollandhaus.local',
         to,
         subject: `Buchung bestätigt ${bookingCode} - ${appName}`,
         html: htmlContent,
@@ -554,7 +554,7 @@ export async function sendBookingRejectionToGuest({
   reason: string;
 }) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Domburg Ferienhaus';
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Hollandhaus';
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('de-DE', {
@@ -652,7 +652,7 @@ ${appName}
   if (resend) {
     try {
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@domburg.local',
+        from: process.env.EMAIL_FROM || 'noreply@hollandhaus.local',
         to,
         subject: `Buchungsanfrage ${bookingCode} - ${appName}`,
         html: htmlContent,
@@ -686,7 +686,7 @@ export async function sendMessageNotificationToGuest({
 }) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const statusUrl = `${appUrl}/booking/status`;
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Domburg Ferienhaus';
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Hollandhaus';
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -783,7 +783,7 @@ ${appName}
   if (resend) {
     try {
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@domburg.local',
+        from: process.env.EMAIL_FROM || 'noreply@hollandhaus.local',
         to,
         replyTo: replyToEmail,
         subject: `Neue Nachricht zu Buchung ${bookingCode} - ${appName}`,
@@ -818,7 +818,7 @@ export async function sendBookingNotificationToAdmin({
 }: SendBookingNotificationParams) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const bookingUrl = `${appUrl}/admin/bookings/${bookingId}`;
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Domburg Ferienhaus';
+  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Hollandhaus';
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('de-DE', {
@@ -854,7 +854,7 @@ Link: ${bookingUrl}`;
   if (resend) {
     try {
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'noreply@domburg.local',
+        from: process.env.EMAIL_FROM || 'noreply@hollandhaus.local',
         to,
         subject: `Neue Buchungsanfrage von ${guestName}`,
         html: htmlContent,

@@ -272,7 +272,7 @@ function HomePageContent() {
                   <Calendar className="h-8 w-8 text-white" />
                 </div>
                 <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-                  Domburg
+                  Hollandhaus
                 </h1>
                 <p className="text-base text-gray-600 leading-relaxed">
                   {t("booking.selectDates")}
@@ -359,7 +359,7 @@ function HomePageContent() {
         {/* Desktop: Card-Layout bleibt */}
         <Card className="w-full max-w-md hidden md:block">
           <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold">Domburg</CardTitle>
+            <CardTitle className="text-3xl font-bold">Hollandhaus</CardTitle>
             <CardDescription>
               {t("booking.selectDates")}
             </CardDescription>

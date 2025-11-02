@@ -92,13 +92,13 @@ export function ReplyToManager({ initialEmail }: ReplyToManagerProps) {
           <Input
             id="replyToEmail"
             type="email"
-            placeholder="info@domburg.example.com"
+            placeholder="info@hollandhaus.example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="text-base"
           />
           <p className="text-xs text-muted-foreground">
-            Beispiel: info@domburg.example.com oder admin@example.com
+            Beispiel: info@hollandhaus.example.com oder admin@example.com
           </p>
         </div>
         <div className="flex justify-end pt-2">

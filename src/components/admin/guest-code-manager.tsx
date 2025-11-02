@@ -177,7 +177,7 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                     </Label>
                     <Input
                       id="code"
-                      placeholder="z.B. DOMBURG2024"
+                      placeholder="z.B. HOLLANDHAUS2024"
                       value={newToken.code}
                       onChange={(e) => {
                         // Automatisch zu Großbuchstaben konvertieren

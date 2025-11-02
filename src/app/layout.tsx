@@ -8,8 +8,8 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Domburg Holiday Home - Booking System",
-  description: "Private booking system for our holiday home in Domburg, Netherlands",
+  title: "Hollandhaus",
+  description: "Verwaltungssystem für das Hollandhaus",
 };
 
 export const viewport = {

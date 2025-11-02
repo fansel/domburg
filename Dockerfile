@@ -8,7 +8,7 @@
 # ---------- 1. Builder Stage ----------
     FROM oven/bun:1.1.30 AS builder
     WORKDIR /app
-
+    
 
     RUN apt-get update -y && apt-get install -y openssl
     
@@ -53,21 +53,18 @@
     # Install tsx globally for running seed scripts (as root, before switching to node user)
     RUN npm install -g tsx
     
-    # Copy only what's needed for runtime
-    COPY --from=builder /app/.next/standalone ./
-    COPY --from=builder /app/.next/static ./.next/static
-    COPY --from=builder /app/public ./public
-    COPY --from=builder /app/prisma ./prisma
+    # Copy only what's needed for runtime with correct ownership
+    COPY --chown=node:node --from=builder /app/.next/standalone ./
+    COPY --chown=node:node --from=builder /app/.next/static ./.next/static
+    COPY --chown=node:node --from=builder /app/public ./public
+    COPY --chown=node:node --from=builder /app/prisma ./prisma
     # Copy template directory for seed script
-    COPY --from=builder /app/src/template ./src/template
+    COPY --chown=node:node --from=builder /app/src/template ./src/template
     # Copy node_modules for seed script (bcryptjs, @prisma/client, etc.)
-    COPY --from=builder /app/node_modules ./node_modules
+    COPY --chown=node:node --from=builder /app/node_modules ./node_modules
     # Copy package.json and tsconfig.json for proper module resolution with tsx
-    COPY --from=builder /app/package.json ./package.json
-    COPY --from=builder /app/tsconfig.json ./tsconfig.json
-    
-    # Fix permissions for all copied files (so node user can access everything)
-    RUN chown -R node:node /app
+    COPY --chown=node:node --from=builder /app/package.json ./package.json
+    COPY --chown=node:node --from=builder /app/tsconfig.json ./tsconfig.json
     
     # Run as non-root user for safety
     USER node

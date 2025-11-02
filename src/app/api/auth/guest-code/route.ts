@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
     // Für Cleaning-Codes auch einen User erstellen (aber mit speziellem Namen)
     // Standard-Gastbenutzer erstellen oder finden
     const guestEmail = result.accessType === 'CLEANING' 
-      ? `housekeeper-${code}@domburg.local`
-      : `guest-${code}@domburg.local`;
+      ? `housekeeper-${code}@hollandhaus.local`
+      : `guest-${code}@hollandhaus.local`;
     
     let user = await prisma.user.findUnique({
       where: { email: guestEmail },

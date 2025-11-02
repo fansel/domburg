@@ -35,7 +35,7 @@ export function PublicUrlManager({ initialUrl }: PublicUrlManagerProps) {
     } catch {
       toast({
         title: "Fehler",
-        description: "Bitte geben Sie eine gültige URL ein (z.B. https://domburg.example.com)",
+        description: "Bitte geben Sie eine gültige URL ein (z.B. https://hollandhaus.example.com)",
         variant: "destructive",
       });
       return;
@@ -93,13 +93,13 @@ export function PublicUrlManager({ initialUrl }: PublicUrlManagerProps) {
           <Input
             id="publicUrl"
             type="url"
-            placeholder="https://domburg.example.com"
+            placeholder="https://hollandhaus.example.com"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             className="text-base"
           />
           <p className="text-xs text-muted-foreground">
-            Beispiel: https://domburg.example.com oder http://localhost:3000 (für Entwicklung)
+            Beispiel: https://hollandhaus.example.com oder http://localhost:3000 (für Entwicklung)
           </p>
         </div>
         <div className="flex justify-end pt-2">
