@@ -16,12 +16,24 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Prisma Generate first
-RUN echo "Generating Prisma client..." && npx prisma generate
+RUN echo "=== Generating Prisma client ===" && \
+    npx prisma generate && \
+    echo "=== Prisma client generated ==="
 
 # Build with verbose output and no telemetry
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-RUN echo "Starting Next.js build..." && npm run build && echo "Build completed!"
+ENV NEXT_DEBUG=1
+
+# Build with verbose output
+# Note: Next.js build can take 5-15 minutes for large projects - this is NORMAL
+# The build process compiles TypeScript, optimizes images, bundles code, etc.
+RUN echo "=== Starting Next.js build process (this may take 5-15 minutes) ===" && \
+    NODE_OPTIONS="--max-old-space-size=4096" npm run build && \
+    echo "=== Next.js build completed successfully ===" && \
+    echo "=== Checking build output ===" && \
+    ls -lah .next/ 2>/dev/null && \
+    ls -lah .next/standalone 2>/dev/null || echo "=== WARNING: standalone directory not found ==="
 
 # Runner
 FROM base AS runner
