@@ -44,8 +44,8 @@ ENV NODE_ENV production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Installiere tsx global für Seeding-Scripts (vor USER nextjs für Berechtigung)
-RUN npm install -g tsx
+# Installiere tsx und prisma global für Scripts (vor USER nextjs für Berechtigung)
+RUN npm install -g tsx prisma
 
 # Kopiere prisma Verzeichnis für Migrationen und Seeding
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
