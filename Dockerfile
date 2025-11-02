@@ -1,4 +1,10 @@
 # Dockerfile für Production Deployment
+# 
+# ALTERNATIVE: Für schnelleres Iterieren kannst du lokal bauen und Dockerfile.local verwenden:
+#   1. npm run build (lokal)
+#   2. docker build -f Dockerfile.local -t domburg-app .
+#
+# Dieses Dockerfile baut alles innerhalb von Docker (langsamer, aber reproduzierbar)
 FROM node:18-alpine AS base
 
 # Dependencies
