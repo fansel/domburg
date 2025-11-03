@@ -27,7 +27,9 @@
     ENV NODE_ENV=production
     ENV NEXT_TELEMETRY_DISABLED=1
     ENV CI=1
-    ENV NODE_OPTIONS="--max-old-space-size=4096"
+    # Bun und Node.js Memory-Limits
+    ENV NODE_OPTIONS="--max-old-space-size=6144"
+    ENV BUN_JSC_memoryLimitMB=6144
     
     # Generate Prisma client (faster via bunx)
     RUN echo "=== Generating Prisma client ===" && \
@@ -35,8 +37,11 @@
         echo "=== Prisma client generated ==="
     
     # Build Next.js (ultra fast with Bun)
+    # Nutze explizit node für den Build wenn Bun zu viel Memory braucht
     RUN echo "=== Starting Next.js build ===" && \
-        bun run build && \
+        NODE_OPTIONS="--max-old-space-size=6144" bun run build || \
+        (echo "=== Bun build failed, trying with node ===" && \
+         NODE_OPTIONS="--max-old-space-size=6144" npm run build) && \
         echo "=== Build completed successfully ==="
     
     # ---------- 2. Runner Stage ----------

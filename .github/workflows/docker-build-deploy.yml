@@ -16,6 +16,8 @@ env:
 jobs:
   build-and-push:
     runs-on: self-hosted
+    # Falls du mehrere Runner hast, kannst du Labels verwenden:
+    # runs-on: [self-hosted, macbook]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,6 +28,8 @@ jobs:
           driver-opts: |
             image=moby/buildkit:master
             network=host
+            memory=8192
+            cpu=4
 
       - name: Use temporary Docker config
         run: |
@@ -52,7 +56,12 @@ jobs:
           no-cache: ${{ github.event.inputs.no_cache == 'true' }}
           cache-from: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/domburg-booking:buildcache,ignore-error=true
           cache-to: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/domburg-booking:buildcache,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/domburg-booking:latest
             ${{ env.DOCKERHUB_USERNAME }}/domburg-booking:${{ github.sha }}
+        env:
+          # Erhöhe Memory-Limit für Docker Build
+          DOCKER_BUILDKIT_MEMORY: 8GB
 
