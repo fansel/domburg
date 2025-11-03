@@ -34,7 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createAdminUser, sendMagicLinkToAdmin, deleteAdminUser, updateUserRole, updateUserPermissions, resendWelcomeEmail } from "@/app/actions/settings";
+import { createAdminUser, deleteAdminUser, updateUserRole, updateUserPermissions, resendWelcomeEmail } from "@/app/actions/settings";
 import type { User } from "@prisma/client";
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
@@ -139,16 +139,31 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
   };
 
   const handleSendPasswordReset = async (userId: string, email: string) => {
-    const result = await sendMagicLinkToAdmin(userId);
-    if (result.success) {
-      toast({
-        title: "Magic Link gesendet",
-        description: `Ein Login-Link wurde an ${email} gesendet`,
+    try {
+      const response = await fetch('/api/auth/request-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
-    } else {
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Passwort-Reset gesendet",
+          description: `Eine E-Mail zum Zurücksetzen des Passworts wurde an ${email} gesendet`,
+        });
+      } else {
+        toast({
+          title: "Fehler",
+          description: result.error || "E-Mail konnte nicht gesendet werden",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
       toast({
         title: "Fehler",
-        description: result.error || "E-Mail konnte nicht gesendet werden",
+        description: "E-Mail konnte nicht gesendet werden",
         variant: "destructive",
       });
     }
@@ -628,7 +643,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-base mb-1 break-words">{user.name}</p>
                               <p className="text-sm text-muted-foreground break-all">{user.email}</p>
-                              <div className="flex items-center gap-2 mt-1.5">
+                              <div className="flex flex-wrap items-center gap-2 mt-1.5">
                                 {isSuperAdmin ? (
                                   <Select
                                     value={user.role}
@@ -670,62 +685,78 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                                     {user.role}
                                   </Badge>
                                 )}
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
                                   {t("settings.createdAt")}: {formatDate(user.createdAt)}
                                 </span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex-shrink-0">
+                          <div className="flex items-start gap-2 flex-shrink-0">
                             {user.isActive ? (
                               <Badge variant="default" className="text-xs">{t("pricing.active")}</Badge>
                             ) : (
                               <Badge variant="secondary" className="text-xs">{t("pricing.inactive")}</Badge>
                             )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Menü öffnen</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                {isSuperAdmin && user.role !== "SUPERADMIN" && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onSelect={(e) => {
+                                        e.preventDefault();
+                                        setPermissionsDialogOpen(user.id);
+                                      }}
+                                    >
+                                      <Settings className="mr-2 h-4 w-4" />
+                                      Berechtigungen verwalten
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    handleResendWelcomeEmail(user.id, user.email);
+                                  }}
+                                >
+                                  <Mail className="mr-2 h-4 w-4" />
+                                  Willkommens-E-Mail erneut senden
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    handleSendPasswordReset(user.id, user.email);
+                                  }}
+                                >
+                                  <Mail className="mr-2 h-4 w-4" />
+                                  Passwort zurücksetzen
+                                </DropdownMenuItem>
+                                {/* Nur Löschen anzeigen wenn User kein SUPERADMIN ist, oder wenn aktueller User SUPERADMIN ist */}
+                                {(user.role !== "SUPERADMIN" || isSuperAdmin) && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onSelect={(e) => {
+                                        e.preventDefault();
+                                        handleDelete(user.id, user.email);
+                                      }}
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Löschen
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
-                        </div>
-                        <div className="flex flex-col gap-2 pt-3 border-t">
-                          {isSuperAdmin && user.role !== "SUPERADMIN" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full justify-start"
-                              onClick={() => setPermissionsDialogOpen(user.id)}
-                            >
-                              <Settings className="h-4 w-4 mr-2 flex-shrink-0" />
-                              <span className="text-left text-sm">Berechtigungen verwalten</span>
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full justify-start"
-                            onClick={() => handleResendWelcomeEmail(user.id, user.email)}
-                          >
-                            <Mail className="h-4 w-4 mr-2 flex-shrink-0" />
-                            <span className="text-left text-sm">Willkommens-E-Mail erneut senden</span>
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full justify-start"
-                            onClick={() => handleSendPasswordReset(user.id, user.email)}
-                          >
-                            <Mail className="h-4 w-4 mr-2 flex-shrink-0" />
-                            <span className="text-left text-sm">Passwort zurücksetzen</span>
-                          </Button>
-                          {/* Nur Löschen anzeigen wenn User kein SUPERADMIN ist, oder wenn aktueller User SUPERADMIN ist */}
-                          {(user.role !== "SUPERADMIN" || isSuperAdmin) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => handleDelete(user.id, user.email)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2 flex-shrink-0" />
-                              <span className="text-left text-sm">Löschen</span>
-                            </Button>
-                          )}
                         </div>
                       </div>
                     </CardContent>

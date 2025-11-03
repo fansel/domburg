@@ -417,7 +417,7 @@ export function BookingForm() {
                   <>
             {/* Step 1: Kalender */}
              <div className="pb-3 flex flex-col h-full relative overflow-y-auto">
-               <div className="px-2 lg:px-8 flex-1 min-h-0 flex flex-col items-center justify-center py-4">
+               <div className="px-2 lg:px-8 flex-1 min-h-0 flex flex-col items-center pt-2 pb-4">
                 <div className="w-full max-w-2xl lg:max-w-4xl relative">
                   <BookingCalendar selectedStartDate={startDate} selectedEndDate={endDate} onDateSelect={handleDateSelect} />
                 </div>
@@ -641,11 +641,12 @@ export function BookingForm() {
 
                 {currentStep === 4 && (
                   <>
-            {/* Step 4: Übersicht mit Preis */}
+            {/* Step 4: Übersicht mit Preis - Split View */}
             <div className="px-4 lg:px-8 pb-3 flex flex-col h-full">
-              <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden flex-1 flex flex-col min-h-0 max-w-2xl lg:max-w-4xl mx-auto w-full">
-                  <div className="p-4 lg:p-8 space-y-4 lg:space-y-8 flex-1 overflow-y-auto">
+              <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0 max-w-2xl lg:max-w-4xl mx-auto w-full">
+                <div className="grid grid-rows-[1fr_auto] h-full overflow-hidden">
+                  {/* Scrollbarer Content oben */}
+                  <div className="overflow-y-auto p-4 lg:p-8">
                     {startDate && endDate && (
                       <div className="space-y-4 lg:space-y-6">
                         <div className="flex items-center gap-3 lg:gap-4 p-4 lg:p-5 bg-gray-50 rounded-lg">
@@ -669,66 +670,70 @@ export function BookingForm() {
                           </div>
                         </div>
 
-                        {isLoadingPrice ? (
-                          <div className="flex items-center justify-center gap-2 py-6 lg:py-8 text-gray-500">
-                            <Loader2 className="h-5 w-5 lg:h-6 lg:w-6 animate-spin" />
-                            <span className="text-sm lg:text-base">Preis wird berechnet...</span>
+                        {pricing?.warnings && pricing.warnings.length > 0 && (
+                          <div className="p-4 lg:p-5 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p className="text-sm lg:text-base font-semibold text-yellow-800 mb-2">Hinweis:</p>
+                            {pricing.warnings.map((warning: string, index: number) => (
+                              <p key={index} className="text-xs lg:text-sm text-yellow-700">{warning}</p>
+                            ))}
                           </div>
-                        ) : pricing ? (
-                          <div className="space-y-3 lg:space-y-4 border-t pt-4 lg:pt-6">
-                            <div className="flex justify-between items-center py-2">
-                              <span className="text-sm lg:text-base text-gray-600">{pricing.nights} Nächte</span>
-                              <span className="font-medium text-sm lg:text-base">{formatCurrency(pricing.basePrice)}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 text-xs lg:text-sm">
-                              <span className="text-gray-600">à {formatCurrency(pricing.pricePerNight)}</span>
-                              <span className="text-gray-500">pro Nacht</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 text-sm lg:text-base border-t pt-3 lg:pt-4">
-                              <span className="text-gray-600">Endreinigung</span>
-                              <span className="font-medium">{formatCurrency(pricing.cleaningFee)}</span>
-                            </div>
-                            {pricing.beachHutPrice && (
-                              <div className="flex justify-between items-center py-2 text-sm lg:text-base">
-                                <span className="text-gray-600">Strandbude</span>
-                                <span className="font-medium">{formatCurrency(pricing.beachHutPrice)}</span>
-                              </div>
-                            )}
-                            {pricing.warnings && pricing.warnings.length > 0 && (
-                              <div className="mt-3 lg:mt-4 p-4 lg:p-5 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                <p className="text-sm lg:text-base font-semibold text-yellow-800 mb-2">Hinweis:</p>
-                                {pricing.warnings.map((warning: string, index: number) => (
-                                  <p key={index} className="text-xs lg:text-sm text-yellow-700">{warning}</p>
-                                ))}
-                              </div>
-                            )}
-                            <div className="flex justify-between items-center py-4 lg:py-6 pt-4 lg:pt-6 border-t-2 border-primary/20">
-                              <span className="text-lg lg:text-2xl font-bold text-gray-900">Gesamtpreis</span>
-                              <span className="text-2xl lg:text-3xl font-bold text-primary flex items-center gap-2">
-                                <Euro className="h-6 w-6 lg:h-7 lg:w-7" /> {formatCurrency(pricing.totalPrice)}
-                              </span>
-                            </div>
-                          </div>
-                        ) : null}
+                        )}
                       </div>
                     )}
                   </div>
-                </div>
-                <div className="mt-4 lg:mt-8 px-4 lg:px-8 pb-2 lg:pb-4 flex gap-3 lg:gap-4 flex-shrink-0 max-w-2xl lg:max-w-4xl mx-auto w-full">
-                  <Button type="button" variant="outline" onClick={prevStep} className="flex-1 h-11 lg:h-14 text-sm lg:text-lg">
-                    <ChevronLeft className="mr-1.5 h-4 w-4 lg:h-6 lg:w-6" /> Zurück
-                  </Button>
-                  <Button type="submit" className="flex-1 h-11 lg:h-14 text-sm lg:text-lg" disabled={!guestEmail || !guestName?.trim() || !guestPhone?.trim() || isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 lg:h-6 lg:w-6 animate-spin" /> Wird gesendet...
-                      </>
-                    ) : (
-                      <>
-                        Anfrage senden <ChevronRight className="ml-2 h-4 w-4 lg:h-6 lg:w-6" />
-                      </>
-                    )}
-                  </Button>
+
+                  {/* Feste Leiste unten mit Preis & Buttons */}
+                  <div className="border-t p-4 lg:p-6">
+                    {isLoadingPrice ? (
+                      <div className="flex items-center justify-center gap-2 py-4 text-gray-500">
+                        <Loader2 className="h-5 w-5 lg:h-6 lg:w-6 animate-spin" />
+                        <span className="text-sm lg:text-base">Preis wird berechnet...</span>
+                      </div>
+                    ) : pricing ? (
+                      <div className="space-y-4 lg:space-y-5 mb-4 lg:mb-6">
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-sm lg:text-base text-gray-600">{pricing.nights} Nächte</span>
+                          <span className="font-medium text-sm lg:text-base">{formatCurrency(pricing.basePrice)}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 text-xs lg:text-sm">
+                          <span className="text-gray-600">à {formatCurrency(pricing.pricePerNight)}</span>
+                          <span className="text-gray-500">pro Nacht</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 text-sm lg:text-base border-t pt-3 lg:pt-4">
+                          <span className="text-gray-600">Endreinigung</span>
+                          <span className="font-medium">{formatCurrency(pricing.cleaningFee)}</span>
+                        </div>
+                        {pricing.beachHutPrice && (
+                          <div className="flex justify-between items-center py-1 text-sm lg:text-base">
+                            <span className="text-gray-600">Strandbude</span>
+                            <span className="font-medium">{formatCurrency(pricing.beachHutPrice)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center pt-3 lg:pt-4 border-t-2 border-primary/20">
+                          <span className="text-lg lg:text-2xl font-bold text-gray-900">Gesamtpreis</span>
+                          <span className="text-2xl lg:text-3xl font-bold text-primary flex items-center gap-2">
+                            <Euro className="h-6 w-6 lg:h-7 lg:w-7" /> {formatCurrency(pricing.totalPrice)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="flex gap-3 lg:gap-4">
+                      <Button type="button" variant="outline" onClick={prevStep} className="flex-1 h-11 lg:h-14 text-sm lg:text-lg">
+                        <ChevronLeft className="mr-1.5 h-4 w-4 lg:h-6 lg:w-6" /> Zurück
+                      </Button>
+                      <Button type="submit" className="flex-1 h-11 lg:h-14 text-sm lg:text-lg" disabled={!guestEmail || !guestName?.trim() || !guestPhone?.trim() || isSubmitting}>
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 lg:h-6 lg:w-6 animate-spin" /> Wird gesendet...
+                          </>
+                        ) : (
+                          <>
+                            Anfrage senden <ChevronRight className="ml-2 h-4 w-4 lg:h-6 lg:w-6" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </form>
             </div>
