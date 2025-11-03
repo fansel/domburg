@@ -15,14 +15,14 @@ async function main() {
       username: 'admin',
       password: hashedPassword,
       name: 'Administrator',
-      role: 'SUPERADMIN',
+      role: 'SUPERADMIN' as any,
     },
     create: {
       email: 'admin@domburg.local',
       name: 'Administrator',
       username: 'admin',
       password: hashedPassword,
-      role: 'SUPERADMIN',
+      role: 'SUPERADMIN' as any,
     },
   });
   console.log('✅ Superadmin erstellt:', admin.username, '/', admin.email);

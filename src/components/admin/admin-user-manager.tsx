@@ -54,7 +54,7 @@ interface AdminUserManagerProps {
 export function AdminUserManager({ initialUsers, currentUser }: AdminUserManagerProps) {
   const { t } = useTranslation();
   const [users, setUsers] = useState(initialUsers);
-  const isSuperAdmin = currentUser?.role === "SUPERADMIN";
+  const isSuperAdmin = currentUser?.role === ("SUPERADMIN" as any);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState<string | null>(null);
@@ -365,7 +365,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                     <Switch
                       id={`canSee-${user.id}`}
                       checked={(user as any).canSeeBookings !== false}
-                      disabled={user.role === "SUPERADMIN" && user.id === currentUser?.id}
+                      disabled={(user.role as string) === "SUPERADMIN" && user.id === currentUser?.id}
                       onCheckedChange={async (checked) => {
                         const result = await updateUserPermissions(
                           user.id,
@@ -408,7 +408,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                     <Switch
                       id={`canApprove-${user.id}`}
                       checked={(user as any).canApproveBookings !== false}
-                      disabled={user.role === "SUPERADMIN" && user.id === currentUser?.id}
+                      disabled={(user.role as string) === "SUPERADMIN" && user.id === currentUser?.id}
                       onCheckedChange={async (checked) => {
                         const result = await updateUserPermissions(
                           user.id,
@@ -451,7 +451,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                     <Switch
                       id={`canManagePricing-${user.id}`}
                       checked={(user as any).canManagePricing === true}
-                      disabled={user.role === "SUPERADMIN" && user.id === currentUser?.id}
+                      disabled={(user.role as string) === "SUPERADMIN" && user.id === currentUser?.id}
                       onCheckedChange={async (checked) => {
                         const result = await updateUserPermissions(
                           user.id,
@@ -550,8 +550,8 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                               </SelectContent>
                             </Select>
                           ) : (
-                            <Badge variant={user.role === "SUPERADMIN" ? "default" : "secondary"}>
-                              {user.role === "SUPERADMIN" && <Crown className="h-3 w-3 mr-1 inline" />}
+                            <Badge variant={(user.role as string) === "SUPERADMIN" ? "default" : "secondary"}>
+                              {(user.role as string) === "SUPERADMIN" && <Crown className="h-3 w-3 mr-1 inline" />}
                               {user.role}
                             </Badge>
                           )}
@@ -573,7 +573,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {isSuperAdmin && user.role !== "SUPERADMIN" && (
+                              {isSuperAdmin && (user.role as string) !== "SUPERADMIN" && (
                                 <>
                                   <DropdownMenuItem
                                     onSelect={(e) => {
@@ -607,7 +607,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                                 Passwort zurücksetzen
                               </DropdownMenuItem>
                               {/* Nur Löschen anzeigen wenn User kein SUPERADMIN ist, oder wenn aktueller User SUPERADMIN ist */}
-                              {(user.role !== "SUPERADMIN" || isSuperAdmin) && (
+                              {((user.role as string) !== "SUPERADMIN" || isSuperAdmin) && (
                                 <>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
@@ -680,8 +680,8 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                                     </SelectContent>
                                   </Select>
                                 ) : (
-                                  <Badge variant={user.role === "SUPERADMIN" ? "default" : "secondary"} className="text-xs">
-                                    {user.role === "SUPERADMIN" && <Crown className="h-3 w-3 mr-1 inline" />}
+                                  <Badge variant={(user.role as string) === "SUPERADMIN" ? "default" : "secondary"} className="text-xs">
+                                    {(user.role as string) === "SUPERADMIN" && <Crown className="h-3 w-3 mr-1 inline" />}
                                     {user.role}
                                   </Badge>
                                 )}
@@ -705,7 +705,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-56">
-                                {isSuperAdmin && user.role !== "SUPERADMIN" && (
+                                {isSuperAdmin && (user.role as string) !== "SUPERADMIN" && (
                                   <>
                                     <DropdownMenuItem
                                       onSelect={(e) => {
@@ -739,7 +739,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                                   Passwort zurücksetzen
                                 </DropdownMenuItem>
                                 {/* Nur Löschen anzeigen wenn User kein SUPERADMIN ist, oder wenn aktueller User SUPERADMIN ist */}
-                                {(user.role !== "SUPERADMIN" || isSuperAdmin) && (
+                                {((user.role as string) !== "SUPERADMIN" || isSuperAdmin) && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
