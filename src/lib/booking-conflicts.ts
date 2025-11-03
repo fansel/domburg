@@ -25,6 +25,8 @@ export interface BookingConflict {
  * Prüft ob zwei Datumsbereiche sich überlappen
  * WICHTIG: Überlappungen am gleichen End-Tag sind KEINE Überlappungen,
  * da Check-out und Check-in am selben Tag möglich sind (Pro-Nacht-Zahlung)
+ * 
+ * Verwendet Europe/Amsterdam Zeitzone für konsistente Normalisierung
  */
 export function datesOverlap(
   start1: Date,
@@ -33,10 +35,22 @@ export function datesOverlap(
   end2: Date
 ): boolean {
   // Normalisiere auf Tagesanfang für Vergleich (ignoriere Uhrzeit)
+  // WICHTIG: Verwende lokale Zeitzone (Europe/Amsterdam) für Konsistenz
+  const getLocalDateString = (date: Date): string => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Amsterdam',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(date);
+  };
+
   const normalizeDate = (date: Date) => {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d;
+    const localDateStr = getLocalDateString(date);
+    // Parse als lokales Datum (ohne Timezone)
+    const [year, month, day] = localDateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
   };
   
   const s1 = normalizeDate(start1);

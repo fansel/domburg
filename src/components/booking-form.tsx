@@ -24,15 +24,29 @@ import {
 } from "@/components/ui/alert-dialog";
 
 // Kompakte Datumsanzeige (z.B. "3.11.25-7.11.25")
+// WICHTIG: Normalisiert auf lokale Zeitzone (Europe/Amsterdam) für konsistente Anzeige
 const formatCompactDate = (startDate: Date, endDate: Date): string => {
-  const startDay = startDate.getDate();
-  const endDay = endDate.getDate();
-  const startMonth = startDate.getMonth() + 1;
-  const endMonth = endDate.getMonth() + 1;
-  const startYear = startDate.getFullYear().toString().slice(-2);
-  const endYear = endDate.getFullYear().toString().slice(-2);
+  // Normalisiere Daten auf lokale Zeitzone (Europe/Amsterdam) für konsistente Anzeige
+  const getLocalDateString = (date: Date): string => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Amsterdam',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(date);
+  };
 
-  return `${startDay}.${startMonth}.${startYear}-${endDay}.${endMonth}.${endYear}`;
+  const startLocal = getLocalDateString(startDate);
+  const endLocal = getLocalDateString(endDate);
+  
+  const [startYear, startMonth, startDay] = startLocal.split('-').map(Number);
+  const [endYear, endMonth, endDay] = endLocal.split('-').map(Number);
+  
+  const startYearShort = startYear.toString().slice(-2);
+  const endYearShort = endYear.toString().slice(-2);
+
+  return `${startDay}.${startMonth}.${startYearShort}-${endDay}.${endMonth}.${endYearShort}`;
 };
 
 interface PriceCalculation {

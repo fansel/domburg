@@ -147,10 +147,13 @@ export function BookingDetailView({
   };
 
   const formatDate = (date: Date) => {
+    // Verwende lokale Zeitzone (Europe/Amsterdam) für konsistente Anzeige
+    // Damit werden UTC-gespeicherte Daten korrekt in der lokalen Zeitzone interpretiert
     return new Intl.DateTimeFormat("de-DE", {
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "Europe/Amsterdam",
     }).format(new Date(date));
   };
 

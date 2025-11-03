@@ -14,21 +14,26 @@ export function formatCurrency(amount: number): string {
 
 export function formatDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date
+  // Verwende lokale Zeitzone (Europe/Amsterdam) für konsistente Anzeige
+  // Damit werden UTC-gespeicherte Daten korrekt in der lokalen Zeitzone interpretiert
   return new Intl.DateTimeFormat('de-DE', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: 'Europe/Amsterdam',
   }).format(d)
 }
 
 export function formatDateTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date
+  // Verwende lokale Zeitzone (Europe/Amsterdam) für konsistente Anzeige
   return new Intl.DateTimeFormat('de-DE', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Europe/Amsterdam',
   }).format(d)
 }
 
