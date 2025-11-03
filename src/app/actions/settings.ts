@@ -167,6 +167,15 @@ export async function createAdminUser({
         canSeeBookings: true,  // Standard: darf Buchungen sehen
         canApproveBookings: false,  // Standard: darf nicht genehmigen
         mustChangePassword: generatePassword, // Muss Passwort ändern wenn generiert wurde
+        // Erstelle Standard-Benachrichtigungseinstellungen (bookingConflict: false)
+        notificationPreferences: {
+          create: {
+            newBooking: true,
+            bookingApproved: false,
+            bookingRejected: false,
+            bookingConflict: false, // Standard: deaktiviert - Admin muss aktivieren
+          },
+        },
       },
     });
 

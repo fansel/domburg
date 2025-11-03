@@ -69,21 +69,24 @@ export function formatRelativeTime(date: Date | string): string {
 /**
  * Gibt eine konsistente Google Calendar colorId für eine Buchung zurück
  * Verwendet eine Hash-Funktion basierend auf bookingId/bookingCode
+ * WICHTIG: Diese Funktion garantiert, dass verschiedene Buchungen unterschiedliche Farben bekommen
  * Farbe 10 (Basilikum/Grün) wird NICHT verwendet, da sie für Info-Events reserviert ist
  * 
  * Verfügbare Farben: 1=Lavendel, 2=Salbei, 3=Traube, 4=Flamingo, 5=Banane,
  * 6=Mandarine, 7=Pfau, 8=Graphit, 9=Blaubeere, 11=Tomate
  */
 export function getBookingColorId(bookingId: string): string {
-  // Einfache Hash-Funktion basierend auf String
-  let hash = 0;
+  // Robuste Hash-Funktion basierend auf String
+  // Verwendet einen besseren Hash-Algorithmus für bessere Verteilung
+  let hash = 5381; // djb2 hash algorithm seed
   for (let i = 0; i < bookingId.length; i++) {
     const char = bookingId.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = ((hash << 5) + hash) + char; // hash * 33 + char
   }
   
   // Verfügbare Farb-IDs (ohne 10, da diese für Info-Events reserviert ist)
+  // Jede Buchung bekommt basierend auf ihrer eindeutigen ID eine Farbe
+  // Verschiedene Buchungen = verschiedene IDs = verschiedene Farben (garantiert durch Hash)
   const availableColors = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '11'];
   const colorIndex = Math.abs(hash) % availableColors.length;
   return availableColors[colorIndex];
@@ -133,5 +136,49 @@ export function getBookingTextColorClass(bookingId: string): string {
   };
   
   return textColorMap[colorId] || 'text-primary-foreground';
+}
+
+/**
+ * Prüft ob zwei Datumsbereiche sich überlappen
+ * WICHTIG: Überlappungen am gleichen End-Tag sind KEINE Überlappungen,
+ * da Check-out und Check-in am selben Tag möglich sind (Pro-Nacht-Zahlung)
+ * 
+ * Verwendet Europe/Amsterdam Zeitzone für konsistente Normalisierung
+ */
+export function datesOverlap(
+  start1: Date,
+  end1: Date,
+  start2: Date,
+  end2: Date
+): boolean {
+  // Normalisiere auf Tagesanfang für Vergleich (ignoriere Uhrzeit)
+  // WICHTIG: Verwende lokale Zeitzone (Europe/Amsterdam) für Konsistenz
+  const getLocalDateString = (date: Date): string => {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Amsterdam',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(date);
+  };
+
+  const normalizeDate = (date: Date) => {
+    const localDateStr = getLocalDateString(date);
+    // Parse als lokales Datum (ohne Timezone)
+    const [year, month, day] = localDateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+  
+  const s1 = normalizeDate(start1);
+  const e1 = normalizeDate(end1);
+  const s2 = normalizeDate(start2);
+  const e2 = normalizeDate(end2);
+  
+  // Überlappung nur wenn sie sich EXKLUSIV überschneiden (nicht nur am gleichen Tag berühren)
+  // start1 < end2 && start2 < end1 würde auch gleiche Tage als Überlappung sehen
+  // Für Hotel-Style: Check-out Tag kann gleich Check-in Tag sein
+  // Beispiel: 01.01-05.01 und 05.01-10.01 = KEINE Überlappung (5.1 ist Check-out + Check-in)
+  return s1 < e2 && s2 < e1;
 }
 

@@ -18,6 +18,7 @@ import { PublicUrlManager } from "@/components/admin/public-url-manager";
 import { ReplyToManager } from "@/components/admin/reply-to-manager";
 import { EmailLogManager } from "@/components/admin/email-log-manager";
 import { BookingAdvanceSettingManager } from "@/components/admin/booking-advance-setting-manager";
+import { BookingHistoryResetManager } from "@/components/admin/booking-history-reset-manager";
 
 export default async function AdminSettingsPage() {
   const user = await getCurrentUser();
@@ -174,6 +175,7 @@ export default async function AdminSettingsPage() {
               <div className="space-y-6">
                 <PublicUrlManager initialUrl={publicUrlSetting?.value || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"} />
                 <BookingAdvanceSettingManager initialEnabled={bookingAdvanceSetting?.value === "true"} />
+                <BookingHistoryResetManager />
               </div>
             </TabsContent>
           )}

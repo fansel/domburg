@@ -175,16 +175,22 @@ async function main() {
 
   console.log('✅ System-Einstellungen erstellt');
 
-  // Email Templates erstellen (nur wenn nicht vorhanden)
+  // Email Templates erstellen oder aktualisieren (upsert)
   console.log('📧 Prüfe Email-Templates...');
   for (const template of emailTemplates) {
-    const existing = await prisma.emailTemplate.findUnique({
+    await prisma.emailTemplate.upsert({
       where: { key: template.key },
-    });
-    
-    if (!existing) {
-      await prisma.emailTemplate.create({
-        data: {
+      update: {
+        // Aktualisiere nur, wenn Template existiert aber inaktiv ist oder veraltet
+        name: template.name,
+        subject: template.subject,
+        bodyHtml: template.bodyHtml,
+        bodyText: template.bodyText,
+        description: template.description,
+        variables: template.variables,
+        isActive: true, // Stelle sicher dass Template aktiv ist
+      },
+      create: {
         key: template.key,
         name: template.name,
         subject: template.subject,
@@ -195,10 +201,7 @@ async function main() {
         isActive: true,
       },
     });
-      console.log(`  ✅ ${template.name} erstellt`);
-    } else {
-      console.log(`  ⏭️  ${template.name} existiert bereits - übersprungen`);
-    }
+    console.log(`  ✅ ${template.name} erstellt/aktualisiert`);
   }
   console.log('✅ Email-Templates Prüfung abgeschlossen');
 

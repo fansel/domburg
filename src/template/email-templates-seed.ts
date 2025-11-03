@@ -887,5 +887,98 @@ Buchung anzeigen: {{adminUrl}}
 Viele Grüße
 Hollandhaus Buchungssystem`,
   },
+  {
+    key: "admin_booking_conflict",
+    name: "Buchungskonflikt (an Admin)",
+    subject: "Buchungskonflikt erkannt: {{conflictType}}",
+    description: "Benachrichtigung an Admins wenn ein Buchungskonflikt erkannt wird",
+    variables: ["conflictType", "conflictDescription", "bookingsList", "bookingsCount", "firstBookingCode", "adminUrl"],
+    bodyHtml: `
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .warning-box { 
+        background: #fff3cd; 
+        border: 2px solid #ffc107;
+        padding: 15px; 
+        border-radius: 5px; 
+        margin: 20px 0; 
+      }
+      .conflict-box {
+        background: #f8d7da;
+        border: 2px solid #dc3545;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 20px 0;
+      }
+      .bookings-list {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+        font-family: monospace;
+        font-size: 14px;
+        white-space: pre-line;
+      }
+      .button { 
+        display: inline-block; 
+        padding: 12px 24px; 
+        background: #dc3545; 
+        color: #fff; 
+        text-decoration: none; 
+        border-radius: 5px;
+        margin: 20px 0;
+      }
+      .footer { margin-top: 30px; font-size: 12px; color: #666; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Buchungskonflikt erkannt</h1>
+      
+      <div class="warning-box">
+        <h3>Konflikttyp:</h3>
+        <p><strong>{{conflictType}}</strong></p>
+        <p>{{conflictDescription}}</p>
+      </div>
+
+      <div class="conflict-box">
+        <h3>Betroffene Buchungen ({{bookingsCount}}):</h3>
+        <div class="bookings-list">{{bookingsList}}</div>
+      </div>
+      
+      <p>Bitte überprüfe die betroffenen Buchungen und löse den Konflikt auf.</p>
+      
+      <a href="{{adminUrl}}" class="button">Zu den Buchungen</a>
+      
+      <div class="footer">
+        <p>Viele Grüße<br>Hollandhaus Buchungssystem</p>
+      </div>
+    </div>
+  </body>
+</html>`,
+    bodyText: `BUCHUNGSKONFLIKT ERKANNT
+
+KONFLIKTTYP:
+------------
+{{conflictType}}
+
+{{conflictDescription}}
+
+BETROFFENE BUCHUNGEN ({{bookingsCount}}):
+----------------------------------------
+{{bookingsList}}
+
+Bitte überprüfe die betroffenen Buchungen und löse den Konflikt auf.
+
+Zu den Buchungen: {{adminUrl}}
+
+Viele Grüße
+Hollandhaus Buchungssystem`,
+  },
 ];
 

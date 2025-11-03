@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
           newBooking: true,
           bookingApproved: false,
           bookingRejected: false,
+          bookingConflict: false, // Standard: deaktiviert - Admin muss aktivieren
         },
       });
     }
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
         newBooking: preferences.newBooking,
         bookingApproved: preferences.bookingApproved,
         bookingRejected: preferences.bookingRejected,
+        bookingConflict: preferences.bookingConflict,
       },
     });
   } catch (error: any) {
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { newBooking, bookingApproved, bookingRejected } = body;
+    const { newBooking, bookingApproved, bookingRejected, bookingConflict } = body;
 
     // Upsert (aktualisieren oder erstellen)
     await prisma.adminNotificationPreferences.upsert({
@@ -65,12 +67,14 @@ export async function POST(request: NextRequest) {
         newBooking: Boolean(newBooking),
         bookingApproved: Boolean(bookingApproved),
         bookingRejected: Boolean(bookingRejected),
+        bookingConflict: Boolean(bookingConflict),
       },
       create: {
         userId: user.id,
         newBooking: Boolean(newBooking),
         bookingApproved: Boolean(bookingApproved),
         bookingRejected: Boolean(bookingRejected),
+        bookingConflict: Boolean(bookingConflict),
       },
     });
 

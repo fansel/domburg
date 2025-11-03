@@ -12,6 +12,7 @@ interface NotificationPreferences {
   newBooking: boolean;
   bookingApproved: boolean;
   bookingRejected: boolean;
+  bookingConflict: boolean;
 }
 
 interface NotificationPreferencesManagerProps {
@@ -38,6 +39,12 @@ const notificationTypes = [
     description: "Erhalte eine E-Mail, wenn ein anderer Admin eine Buchung ablehnt",
     hasTemplate: true,
   },
+  {
+    key: "bookingConflict" as keyof NotificationPreferences,
+    label: "Konflikt erkannt",
+    description: "Erhalte eine E-Mail, wenn ein Buchungskonflikt erkannt wird",
+    hasTemplate: true,
+  },
 ];
 
 export function NotificationPreferencesManager({
@@ -48,6 +55,7 @@ export function NotificationPreferencesManager({
     newBooking: true,
     bookingApproved: false,
     bookingRejected: false,
+    bookingConflict: false, // Standard: deaktiviert
     ...initialPreferences,
   });
   const [isSaving, setIsSaving] = useState(false);

@@ -20,7 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatDate } from "@/lib/utils";
+import { formatDate, datesOverlap } from "@/lib/utils";
+import { Link as LinkIcon, CheckCircle2, Unlink } from "lucide-react";
 
 interface CalendarEvent {
   id: string;
@@ -57,6 +58,8 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
   const [selectedDayForDetails, setSelectedDayForDetails] = useState<number | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isGrouping, setIsGrouping] = useState(false);
+  const [isUngrouping, setIsUngrouping] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -124,6 +127,122 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
       });
     }
     setMarkingEventId(null);
+  };
+
+  // Finde überlappende Events
+  const findOverlappingEvents = (events: CalendarEvent[]): CalendarEvent[][] => {
+    const overlappingGroups: CalendarEvent[][] = [];
+    const processed = new Set<string>();
+
+    for (let i = 0; i < events.length; i++) {
+      if (processed.has(events[i].id)) continue;
+      
+      const group = [events[i]];
+      processed.add(events[i].id);
+
+      for (let j = i + 1; j < events.length; j++) {
+        if (processed.has(events[j].id)) continue;
+
+        // Prüfe ob dieses Event mit einem Event in der Gruppe überlappt
+        const overlaps = group.some(e => 
+          datesOverlap(e.start, e.end, events[j].start, events[j].end)
+        );
+
+        if (overlaps) {
+          group.push(events[j]);
+          processed.add(events[j].id);
+        }
+      }
+
+      // Nur Gruppen mit mehr als einem Event zurückgeben
+      if (group.length > 1) {
+        overlappingGroups.push(group);
+      }
+    }
+
+    return overlappingGroups;
+  };
+
+  const handleGroupEvents = async (eventIds: string[]) => {
+    if (eventIds.length < 2) return;
+
+    try {
+      setIsGrouping(true);
+      
+      // Hole die erste Farbe der Events als Ziel-Farbe
+      const events = calendarEvents.filter(e => eventIds.includes(e.id));
+      const firstWithColor = events.find(e => e.colorId && e.colorId !== '10');
+      const targetColorId = firstWithColor?.colorId || '1'; // Fallback auf Farbe 1
+
+      // Update alle Events mit der gleichen Farbe
+      const updatePromises = eventIds.map(id => 
+        fetch("/api/admin/calendar-bookings/group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: id,
+            colorId: targetColorId,
+          }),
+        })
+      );
+
+      const results = await Promise.all(updatePromises);
+      const allSuccess = results.every(res => res.ok);
+
+      if (allSuccess) {
+        toast({
+          title: "Erfolgreich",
+          description: `${eventIds.length} Events wurden zusammengelegt (gleiche Farbe)`,
+        });
+        setIsDetailDialogOpen(false);
+        router.refresh();
+      } else {
+        throw new Error("Einige Updates sind fehlgeschlagen");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Zusammenlegen",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGrouping(false);
+    }
+  };
+
+  const handleUngroupEvents = async (eventIds: string[]) => {
+    if (eventIds.length < 2) return;
+
+    try {
+      setIsUngrouping(true);
+
+      const response = await fetch("/api/admin/calendar-bookings/ungroup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventIds }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Fehler beim Trennen");
+      }
+
+      toast({
+        title: "Erfolgreich",
+        description: `${eventIds.length} Events wurden getrennt (jedes hat jetzt eine eigene Farbe)`,
+      });
+      setIsDetailDialogOpen(false);
+      router.refresh();
+    } catch (error: any) {
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Trennen",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUngrouping(false);
+    }
   };
 
 
@@ -787,6 +906,7 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
               {(() => {
                 const dayBookings = getBookingsForDay(selectedDayForDetails);
                 const dayEvents = getEventsForDay(selectedDayForDetails);
+                const overlappingEventGroups = findOverlappingEvents(dayEvents);
                 
                 if (dayBookings.length === 0 && dayEvents.length === 0) {
                   return (
@@ -798,6 +918,76 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
 
                 return (
                   <>
+                    {/* Zeige Warnung und Zusammenleg-Button wenn überlappende Events vorhanden */}
+                    {overlappingEventGroups.length > 0 && (
+                      <>
+                        {overlappingEventGroups.map((group, idx) => {
+                          // Prüfe ob alle Events bereits die gleiche Farbe haben
+                          const allSameColor = group.length > 0 && group.every(e => {
+                            const event = calendarEvents.find(ce => ce.id === e.id);
+                            const firstColorId = calendarEvents.find(ce => ce.id === group[0].id)?.colorId;
+                            return event?.colorId && event.colorId !== '10' && event.colorId === firstColorId;
+                          });
+
+                          if (allSameColor) {
+                            return (
+                              <div key={idx} className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex items-start gap-2 flex-1">
+                                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                      <h4 className="font-semibold text-green-900 dark:text-green-100 mb-1">
+                                        Bereits zusammengelegt
+                                      </h4>
+                                      <p className="text-sm text-green-700 dark:text-green-300">
+                                        Diese {group.length} Events haben die gleiche Farbe und werden als zusammengehörig erkannt.
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleUngroupEvents(group.map(e => e.id))}
+                                    disabled={isUngrouping}
+                                    className="flex-shrink-0 border-green-300 dark:border-green-700"
+                                  >
+                                    <Unlink className="h-4 w-4 mr-2" />
+                                    {isUngrouping ? "Trennen..." : "Trennen"}
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div key={idx} className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                              <div className="flex items-start justify-between gap-4 mb-3">
+                                <div>
+                                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-1">
+                                    Überlappende Events gefunden
+                                  </h4>
+                                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                                    {group.length} Events überlappen sich. 
+                                    Du kannst sie zusammenlegen, damit sie als zusammengehörig erkannt werden.
+                                  </p>
+                                </div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleGroupEvents(group.map(e => e.id))}
+                                disabled={isGrouping}
+                                className="w-full sm:w-auto border-yellow-300 dark:border-yellow-700"
+                              >
+                                <LinkIcon className="h-4 w-4 mr-2" />
+                                {isGrouping ? "Zusammenlegen..." : `${group.length} Events zusammenlegen`}
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+                    
                     {dayBookings.map((booking) => {
                       const bgColorClass = getBookingColorClass(booking.id);
                       const textColorClass = getBookingTextColorClass(booking.id);

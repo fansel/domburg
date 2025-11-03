@@ -654,6 +654,60 @@ export async function sendBookingRejectedNotificationToAdmin({
   }, replyTo, undefined, 'admin_booking_rejected');
 }
 
+// Booking Conflict Notification (to Admin)
+export async function sendBookingConflictNotificationToAdmin({
+  adminEmail,
+  conflictType,
+  conflictDescription,
+  bookings,
+  adminUrl,
+}: {
+  adminEmail: string;
+  conflictType: "OVERLAPPING_REQUESTS" | "CALENDAR_CONFLICT" | "OVERLAPPING_CALENDAR_EVENTS";
+  conflictDescription: string;
+  bookings: Array<{
+    bookingCode: string;
+    guestName?: string | null;
+    guestEmail: string;
+    startDate: Date;
+    endDate: Date;
+    status: string;
+  }>;
+  adminUrl?: string;
+}) {
+  const appUrl = await getPublicUrl();
+  const conflictsUrl = adminUrl || `${appUrl}/admin/bookings`;
+  const replyTo = await getReplyToEmail();
+  
+  // Erstelle eine formatierte Liste der beteiligten Buchungen
+  const bookingsList = bookings.map(booking => {
+    const guestName = booking.guestName || booking.guestEmail.split('@')[0];
+    return `• ${guestName} (${booking.bookingCode}): ${formatEmailDate(booking.startDate)} - ${formatEmailDate(booking.endDate)} [${booking.status}]`;
+  }).join('\n');
+  
+  let conflictTypeLabel = '';
+  switch (conflictType) {
+    case 'OVERLAPPING_REQUESTS':
+      conflictTypeLabel = 'Überlappende Buchungen';
+      break;
+    case 'CALENDAR_CONFLICT':
+      conflictTypeLabel = 'Kalender-Konflikt';
+      break;
+    case 'OVERLAPPING_CALENDAR_EVENTS':
+      conflictTypeLabel = 'Überlappende Kalendereinträge';
+      break;
+  }
+  
+  return sendTemplatedEmail('admin_booking_conflict', adminEmail, {
+    conflictType: conflictTypeLabel,
+    conflictDescription,
+    bookingsList,
+    bookingsCount: bookings.length.toString(),
+    adminUrl: conflictsUrl,
+    firstBookingCode: bookings[0]?.bookingCode || '',
+  }, replyTo, undefined, 'admin_booking_conflict');
+}
+
 // Booking Cancelled Notification (to Admin)
 export async function sendBookingCancelledNotificationToAdmin({
   adminEmail,

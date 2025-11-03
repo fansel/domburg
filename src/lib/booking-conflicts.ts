@@ -1,6 +1,7 @@
 import { Booking } from "@prisma/client";
 import prisma from "./prisma";
 import { getBlockedDatesFromCalendar } from "./google-calendar";
+import { datesOverlap } from "./utils";
 
 export interface BookingConflict {
   type: "OVERLAPPING_REQUESTS" | "CALENDAR_CONFLICT" | "OVERLAPPING_CALENDAR_EVENTS";
@@ -21,49 +22,6 @@ export interface BookingConflict {
   isPotentialConflict?: boolean; // true wenn nur PENDING Anfragen betroffen sind (potenzieller Konflikt)
 }
 
-/**
- * Prüft ob zwei Datumsbereiche sich überlappen
- * WICHTIG: Überlappungen am gleichen End-Tag sind KEINE Überlappungen,
- * da Check-out und Check-in am selben Tag möglich sind (Pro-Nacht-Zahlung)
- * 
- * Verwendet Europe/Amsterdam Zeitzone für konsistente Normalisierung
- */
-export function datesOverlap(
-  start1: Date,
-  end1: Date,
-  start2: Date,
-  end2: Date
-): boolean {
-  // Normalisiere auf Tagesanfang für Vergleich (ignoriere Uhrzeit)
-  // WICHTIG: Verwende lokale Zeitzone (Europe/Amsterdam) für Konsistenz
-  const getLocalDateString = (date: Date): string => {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/Amsterdam',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    return formatter.format(date);
-  };
-
-  const normalizeDate = (date: Date) => {
-    const localDateStr = getLocalDateString(date);
-    // Parse als lokales Datum (ohne Timezone)
-    const [year, month, day] = localDateStr.split('-').map(Number);
-    return new Date(year, month - 1, day);
-  };
-  
-  const s1 = normalizeDate(start1);
-  const e1 = normalizeDate(end1);
-  const s2 = normalizeDate(start2);
-  const e2 = normalizeDate(end2);
-  
-  // Überlappung nur wenn sie sich EXKLUSIV überschneiden (nicht nur am gleichen Tag berühren)
-  // start1 < end2 && start2 < end1 würde auch gleiche Tage als Überlappung sehen
-  // Für Hotel-Style: Check-out Tag kann gleich Check-in Tag sein
-  // Beispiel: 01.01-05.01 und 05.01-10.01 = KEINE Überlappung (5.1 ist Check-out + Check-in)
-  return s1 < e2 && s2 < e1;
-}
 
 /**
  * Findet alle überlappenden Buchungsanfragen
@@ -155,11 +113,20 @@ export async function findOverlappingRequests(): Promise<BookingConflict[]> {
       if (!processed.has(conflictKey)) {
         // Prüfe ob alle beteiligten Buchungen PENDING sind (potenzieller Konflikt)
         const allPending = overlappingBookings.every(b => b.status === 'PENDING');
+        const hasPending = overlappingBookings.some(b => b.status === 'PENDING');
+        
+        // Severity-Logik:
+        // - 3+ überlappende Anfragen = immer HIGH (egal ob PENDING)
+        // - 2 überlappende Anfragen mit mindestens einer PENDING = MEDIUM (keine E-Mail)
+        // - 2 überlappende Anfragen beide APPROVED = HIGH (E-Mail)
+        const severity = overlappingBookings.length >= 3 
+          ? "HIGH" 
+          : (hasPending ? "MEDIUM" : "HIGH");
         
         conflicts.push({
           type: "OVERLAPPING_REQUESTS",
           bookings: overlappingBookings as Booking[],
-          severity: allPending ? "MEDIUM" : (overlappingBookings.length > 2 ? "HIGH" : "MEDIUM"),
+          severity,
           isPotentialConflict: allPending, // Flag für potenzielle Konflikte (nur PENDING)
         });
         processed.add(conflictKey);
@@ -196,10 +163,14 @@ export async function findOverlappingRequests(): Promise<BookingConflict[]> {
         .join("-");
 
       if (!processed.has(conflictKey)) {
+        // 3+ überlappende PENDING Anfragen = HIGH Severity (wichtig genug für Benachrichtigung)
+        // 2 überlappende PENDING Anfragen = MEDIUM (potenzieller Konflikt)
+        const severity = overlappingPendings.length >= 3 ? "HIGH" : "MEDIUM";
+        
         conflicts.push({
           type: "OVERLAPPING_REQUESTS",
           bookings: overlappingPendings as Booking[],
-          severity: "MEDIUM", // Potenzielle Konflikte - Admin muss entscheiden
+          severity,
           isPotentialConflict: true, // Flag für potenzielle Konflikte (nur PENDING)
         });
         processed.add(conflictKey);
@@ -345,7 +316,24 @@ export async function findOverlappingCalendarEvents(): Promise<BookingConflict[]
           .join("-");
 
         if (!processed.has(conflictKey)) {
-          const conflict = {
+          // Prüfe ob alle Events die gleiche colorId haben
+          const firstEvent = allEvents.find(e => e.id === overlappingEvents[0].id);
+          const firstColorId = firstEvent?.colorId;
+          const allSameColor = firstColorId !== undefined && 
+            overlappingEvents.every(oe => {
+              const event = allEvents.find(e => e.id === oe.id);
+              return event?.colorId === firstColorId;
+            });
+          
+          // Wenn alle Events die gleiche Farbe haben = KEIN Konflikt (zusammengehörig)
+          // Verschiedene Farben = echter Konflikt (HIGH)
+          if (allSameColor) {
+            // Gleiche Farbe = kein Konflikt, einfach überspringen
+            processed.add(conflictKey);
+            continue;
+          }
+          
+          const conflict: BookingConflict = {
             type: "OVERLAPPING_CALENDAR_EVENTS" as const,
             bookings: [], // Keine Buchungen beteiligt
             calendarEvents: overlappingEvents.map(e => ({
@@ -354,7 +342,7 @@ export async function findOverlappingCalendarEvents(): Promise<BookingConflict[]
               start: e.start,
               end: e.end,
             })),
-            severity: (overlappingEvents.length > 2 ? "HIGH" : "MEDIUM") as "HIGH" | "MEDIUM",
+            severity: "HIGH",
           };
           conflicts.push(conflict);
           processed.add(conflictKey);
@@ -371,6 +359,7 @@ export async function findOverlappingCalendarEvents(): Promise<BookingConflict[]
 
 /**
  * Findet alle Konflikte (überlappende Anfragen + Kalenderkonflikte + überlappende Kalendereinträge)
+ * Filtert automatisch ignorierte Konflikte heraus
  */
 export async function findAllConflicts(): Promise<BookingConflict[]> {
   const [overlapping, calendar, calendarOverlaps] = await Promise.all([
@@ -379,7 +368,10 @@ export async function findAllConflicts(): Promise<BookingConflict[]> {
     findOverlappingCalendarEvents(),
   ]);
 
-  return [...overlapping, ...calendar, ...calendarOverlaps];
+  const allConflicts = [...overlapping, ...calendar, ...calendarOverlaps];
+  
+  // Filtere ignorierte Konflikte
+  return await filterIgnoredConflicts(allConflicts);
 }
 
 /**
@@ -403,6 +395,368 @@ export function formatConflict(conflict: BookingConflict): string {
     return `Konflikt mit Kalendereintrag: ${conflict.calendarEvent?.summary}`;
   } else {
     return `${conflict.calendarEvents?.length || 0} überlappende Kalendereinträge`;
+  }
+}
+
+/**
+ * Generiert einen eindeutigen Key für einen Konflikt
+ */
+export function generateConflictKey(conflict: BookingConflict): string {
+  if (conflict.type === "OVERLAPPING_CALENDAR_EVENTS") {
+    return conflict.calendarEvents
+      ?.map(e => e.id)
+      .sort()
+      .join("-") || "";
+  } else if (conflict.type === "CALENDAR_CONFLICT") {
+    const bookingId = conflict.bookings[0]?.id || "";
+    const eventId = conflict.calendarEvent?.id || "";
+    return `${bookingId}-${eventId}`;
+  } else {
+    // OVERLAPPING_REQUESTS
+    return conflict.bookings
+      .map(b => b.id)
+      .sort()
+      .join("-");
+  }
+}
+
+/**
+ * Prüft ob ein Konflikt ignoriert wurde
+ */
+export async function isConflictIgnored(
+  conflictKey: string,
+  conflictType: string
+): Promise<boolean> {
+  // Dynamischer Import um sicherzustellen dass prisma verfügbar ist
+  const prismaClient = prisma || (await import('./prisma')).default;
+  
+  try {
+    const ignored = await prismaClient.ignoredConflict.findUnique({
+      where: {
+        conflictKey_conflictType: {
+          conflictKey,
+          conflictType,
+        },
+      },
+    });
+    return !!ignored;
+  } catch (error: any) {
+    // Wenn das Model noch nicht existiert (Migration nicht ausgeführt)
+    if (error?.code === 'P2001' || error?.message?.includes('does not exist')) {
+      console.warn('[Conflict] IgnoredConflict model not found - migration may be needed');
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Markiert einen Konflikt als ignoriert
+ */
+export async function ignoreConflict(
+  conflictKey: string,
+  conflictType: string,
+  reason?: string,
+  userId?: string
+): Promise<void> {
+  // Dynamischer Import um sicherzustellen dass prisma verfügbar ist
+  const prismaClient = prisma || (await import('./prisma')).default;
+  
+  await prismaClient.ignoredConflict.create({
+    data: {
+      conflictKey,
+      conflictType,
+      reason,
+      ignoredById: userId || null,
+    },
+  });
+}
+
+/**
+ * Entfernt die Ignorierung eines Konflikts
+ */
+export async function unignoreConflict(
+  conflictKey: string,
+  conflictType: string
+): Promise<void> {
+  // Dynamischer Import um sicherzustellen dass prisma verfügbar ist
+  const prismaClient = prisma || (await import('./prisma')).default;
+  
+  await prismaClient.ignoredConflict.deleteMany({
+    where: {
+      conflictKey,
+      conflictType,
+    },
+  });
+}
+
+/**
+ * Filtert ignorierte Konflikte aus
+ */
+export async function filterIgnoredConflicts(
+  conflicts: BookingConflict[]
+): Promise<BookingConflict[]> {
+  const filtered: BookingConflict[] = [];
+  
+  for (const conflict of conflicts) {
+    const conflictKey = generateConflictKey(conflict);
+    const isIgnored = await isConflictIgnored(conflictKey, conflict.type);
+    
+    if (!isIgnored) {
+      filtered.push(conflict);
+    }
+  }
+  
+  return filtered;
+}
+
+/**
+ * Prüft ob ein Konflikt bereits benachrichtigt wurde
+ */
+export async function isConflictNotified(
+  conflictKey: string,
+  conflictType: string
+): Promise<boolean> {
+  // Dynamischer Import um sicherzustellen dass prisma verfügbar ist
+  const prismaClient = prisma || (await import('./prisma')).default;
+  
+  try {
+    const notified = await prismaClient.notifiedConflict.findUnique({
+      where: {
+        conflictKey_conflictType: {
+          conflictKey,
+          conflictType,
+        },
+      },
+    });
+    return !!notified;
+  } catch (error: any) {
+    // Wenn das Model noch nicht existiert (Migration nicht ausgeführt)
+    if (error?.code === 'P2001' || error?.message?.includes('does not exist')) {
+      console.warn('[Conflict] NotifiedConflict model not found - migration may be needed');
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Markiert einen Konflikt als benachrichtigt
+ */
+export async function markConflictAsNotified(
+  conflictKey: string,
+  conflictType: string
+): Promise<void> {
+  // Dynamischer Import um sicherzustellen dass prisma verfügbar ist
+  const prismaClient = prisma || (await import('./prisma')).default;
+  
+  await prismaClient.notifiedConflict.upsert({
+    where: {
+      conflictKey_conflictType: {
+        conflictKey,
+        conflictType,
+      },
+    },
+    create: {
+      conflictKey,
+      conflictType,
+    },
+    update: {
+      // Update notifiedAt wenn bereits vorhanden
+      notifiedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Prüft Konflikte für ein manuelles Kalender-Event und sendet Benachrichtigungen an Admins
+ */
+export async function checkAndNotifyConflictsForCalendarEvent(eventId: string): Promise<void> {
+  try {
+    // Hole alle Konflikte
+    const conflicts = await findAllConflicts();
+    
+    // Finde Konflikte die dieses Event betreffen
+    const relevantConflicts = conflicts.filter(conflict => {
+      if (conflict.type === "CALENDAR_CONFLICT") {
+        return conflict.calendarEvent?.id === eventId;
+      } else if (conflict.type === "OVERLAPPING_CALENDAR_EVENTS") {
+        return conflict.calendarEvents?.some(e => e.id === eventId);
+      }
+      return false;
+    });
+
+    if (relevantConflicts.length === 0) {
+      return;
+    }
+
+    // Hole Admins, die Konflikt-Benachrichtigungen erhalten möchten
+    const { getAdminsToNotify } = await import("./notifications");
+    const adminEmails = await getAdminsToNotify("bookingConflict");
+
+    if (adminEmails.length === 0) {
+      console.log(`[Conflict] No admins to notify for calendar event conflicts`);
+      return;
+    }
+
+    // Hole Public URL
+    const { getPublicUrl } = await import("./email");
+    const appUrl = await getPublicUrl();
+
+    // Sende Benachrichtigung für jeden relevanten Konflikt (nur HIGH severity)
+    for (const conflict of relevantConflicts) {
+      if (conflict.severity !== "HIGH") {
+        console.log(`[Conflict] Skipping notification for ${conflict.type} - severity is ${conflict.severity} (not HIGH)`);
+        continue;
+      }
+
+      // Prüfe ob dieser Konflikt bereits benachrichtigt wurde
+      const conflictKey = generateConflictKey(conflict);
+      const alreadyNotified = await isConflictNotified(conflictKey, conflict.type);
+      
+      if (alreadyNotified) {
+        console.log(`[Conflict] Skipping notification for ${conflict.type} - already notified`);
+        continue;
+      }
+
+      const conflictDescription = formatConflict(conflict);
+      
+      // Bereite Buchungsdaten vor (kann leer sein wenn nur Calendar Events)
+      const bookingsData = conflict.bookings.map(booking => ({
+        bookingCode: booking.bookingCode,
+        guestName: booking.guestName,
+        guestEmail: booking.guestEmail,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        status: booking.status,
+      }));
+
+      // Sende E-Mail an alle betroffenen Admins
+      const { sendBookingConflictNotificationToAdmin } = await import("./email");
+      
+      let atLeastOneSuccess = false;
+      for (const adminEmail of adminEmails) {
+        try {
+          const result = await sendBookingConflictNotificationToAdmin({
+            adminEmail,
+            conflictType: conflict.type,
+            conflictDescription,
+            bookings: bookingsData,
+            adminUrl: `${appUrl}/admin/bookings`,
+          });
+          
+          if (result.success) {
+            atLeastOneSuccess = true;
+          }
+          
+          console.log(`[Conflict] Notification sent to ${adminEmail} for calendar event ${eventId}:`, result.success ? "success" : "failed", result.error || "");
+        } catch (error: any) {
+          console.error(`[Conflict] Error sending notification to ${adminEmail}:`, error);
+        }
+      }
+
+      // Markiere Konflikt als benachrichtigt (nur wenn mindestens eine E-Mail erfolgreich gesendet wurde)
+      if (atLeastOneSuccess) {
+        await markConflictAsNotified(conflictKey, conflict.type);
+      }
+    }
+  } catch (error) {
+    console.error("[Conflict] Error checking and notifying conflicts for calendar event:", error);
+  }
+}
+
+/**
+ * Prüft Konflikte für eine bestimmte Buchung und sendet Benachrichtigungen an Admins
+ */
+export async function checkAndNotifyConflictsForBooking(bookingId: string): Promise<void> {
+  try {
+    // findAllConflicts() filtert bereits ignorierte Konflikte heraus
+    const conflicts = await findAllConflicts();
+    const relevantConflicts = conflicts.filter(conflict =>
+      conflict.bookings.some(b => b.id === bookingId)
+    );
+
+    // Wenn keine Konflikte für diese Buchung, nichts tun
+    if (relevantConflicts.length === 0) {
+      return;
+    }
+
+    // Hole Admins, die Konflikt-Benachrichtigungen erhalten möchten
+    const { getAdminsToNotify } = await import("./notifications");
+    const adminEmails = await getAdminsToNotify("bookingConflict");
+
+    if (adminEmails.length === 0) {
+      console.log(`[Conflict] No admins to notify for conflicts`);
+      return;
+    }
+
+    // Hole Public URL
+    const { getPublicUrl } = await import("./email");
+    const appUrl = await getPublicUrl();
+
+    // Sende Benachrichtigung für jeden relevanten Konflikt (nur HIGH severity)
+    // Ignorierte Konflikte sind bereits von findAllConflicts() gefiltert
+    for (const conflict of relevantConflicts) {
+      // Nur bei HIGH severity Konflikten benachrichtigen
+      // MEDIUM Konflikte (z.B. gleiche Farbe) sind nur potenzielle Konflikte
+      if (conflict.severity !== "HIGH") {
+        console.log(`[Conflict] Skipping notification for ${conflict.type} - severity is ${conflict.severity} (not HIGH)`);
+        continue;
+      }
+      
+      // Prüfe ob dieser Konflikt bereits benachrichtigt wurde
+      const conflictKey = generateConflictKey(conflict);
+      const alreadyNotified = await isConflictNotified(conflictKey, conflict.type);
+      
+      if (alreadyNotified) {
+        console.log(`[Conflict] Skipping notification for ${conflict.type} - already notified`);
+        continue;
+      }
+
+      const conflictDescription = formatConflict(conflict);
+      
+      // Bereite Buchungsdaten vor
+      const bookingsData = conflict.bookings.map(booking => ({
+        bookingCode: booking.bookingCode,
+        guestName: booking.guestName,
+        guestEmail: booking.guestEmail,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        status: booking.status,
+      }));
+
+      // Sende E-Mail an alle betroffenen Admins
+      const { sendBookingConflictNotificationToAdmin } = await import("./email");
+      
+      let atLeastOneSuccess = false;
+      for (const adminEmail of adminEmails) {
+        try {
+          const result = await sendBookingConflictNotificationToAdmin({
+            adminEmail,
+            conflictType: conflict.type,
+            conflictDescription,
+            bookings: bookingsData,
+            adminUrl: `${appUrl}/admin/bookings`,
+          });
+          
+          if (result.success) {
+            atLeastOneSuccess = true;
+          }
+          
+          console.log(`[Conflict] Notification sent to ${adminEmail}:`, result.success ? "success" : "failed", result.error || "");
+        } catch (error: any) {
+          console.error(`[Conflict] Error sending notification to ${adminEmail}:`, error);
+        }
+      }
+
+      // Markiere Konflikt als benachrichtigt (nur wenn mindestens eine E-Mail erfolgreich gesendet wurde)
+      if (atLeastOneSuccess) {
+        await markConflictAsNotified(conflictKey, conflict.type);
+        console.log(`[Conflict] Marked conflict ${conflictKey} as notified`);
+      }
+    }
+  } catch (error) {
+    console.error("[Conflict] Error checking and notifying conflicts:", error);
   }
 }
 

@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Calendar, Users, RefreshCw, ExternalLink, CheckCircle } from "lucide-react";
+import { AlertTriangle, Calendar, Users, RefreshCw, ExternalLink, CheckCircle, X, Link as LinkIcon, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface BookingConflict {
   type: "OVERLAPPING_REQUESTS" | "CALENDAR_CONFLICT" | "OVERLAPPING_CALENDAR_EVENTS";
@@ -35,9 +36,12 @@ interface ConflictManagerProps {
 
 export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const [conflicts, setConflicts] = useState<BookingConflict[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [groupingEventIds, setGroupingEventIds] = useState<string[]>([]);
+  const [groupedEventSets, setGroupedEventSets] = useState<Set<string>>(new Set());
 
   const loadConflicts = async () => {
     setIsLoading(true);
@@ -61,14 +65,105 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
     }
   };
 
+  // Lade gruppierte Events (gleiche Farbe) beim Laden der Konflikte
   useEffect(() => {
     loadConflicts();
+    checkGroupedEvents();
   }, []);
+
+  const checkGroupedEvents = async () => {
+    try {
+      const calendarResponse = await fetch("/api/admin/calendar-bookings");
+      const calendarData = await calendarResponse.json();
+      const events = calendarData.bookings || [];
+      
+      // Gruppiere Events nach Farbe
+      const colorGroups = new Map<string, string[]>();
+      events.forEach((e: any) => {
+        if (!e.isInfo && e.colorId && e.colorId !== '10') {
+          if (!colorGroups.has(e.colorId)) {
+            colorGroups.set(e.colorId, []);
+          }
+          colorGroups.get(e.colorId)!.push(e.id);
+        }
+      });
+      
+      // Markiere alle Event-Gruppen mit mehr als einem Event als gruppiert
+      const grouped = new Set<string>();
+      colorGroups.forEach((eventIds) => {
+        if (eventIds.length > 1) {
+          eventIds.forEach(id => grouped.add(id));
+        }
+      });
+      
+      setGroupedEventSets(grouped);
+    } catch (error) {
+      console.error("Error checking grouped events:", error);
+    }
+  };
+
+  const areEventsGrouped = (eventIds: string[]): boolean => {
+    if (eventIds.length < 2) return false;
+    return eventIds.every(id => groupedEventSets.has(id));
+  };
 
   const getSeverityColor = (severity: "HIGH" | "MEDIUM") => {
     return severity === "HIGH" 
       ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" 
       : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
+  };
+
+  const handleGroupEvents = async (eventIds: string[]) => {
+    if (eventIds.length < 2) return;
+
+    try {
+      setGroupingEventIds(eventIds);
+      
+      // Hole die Events aus der API um ihre colorIds zu bekommen
+      const calendarResponse = await fetch("/api/admin/calendar-bookings");
+      const calendarData = await calendarResponse.json();
+      
+      // Finde die erste vorhandene Farbe (nicht Info-Farbe 10)
+      const events = calendarData.bookings || [];
+      const firstWithColor = events.find((e: any) => 
+        eventIds.includes(e.id) && e.colorId && e.colorId !== '10'
+      );
+      const targetColorId = firstWithColor?.colorId || '1'; // Fallback auf Farbe 1
+
+      // Update alle Events mit der gleichen Farbe
+      const updatePromises = eventIds.map(id => 
+        fetch("/api/admin/calendar-bookings/group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: id,
+            colorId: targetColorId,
+          }),
+        })
+      );
+
+      const results = await Promise.all(updatePromises);
+      const allSuccess = results.every(res => res.ok);
+
+      if (allSuccess) {
+        toast({
+          title: "Erfolgreich",
+          description: `${eventIds.length} Events wurden zusammengelegt (gleiche Farbe)`,
+        });
+        loadConflicts(); // Neu laden um aktualisierte Konflikte zu sehen
+        checkGroupedEvents(); // Aktualisiere Gruppierungen
+      } else {
+        throw new Error("Einige Updates sind fehlgeschlagen");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Zusammenlegen",
+        variant: "destructive",
+      });
+    } finally {
+      setGroupingEventIds([]);
+    }
   };
 
   if (isLoading) {
@@ -305,8 +400,9 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
                     </div>
                   </div>
 
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
                   {conflict.bookings.length > 0 && (
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
+                      <>
                       {conflict.bookings.map((booking) => (
                         <Link key={booking.id} href={`/admin/bookings/${booking.id}`} className="w-full sm:w-auto">
                           <Button variant="outline" size="sm" className="w-full sm:w-auto text-xs sm:text-sm">
@@ -314,8 +410,96 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
                           </Button>
                         </Link>
                       ))}
+                      </>
+                    )}
+                    {/* Zusammenlegen Button für überlappende Kalender-Events */}
+                    {conflict.type === "OVERLAPPING_CALENDAR_EVENTS" && conflict.calendarEvents && conflict.calendarEvents.length >= 2 && (() => {
+                      const eventIds = conflict.calendarEvents.map(e => e.id);
+                      const isAlreadyGrouped = areEventsGrouped(eventIds);
+                      
+                      if (isAlreadyGrouped) {
+                        return (
+                          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md text-xs sm:text-sm text-green-700 dark:text-green-300">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Bereits zusammengelegt
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full sm:w-auto text-xs sm:text-sm border-blue-300 dark:border-blue-700"
+                          onClick={() => handleGroupEvents(eventIds)}
+                          disabled={groupingEventIds.length > 0}
+                        >
+                          <LinkIcon className="h-3 w-3 mr-1" />
+                          {groupingEventIds.length > 0 ? "Zusammenlegen..." : `${conflict.calendarEvents.length} Events zusammenlegen`}
+                        </Button>
+                      );
+                    })()}
+                    {(conflict.severity === "MEDIUM" || conflict.isPotentialConflict) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full sm:w-auto text-xs sm:text-sm text-muted-foreground hover:text-foreground"
+                        onClick={async () => {
+                          try {
+                            // Generiere conflictKey
+                            let conflictKey = "";
+                            if (conflict.type === "OVERLAPPING_CALENDAR_EVENTS") {
+                              conflictKey = conflict.calendarEvents
+                                ?.map(e => e.id)
+                                .sort()
+                                .join("-") || "";
+                            } else if (conflict.type === "CALENDAR_CONFLICT") {
+                              const bookingId = conflict.bookings[0]?.id || "";
+                              const eventId = conflict.calendarEvent?.id || "";
+                              conflictKey = `${bookingId}-${eventId}`;
+                            } else {
+                              conflictKey = conflict.bookings
+                                .map((b: any) => b.id)
+                                .sort()
+                                .join("-");
+                            }
+
+                            const response = await fetch("/api/admin/conflicts/ignore", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                conflictKey,
+                                conflictType: conflict.type,
+                                action: "ignore",
+                                reason: conflict.isPotentialConflict 
+                                  ? "Gleiche Farbe - zusammengehörig" 
+                                  : "Als kein Konflikt markiert",
+                              }),
+                            });
+
+                            if (response.ok) {
+                              toast({
+                                title: "Konflikt ignoriert",
+                                description: "Dieser Konflikt wird nicht mehr angezeigt.",
+                              });
+                              loadConflicts(); // Neu laden
+                            } else {
+                              throw new Error("Fehler beim Ignorieren");
+                            }
+                          } catch (error: any) {
+                            toast({
+                              title: "Fehler",
+                              description: error.message || "Konflikt konnte nicht ignoriert werden",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Als kein Konflikt markieren
+                      </Button>
+                    )}
                     </div>
-                  )}
                 </div>
               ))}
             </div>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, RefreshCw, Edit, Save, X, Trash2, Plus, Info } from "lucide-react";
+import { Calendar, RefreshCw, Edit, Save, X, Trash2, Plus, Info, Link as LinkIcon, CheckCircle2, Unlink } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +37,9 @@ export function CalendarBookingsManager() {
   const [editForm, setEditForm] = useState({ summary: "", start: "", end: "", isInfo: false });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newBooking, setNewBooking] = useState({ summary: "", start: "", end: "", isInfo: false });
+  const [selectedBookings, setSelectedBookings] = useState<Set<string>>(new Set());
+  const [isGrouping, setIsGrouping] = useState(false);
+  const [isUngrouping, setIsUngrouping] = useState(false);
   const { toast } = useToast();
 
   const loadBookings = async () => {
@@ -162,6 +165,7 @@ export function CalendarBookingsManager() {
           description: "Kalendereintrag wurde gelöscht",
         });
         loadBookings();
+        setSelectedBookings(new Set()); // Selection zurücksetzen
       } else {
         toast({
           title: "Fehler",
@@ -173,6 +177,197 @@ export function CalendarBookingsManager() {
       toast({
         title: "Fehler",
         description: "Fehler beim Löschen",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleSelection = (id: string) => {
+    const newSelection = new Set(selectedBookings);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedBookings(newSelection);
+  };
+
+  // Prüfe ob ausgewählte Events bereits die gleiche Farbe haben
+  const areSelectedBookingsAlreadyGrouped = () => {
+    if (selectedBookings.size < 2) return false;
+    
+    const selectedBookingObjects = bookings.filter(b => selectedBookings.has(b.id));
+    if (selectedBookingObjects.length < 2) return false;
+    
+    // Filtere Info-Events heraus
+    const nonInfoEvents = selectedBookingObjects.filter(b => !b.isInfo && b.colorId !== '10');
+    if (nonInfoEvents.length < 2) return false;
+    
+    // Prüfe ob alle die gleiche Farbe haben
+    const firstColorId = nonInfoEvents[0]?.colorId;
+    if (!firstColorId) return false;
+    
+    return nonInfoEvents.every(b => b.colorId === firstColorId);
+  };
+
+  const handleGroupSelected = async () => {
+    if (selectedBookings.size < 2) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wähle mindestens 2 Einträge aus",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Prüfe ob bereits gruppiert
+    if (areSelectedBookingsAlreadyGrouped()) {
+      toast({
+        title: "Bereits zusammengelegt",
+        description: "Diese Events haben bereits die gleiche Farbe und sind zusammengelegt.",
+        variant: "default",
+      });
+      return;
+    }
+
+    try {
+      setIsGrouping(true);
+      
+      // Hole die erste Farbe der ausgewählten Events als Ziel-Farbe
+      // Wenn keines eine Farbe hat, verwende Farbe 1 (Lavendel)
+      const selectedBookingObjects = bookings.filter(b => selectedBookings.has(b.id));
+      const firstWithColor = selectedBookingObjects.find(b => b.colorId && b.colorId !== '10');
+      const targetColorId = firstWithColor?.colorId || '1'; // Fallback auf Farbe 1
+
+      // Update alle ausgewählten Events mit der gleichen Farbe
+      const updatePromises = Array.from(selectedBookings).map(id => 
+        fetch("/api/admin/calendar-bookings/group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: id,
+            colorId: targetColorId,
+          }),
+        })
+      );
+
+      const results = await Promise.all(updatePromises);
+      const allSuccess = results.every(res => res.ok);
+
+      if (allSuccess) {
+        toast({
+          title: "Erfolgreich",
+          description: `${selectedBookings.size} Einträge wurden zusammengelegt (gleiche Farbe)`,
+        });
+        setSelectedBookings(new Set());
+        setIsGrouping(false);
+        loadBookings();
+      } else {
+        throw new Error("Einige Updates sind fehlgeschlagen");
+      }
+    } catch (error: any) {
+      setIsGrouping(false);
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Zusammenlegen",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUngroupSelected = async () => {
+    if (selectedBookings.size < 2) {
+      toast({
+        title: "Fehler",
+        description: "Wähle mindestens 2 Einträge zum Trennen aus",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsUngrouping(true);
+
+      const response = await fetch("/api/admin/calendar-bookings/ungroup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventIds: Array.from(selectedBookings) }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Fehler beim Trennen");
+      }
+
+      toast({
+        title: "Erfolgreich",
+        description: `${selectedBookings.size} Einträge wurden getrennt (jedes hat jetzt eine eigene Farbe)`,
+      });
+      setSelectedBookings(new Set());
+      setIsUngrouping(false);
+      loadBookings();
+    } catch (error: any) {
+      setIsUngrouping(false);
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Trennen",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Finde alle Events mit der gleichen Farbe wie das gegebene Event
+  const findEventsWithSameColor = (eventId: string): string[] => {
+    const event = bookings.find(b => b.id === eventId);
+    if (!event || !event.colorId || event.colorId === '10') return [];
+    
+    return bookings
+      .filter(b => b.colorId === event.colorId && b.id !== eventId && !b.isInfo)
+      .map(b => b.id);
+  };
+
+  // Trenne alle Events mit der gleichen Farbe (inkl. dem gegebenen Event)
+  const handleUngroupByColor = async (eventId: string) => {
+    const sameColorEvents = findEventsWithSameColor(eventId);
+    if (sameColorEvents.length === 0) {
+      toast({
+        title: "Info",
+        description: "Dieser Eintrag ist nicht gruppiert",
+      });
+      return;
+    }
+
+    // Füge das aktuelle Event zur Liste hinzu
+    const allEventIds = [eventId, ...sameColorEvents];
+
+    try {
+      setIsUngrouping(true);
+
+      const response = await fetch("/api/admin/calendar-bookings/ungroup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventIds: allEventIds }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Fehler beim Trennen");
+      }
+
+      toast({
+        title: "Erfolgreich",
+        description: `${allEventIds.length} Einträge wurden getrennt (jedes hat jetzt eine eigene Farbe)`,
+      });
+      setSelectedBookings(new Set());
+      setIsUngrouping(false);
+      loadBookings();
+    } catch (error: any) {
+      setIsUngrouping(false);
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Trennen",
         variant: "destructive",
       });
     }
@@ -192,7 +387,7 @@ export function CalendarBookingsManager() {
       const response = await fetch("/api/admin/calendar-bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newBooking),
+          body: JSON.stringify(newBooking),
       });
 
       const data = await response.json();
@@ -255,8 +450,20 @@ export function CalendarBookingsManager() {
       ) : (
         <div className="space-y-2 sm:space-y-3">
           {listBookings.map((booking) => (
-            <Card key={booking.id} className="border">
+            <Card 
+              key={booking.id} 
+              className={`border relative ${selectedBookings.has(booking.id) ? 'ring-2 ring-primary bg-primary/5' : ''} ${booking.isInfo ? 'opacity-60' : ''}`}
+            >
               <CardContent className="p-3 sm:p-4 sm:pt-4">
+                {!editingId && !booking.isInfo && (
+                  <div className="absolute top-3 right-3 z-10 bg-background rounded border border-border p-0.5 shadow-sm">
+                    <Checkbox
+                      checked={selectedBookings.has(booking.id)}
+                      onCheckedChange={() => handleToggleSelection(booking.id)}
+                      className="h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                  </div>
+                )}
                 {editingId === booking.id ? (
                   <div className="space-y-3">
                     <div className="space-y-2">
@@ -341,7 +548,7 @@ export function CalendarBookingsManager() {
                           {format(new Date(booking.end), "dd.MM.yyyy", { locale: de })}
                         </span>
                       </div>
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2 mt-2 flex-wrap">
                         {booking.isInfo ? (
                           <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-xs">
                             <Info className="h-3 w-3 mr-1" />
@@ -352,6 +559,37 @@ export function CalendarBookingsManager() {
                             Blockierung
                           </Badge>
                         )}
+                        {/* Zeige wenn Event zu einer Gruppe gehört (gleiche Farbe wie andere Events) */}
+                        {!booking.isInfo && booking.colorId && (() => {
+                          const sameColorEvents = bookings.filter(b => 
+                            b.id !== booking.id && 
+                            !b.isInfo && 
+                            b.colorId === booking.colorId &&
+                            b.colorId !== '10'
+                          );
+                          const isGrouped = sameColorEvents.length > 0;
+                          
+                          return isGrouped ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 text-xs">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Gruppiert ({sameColorEvents.length + 1})
+                              </Badge>
+                              {!editingId && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleUngroupByColor(booking.id)}
+                                  disabled={isUngrouping}
+                                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  <Unlink className="h-3 w-3 mr-1" />
+                                  Trennen
+                                </Button>
+                              )}
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                     <div className="flex gap-1 sm:gap-1 flex-shrink-0">
@@ -396,6 +634,45 @@ export function CalendarBookingsManager() {
             </CardDescription>
           </div>
           <div className="flex gap-2 flex-shrink-0">
+            {selectedBookings.size > 0 && (
+              <>
+                {!areSelectedBookingsAlreadyGrouped() ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto text-xs sm:text-sm"
+                    onClick={handleGroupSelected}
+                    disabled={isGrouping || isUngrouping}
+                  >
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    Zusammenlegen ({selectedBookings.size})
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full sm:w-auto text-xs sm:text-sm border-green-300 dark:border-green-700"
+                      onClick={handleUngroupSelected}
+                      disabled={isGrouping || isUngrouping}
+                    >
+                      <Unlink className="h-4 w-4 mr-2" />
+                      {isUngrouping ? "Trennen..." : "Trennen"}
+                    </Button>
+                  </>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full sm:w-auto text-xs sm:text-sm"
+                  onClick={() => setSelectedBookings(new Set())}
+                  disabled={isGrouping || isUngrouping}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Abbrechen
+                </Button>
+              </>
+            )}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="w-full sm:w-auto text-xs sm:text-sm">

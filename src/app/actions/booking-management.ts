@@ -117,6 +117,15 @@ export async function updateBooking(
       },
     });
 
+    // Prüfe auf Konflikte nach Update und benachrichtige Admins (nur wenn Daten geändert wurden)
+    if (data.startDate || data.endDate) {
+      const { checkAndNotifyConflictsForBooking } = await import("@/lib/booking-conflicts");
+      await checkAndNotifyConflictsForBooking(bookingId).catch(error => {
+        console.error("[Booking] Error checking conflicts after update:", error);
+        // Fehler nicht weiterwerfen, damit Update erfolgreich bleibt
+      });
+    }
+
     revalidatePath(`/admin/bookings/${bookingId}`);
     revalidatePath("/admin/bookings");
     revalidatePath("/admin/calendar");

@@ -95,7 +95,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     
     // Load translations
     setIsReady(false);
-    fetch(`/locales/${language}.json`)
+    fetch(`/api/locales/${language}`)
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
@@ -108,6 +108,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       })
       .catch((err) => {
         console.error("Failed to load translations:", err);
+        // Fallback: Versuche direkt aus public Ordner zu laden
+        fetch(`/locales/${language}.json`)
+          .then((res) => res.ok ? res.json() : null)
+          .then((data) => {
+            if (data) {
+              setTranslations(data);
+            }
+          })
+          .catch(() => {});
         setIsReady(true); // Set ready even on error
       });
   }, [language, isMounted]);

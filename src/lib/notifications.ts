@@ -6,7 +6,7 @@ import { hasAdminRights } from "./auth";
  */
 export async function shouldNotifyAdmin(
   adminEmail: string,
-  notificationType: "newBooking" | "bookingApproved" | "bookingRejected"
+  notificationType: "newBooking" | "bookingApproved" | "bookingRejected" | "bookingConflict"
 ): Promise<boolean> {
   try {
     const admin = await prisma.user.findUnique({
@@ -24,6 +24,7 @@ export async function shouldNotifyAdmin(
         newBooking: true,
         bookingApproved: false,
         bookingRejected: false,
+        bookingConflict: false, // Standard: deaktiviert - Admin muss aktivieren
       };
       return defaults[notificationType];
     }
@@ -40,7 +41,7 @@ export async function shouldNotifyAdmin(
  * Ruft alle Admins ab, die eine bestimmte Benachrichtigung erhalten möchten
  */
 export async function getAdminsToNotify(
-  notificationType: "newBooking" | "bookingApproved" | "bookingRejected"
+  notificationType: "newBooking" | "bookingApproved" | "bookingRejected" | "bookingConflict"
 ): Promise<string[]> {
   try {
     const admins = await prisma.user.findMany({
@@ -62,11 +63,12 @@ export async function getAdminsToNotify(
       let shouldNotify = false;
 
       if (!admin.notificationPreferences) {
-        // Standardwerte
+        // Standardwerte (wie im Schema definiert)
         const defaults: Record<typeof notificationType, boolean> = {
           newBooking: true,
           bookingApproved: false,
           bookingRejected: false,
+          bookingConflict: false, // Standard: deaktiviert - Admin muss aktivieren
         };
         shouldNotify = defaults[notificationType];
       } else {

@@ -173,6 +173,13 @@ export async function createBooking(formData: {
       }
     }
 
+    // Prüfe auf Konflikte und benachrichtige Admins
+    const { checkAndNotifyConflictsForBooking } = await import("@/lib/booking-conflicts");
+    await checkAndNotifyConflictsForBooking(booking.id).catch(error => {
+      console.error("[Booking] Error checking conflicts:", error);
+      // Fehler nicht weiterwerfen, damit Buchung erfolgreich bleibt
+    });
+
     revalidatePath("/admin/bookings");
 
     return { 
@@ -561,6 +568,13 @@ export async function approveBooking(bookingId: string, adminNotes?: string) {
         }
       }
     }
+
+    // Prüfe auf Konflikte nach Genehmigung und benachrichtige Admins
+    const { checkAndNotifyConflictsForBooking } = await import("@/lib/booking-conflicts");
+    await checkAndNotifyConflictsForBooking(bookingId).catch(error => {
+      console.error("[Booking] Error checking conflicts after approval:", error);
+      // Fehler nicht weiterwerfen, damit Genehmigung erfolgreich bleibt
+    });
 
     revalidatePath("/admin/bookings");
 

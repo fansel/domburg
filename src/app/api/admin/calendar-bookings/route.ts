@@ -101,10 +101,23 @@ export async function POST(request: NextRequest) {
       description: isInfo ? "Info-Eintrag (nicht blockierend)" : "Manuelle Blockierung",
     });
 
-    // Setze colorId je nach Info-Status
+    // Setze colorId automatisch basierend auf Event-ID (wie bei normalen Buchungen)
     if (eventId) {
+      const { getBookingColorId } = await import("@/lib/utils");
+      const autoColorId = isInfo ? '10' : getBookingColorId(eventId); // Info = Farbe 10, sonst automatisch basierend auf Event-ID
       await updateCalendarEvent(eventId, {
-        colorId: isInfo ? '10' : '', // '10' = Grün (Info), '' = Standard (Blockierung)
+        colorId: autoColorId,
+      });
+    }
+
+    // Prüfe auf Konflikte nach dem Erstellen (nur wenn nicht Info-Event)
+    if (eventId && !isInfo) {
+      const { checkAndNotifyConflictsForCalendarEvent } = await import("@/lib/booking-conflicts");
+      
+      // Prüfe alle Konflikte und benachrichtige wenn nötig
+      checkAndNotifyConflictsForCalendarEvent(eventId).catch(error => {
+        console.error("[Calendar] Error checking conflicts after manual event creation:", error);
+        // Fehler nicht weiterwerfen, damit Event-Erstellung erfolgreich bleibt
       });
     }
 
@@ -142,13 +155,27 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Update Event in Google Calendar
+    // Behalte die bestehende Farbe, es sei denn es ist ein Info-Event (dann Farbe 10)
+    const { getBookingColorId } = await import("@/lib/utils");
+    const autoColorId = isInfo ? '10' : getBookingColorId(id); // Info = Farbe 10, sonst automatisch basierend auf Event-ID
+    
     await updateCalendarEvent(id, {
       summary,
       startDate: new Date(start),
       endDate: new Date(end),
       description: isInfo ? "Info-Eintrag (nicht blockierend)" : "Manuelle Blockierung",
-      colorId: isInfo ? '10' : '', // colorId=10 = Grün = Info, '' = Standard (entfernt die Farbe)
+      colorId: autoColorId,
     });
+
+    // Prüfe auf Konflikte nach dem Update (nur wenn nicht Info-Event und Datum geändert wurde)
+    if (!isInfo) {
+      const { checkAndNotifyConflictsForCalendarEvent } = await import("@/lib/booking-conflicts");
+      
+      checkAndNotifyConflictsForCalendarEvent(id).catch(error => {
+        console.error("[Calendar] Error checking conflicts after manual event update:", error);
+        // Fehler nicht weiterwerfen, damit Event-Update erfolgreich bleibt
+      });
+    }
 
     return NextResponse.json({
       success: true,
