@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Search, Calendar, Users, Mail, MessageSquare, Euro, CheckCircle, Clock, XCircle } from "lucide-react";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 interface Booking {
   id: string;
@@ -39,6 +40,7 @@ function BookingStatusPageContent() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [isChecking, setIsChecking] = useState(true);
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const handleSearchFromParams = async (emailParam: string, codeParam: string) => {
     setIsSearching(true);
@@ -62,15 +64,15 @@ function BookingStatusPageContent() {
       } else {
         toast({
           variant: "destructive",
-          title: "Nicht gefunden",
-          description: data.error || "Buchung wurde nicht gefunden",
+          title: t("bookingStatus.notFound"),
+          description: data.error || t("bookingStatus.bookingNotFound"),
         });
       }
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Fehler",
-        description: "Ein Fehler ist aufgetreten",
+        title: t("bookingStatus.error"),
+        description: t("bookingStatus.errorOccurred"),
       });
     } finally {
       setIsSearching(false);
@@ -125,15 +127,15 @@ function BookingStatusPageContent() {
       } else {
         toast({
           variant: "destructive",
-          title: "Nicht gefunden",
-          description: data.error || "Buchung wurde nicht gefunden. Bitte prüfe deine Angaben.",
+          title: t("bookingStatus.notFound"),
+          description: data.error || t("bookingStatus.bookingNotFoundDetails"),
         });
       }
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Fehler",
-        description: "Ein Fehler ist aufgetreten. Bitte versuche es erneut.",
+        title: t("bookingStatus.error"),
+        description: t("bookingStatus.errorOccurredDetails"),
       });
     } finally {
       setIsSearching(false);
@@ -143,13 +145,13 @@ function BookingStatusPageContent() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING":
-        return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3" />In Prüfung</Badge>;
+        return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3" />{t("bookingStatus.inReview")}</Badge>;
       case "APPROVED":
-        return <Badge variant="default" className="bg-green-600"><CheckCircle className="mr-1 h-3 w-3" />Bestätigt</Badge>;
+        return <Badge variant="default" className="bg-green-600"><CheckCircle className="mr-1 h-3 w-3" />{t("bookingStatus.confirmed")}</Badge>;
       case "REJECTED":
-        return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3" />Abgelehnt</Badge>;
+        return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3" />{t("bookingStatus.rejected")}</Badge>;
       case "CANCELLED":
-        return <Badge variant="outline"><XCircle className="mr-1 h-3 w-3" />Storniert</Badge>;
+        return <Badge variant="outline"><XCircle className="mr-1 h-3 w-3" />{t("bookingStatus.cancelled")}</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -167,12 +169,12 @@ function BookingStatusPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 py-4 sm:py-8">
+      <div className="min-h-screen bg-background p-4 py-4 sm:py-8">
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         <div className="text-center mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">Buchungsstatus</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">{t("bookingStatus.title")}</h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Gib deine E-Mail-Adresse und Buchungsnummer ein
+            {t("bookingStatus.description")}
           </p>
         </div>
 
@@ -182,20 +184,20 @@ function BookingStatusPageContent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-5 w-5" />
-              Buchung finden
+              {t("bookingStatus.findBooking")}
             </CardTitle>
             <CardDescription>
-              Du hast deine Buchungsnummer per E-Mail erhalten
+              {t("bookingStatus.findBookingDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSearch} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">E-Mail-Adresse</Label>
+                <Label htmlFor="email">{t("auth.email")}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="ihre@email.de"
+                  placeholder={t("bookingStatus.emailPlaceholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -204,11 +206,11 @@ function BookingStatusPageContent() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="code">Buchungsnummer</Label>
+                <Label htmlFor="code">{t("booking.bookingNumber")}</Label>
                 <Input
                   id="code"
                   type="text"
-                  placeholder="123456"
+                  placeholder={t("bookingStatus.codePlaceholder")}
                   value={bookingCode}
                   onChange={(e) => setBookingCode(e.target.value)}
                   required
@@ -216,12 +218,12 @@ function BookingStatusPageContent() {
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Format: 6-stellige Zahl (z.B. 123456)
+                  {t("bookingStatus.bookingCodeFormat")}
                 </p>
               </div>
 
               <Button type="submit" className="w-full" disabled={isSearching}>
-                {isSearching ? "Suche läuft..." : "Buchung finden"}
+                {isSearching ? t("bookingStatus.searching") : t("bookingStatus.findBooking")}
               </Button>
             </form>
           </CardContent>
@@ -250,7 +252,7 @@ function BookingStatusPageContent() {
               <div className="flex items-start gap-3">
                 <Calendar className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <p className="font-semibold">Reisezeitraum</p>
+                  <p className="font-semibold">{t("bookingStatus.travelPeriod")}</p>
                   <p className="text-sm text-muted-foreground">
                     {formatDate(new Date(booking.startDate))} - {formatDate(new Date(booking.endDate))}
                   </p>
@@ -261,13 +263,13 @@ function BookingStatusPageContent() {
               <div className="flex items-start gap-3">
                 <Users className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <p className="font-semibold">Anzahl Gäste</p>
+                  <p className="font-semibold">{t("bookingStatus.numberOfGuests")}</p>
                   <p className="text-sm text-muted-foreground">
                     {(() => {
                       const adults = booking.numberOfAdults ?? (booking as any).numberOfGuests ?? 1;
                       const children = booking.numberOfChildren ?? 0;
                       const total = adults + children;
-                      return `${adults} ${adults === 1 ? "Erwachsener" : "Erwachsene"}${children > 0 ? `, ${children} ${children === 1 ? "Kind" : "Kinder"}` : ""} (${total} ${total === 1 ? "Person" : "Personen"})`;
+                      return `${adults} ${adults === 1 ? t("bookingForm.adult") : t("bookingForm.adults")}${children > 0 ? `, ${children} ${children === 1 ? t("bookingForm.child") : t("bookingForm.children")}` : ""} (${total} ${total === 1 ? t("bookingStatus.person") : t("bookingStatus.persons")})`;
                     })()}
                   </p>
                 </div>
@@ -277,7 +279,7 @@ function BookingStatusPageContent() {
               <div className="flex items-start gap-3">
                 <Mail className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <p className="font-semibold">Kontakt</p>
+                  <p className="font-semibold">{t("bookingStatus.contact")}</p>
                   <p className="text-sm text-muted-foreground">
                     {booking.guestName && <span>{booking.guestName}<br /></span>}
                     {booking.guestEmail}
@@ -301,7 +303,7 @@ function BookingStatusPageContent() {
                 <div className="flex items-start gap-3">
                   <Euro className="h-5 w-5 text-primary mt-0.5" />
                   <div>
-                    <p className="font-semibold">Gesamtpreis</p>
+                    <p className="font-semibold">{t("bookingForm.totalPrice")}</p>
                     <p className="text-sm text-muted-foreground">
                       {formatCurrency(parseFloat(booking.totalPrice))}
                     </p>
@@ -314,7 +316,7 @@ function BookingStatusPageContent() {
                 <div className="flex items-start gap-3">
                   <MessageSquare className="h-5 w-5 text-primary mt-0.5" />
                   <div className="flex-1">
-                    <p className="font-semibold">Deine Nachricht</p>
+                    <p className="font-semibold">{t("bookingStatus.yourMessage")}</p>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                       {booking.message}
                     </p>
@@ -325,7 +327,7 @@ function BookingStatusPageContent() {
               {/* Admin Notes */}
               {booking.adminNotes && (
                 <div className="rounded-lg bg-blue-50 p-4">
-                  <p className="font-semibold text-sm mb-1">Hinweis von uns:</p>
+                  <p className="font-semibold text-sm mb-1">{t("bookingStatus.noteFromUs")}</p>
                   <p className="text-sm text-muted-foreground">{booking.adminNotes}</p>
                 </div>
               )}
@@ -333,7 +335,7 @@ function BookingStatusPageContent() {
               {/* Ablehnung */}
               {booking.status === "REJECTED" && booking.rejectionReason && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-                  <p className="font-semibold text-sm text-red-900 mb-1">Grund der Ablehnung:</p>
+                  <p className="font-semibold text-sm text-red-900 mb-1">{t("bookingStatus.rejectionReason")}</p>
                   <p className="text-sm text-red-700">{booking.rejectionReason}</p>
                 </div>
               )}
@@ -341,7 +343,7 @@ function BookingStatusPageContent() {
               {/* Stornierung */}
               {booking.status === "CANCELLED" && booking.cancellationReason && (
                 <div className="rounded-lg bg-gray-50 border border-gray-200 p-4">
-                  <p className="font-semibold text-sm text-gray-900 mb-1">Grund der Stornierung:</p>
+                  <p className="font-semibold text-sm text-gray-900 mb-1">{t("bookingStatus.cancellationReason")}</p>
                   <p className="text-sm text-gray-700">{booking.cancellationReason}</p>
                 </div>
               )}
@@ -350,8 +352,8 @@ function BookingStatusPageContent() {
               {booking.status === "PENDING" && (
                 <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
                   <p className="text-sm text-yellow-800">
-                    <strong>Deine Buchungsanfrage wird geprüft.</strong><br />
-                    Du erhältst eine E-Mail, sobald wir deine Anfrage bearbeitet haben.
+                    <strong>{t("bookingStatus.pendingMessage")}</strong><br />
+                    {t("bookingStatus.pendingDetails")}
                   </p>
                 </div>
               )}
@@ -359,8 +361,8 @@ function BookingStatusPageContent() {
               {booking.status === "APPROVED" && (
                 <div className="rounded-lg bg-green-50 border border-green-200 p-4">
                   <p className="text-sm text-green-800">
-                    <strong>Deine Buchung wurde bestätigt.</strong><br />
-                    Du hast eine Bestätigungs-E-Mail mit allen Details erhalten.
+                    <strong>{t("bookingStatus.confirmedMessage")}</strong><br />
+                    {t("bookingStatus.confirmedDetails")}
                   </p>
                 </div>
               )}
@@ -373,7 +375,7 @@ function BookingStatusPageContent() {
             variant="link" 
             onClick={() => window.location.href = '/'}
           >
-            ← Zurück zur Startseite
+            {t("bookingStatus.backToHome")}
           </Button>
         </div>
       </div>

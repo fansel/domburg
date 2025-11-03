@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { BookingForm } from "@/components/booking-form";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, House } from "lucide-react";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 export default function BookPage() {
   const [isValidated, setIsValidated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const router = useRouter();
+  const { t } = useTranslation();
 
   useEffect(() => {
     async function checkAccess() {
@@ -60,7 +62,7 @@ export default function BookPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Überprüfe Zugangsberechtigung...</p>
+          <p className="mt-4 text-muted-foreground">{t("book.checkingAccess")}</p>
         </div>
       </div>
     );
@@ -78,9 +80,9 @@ export default function BookPage() {
             size="sm"
           >
             <House className="mr-2 h-4 w-4" />
-            Hauptmenü
+            {t("book.mainMenu")}
           </Button>
-          <h1 className="text-center text-lg lg:text-2xl font-semibold text-muted-foreground">Neue Anfrage</h1>
+          <h1 className="text-center text-lg lg:text-2xl font-semibold text-muted-foreground">{t("book.newRequest")}</h1>
         </div>
         <BookingForm />
       </div>

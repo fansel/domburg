@@ -363,11 +363,11 @@ export function BookingCalendar({
         <div className="mt-4 lg:mt-6 flex gap-6 lg:gap-8 text-sm lg:text-base justify-center">
           <div className="flex items-center gap-2">
             <div className="h-4 w-4 lg:h-5 lg:w-5 rounded bg-primary" />
-            <span>Ausgewählt</span>
+            <span>{t("calendar.legend.selected")}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-4 w-4 lg:h-5 lg:w-5 rounded bg-red-100" />
-            <span>Belegt</span>
+            <span>{t("calendar.legend.occupied")}</span>
           </div>
         </div>
       </CardContent>
