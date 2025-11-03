@@ -283,7 +283,7 @@ export async function createBeachHutSession(data: {
     return { success: true, session };
   } catch (error) {
     console.error("Error creating beach hut session:", error);
-    return { success: false, error: "Fehler beim Erstellen der Strandbuden-Session" };
+    return { success: false, error: "Fehler beim Erstellen der Strandbuden-Saison" };
   }
 }
 
@@ -342,7 +342,7 @@ export async function updateBeachHutSession(
     return { success: true, session };
   } catch (error) {
     console.error("Error updating beach hut session:", error);
-    return { success: false, error: "Fehler beim Aktualisieren der Strandbuden-Session" };
+    return { success: false, error: "Fehler beim Aktualisieren der Strandbuden-Saison" };
   }
 }
 
@@ -377,7 +377,7 @@ export async function deleteBeachHutSession(id: string) {
     return { success: true };
   } catch (error) {
     console.error("Error deleting beach hut session:", error);
-    return { success: false, error: "Fehler beim Löschen der Strandbuden-Session" };
+    return { success: false, error: "Fehler beim Löschen der Strandbuden-Saison" };
   }
 }
 

@@ -154,7 +154,7 @@ export function PricingManager({
     }
   };
 
-  // Strandbuden-Session speichern
+  // Strandbuden-Saison speichern
   const handleSaveSession = async (data: Partial<BeachHutSession>) => {
     if (editingSession) {
       const result = await updateBeachHutSession(editingSession.id, data);
@@ -164,7 +164,7 @@ export function PricingManager({
         setEditingSession(null);
         toast({
           title: "Aktualisiert",
-          description: "Strandbuden-Session wurde aktualisiert",
+          description: "Strandbuden-Saison wurde aktualisiert",
         });
       } else {
         toast({
@@ -180,7 +180,7 @@ export function PricingManager({
         setIsSessionDialogOpen(false);
         toast({
           title: "Erstellt",
-          description: "Strandbuden-Session erstellt",
+          description: "Strandbuden-Saison erstellt",
         });
       } else {
         toast({
@@ -192,16 +192,16 @@ export function PricingManager({
     }
   };
 
-  // Strandbuden-Session löschen
+  // Strandbuden-Saison löschen
   const handleDeleteSession = async (id: string) => {
-    if (!confirm("Möchten Sie diese Strandbuden-Session wirklich löschen?")) return;
+    if (!confirm("Möchten Sie diese Strandbuden-Saison wirklich löschen?")) return;
 
     const result = await deleteBeachHutSession(id);
     if (result.success) {
       setBeachHutSessions(beachHutSessions.filter((s) => s.id !== id));
       toast({
         title: "Gelöscht",
-        description: "Strandbuden-Session wurde gelöscht",
+        description: "Strandbuden-Saison wurde gelöscht",
       });
     }
   };
@@ -361,17 +361,17 @@ export function PricingManager({
         </CardContent>
       </Card>
 
-      {/* Strandbuden-Sessions */}
+      {/* Strandbuden-Saisons */}
       <Card>
         <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-3 sm:pb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div className="flex-1">
               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                 <Home className="h-4 w-4 sm:h-5 sm:w-5" />
-                Strandbuden-Sessions
+                Strandbuden-Saisons
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                Zeiträume definieren, in denen die Strandbude verfügbar ist
+                Saisons definieren, in denen die Strandbude verfügbar ist
               </CardDescription>
             </div>
             <BeachHutSessionDialog
@@ -390,7 +390,7 @@ export function PricingManager({
             <div className="text-center py-8 sm:py-12">
               <Home className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3 sm:mb-4" />
               <h3 className="text-base sm:text-lg font-semibold mb-2">
-                Keine Strandbuden-Sessions definiert
+                Keine Strandbuden-Saisons definiert
               </h3>
               <p className="text-sm sm:text-base text-muted-foreground">
                 Die Strandbude ist ganzjährig verfügbar
@@ -842,7 +842,7 @@ const PhaseDialog = ({
   );
 };
 
-// Beach Hut Session Dialog Component
+// Beach Hut Saison Dialog Component
 const BeachHutSessionDialog = ({
   isOpen,
   onOpenChange,
@@ -874,7 +874,7 @@ const BeachHutSessionDialog = ({
         isActive: session.isActive ?? true,
       });
     } else {
-      // Reset für neue Session
+      // Reset für neue Saison
       setFormData({
         name: "",
         description: "",
@@ -894,16 +894,16 @@ const BeachHutSessionDialog = ({
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
           <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-          Neue Session
+          Neue Saison
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {session ? "Strandbuden-Session bearbeiten" : "Neue Strandbuden-Session"}
+            {session ? "Strandbuden-Saison bearbeiten" : "Neue Strandbuden-Saison"}
           </DialogTitle>
           <DialogDescription>
-            Zeitraum definieren, in dem die Strandbude verfügbar ist
+            Saison definieren, in der die Strandbude verfügbar ist
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 sm:space-y-4 py-2 sm:py-4">

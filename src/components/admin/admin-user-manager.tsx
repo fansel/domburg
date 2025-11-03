@@ -444,7 +444,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                           Preise verwalten
                         </Label>
                         <p className="text-xs text-muted-foreground">
-                          Kann Preise, Preisphasen und Strandbuden-Sessions verwalten
+                          Kann Preise, Preisphasen und Strandbuden-Saisons verwalten
                         </p>
                       </div>
                     </div>
