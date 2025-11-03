@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, CalendarDays, User, Calendar, ShieldCheck, Euro, Menu, X, Key, Bell, Crown } from "lucide-react";
+import { LogOut, Settings, CalendarDays, User, Calendar, ShieldCheck, Euro, Menu, X, Key, Bell, Crown, BookOpen } from "lucide-react";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -68,6 +68,7 @@ export function Navbar({ user }: NavbarProps) {
     { href: "/admin/calendar", icon: Calendar, label: t("nav.calendar"), pathMatch: "/admin/calendar", requiresBookingView: true, requiresPricing: false },
     { href: "/admin/pricing", icon: Euro, label: t("nav.pricing"), pathMatch: "/admin/pricing", requiresBookingView: false, requiresPricing: true },
     { href: "/admin/settings", icon: ShieldCheck, label: t("nav.settings"), pathMatch: "/admin/settings", requiresBookingView: false, requiresPricing: false },
+    { href: "/admin/wiki", icon: BookOpen, label: "Wiki", pathMatch: "/admin/wiki", requiresBookingView: false, requiresPricing: false },
   ];
 
   // Nur Items anzeigen, für die der User berechtigt ist
@@ -84,6 +85,9 @@ export function Navbar({ user }: NavbarProps) {
   const isActive = (item: typeof navItems[0]) => {
     if (item.pathMatch === "/admin/bookings") {
       return pathname?.startsWith("/admin/bookings");
+    }
+    if (item.pathMatch === "/admin/wiki") {
+      return pathname?.startsWith("/admin/wiki");
     }
     return pathname === item.pathMatch;
   };

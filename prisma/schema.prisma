@@ -354,3 +354,17 @@ model NotifiedConflict {
   @@index([conflictType])
   @@index([notifiedAt])
 }
+
+// Verlinkte Calendar Events (explizite Verlinkungen zwischen Events)
+model LinkedCalendarEvent {
+  id        String   @id @default(cuid())
+  eventId1  String   // Google Calendar Event ID
+  eventId2  String   // Google Calendar Event ID
+  createdAt DateTime @default(now())
+  createdBy String? // User ID der die Verlinkung erstellt hat
+
+  @@unique([eventId1, eventId2])
+  @@index([eventId1])
+  @@index([eventId2])
+  @@index([createdAt])
+}

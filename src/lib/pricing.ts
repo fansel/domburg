@@ -219,10 +219,15 @@ export async function calculateBookingPrice(
     const saturdayToSaturday = phase.saturdayToSaturday;
     if (saturdayToSaturday === true) {
       const startDay = normalizedStartDate.getDay(); // 0 = Sonntag, 6 = Samstag
-      const endDay = normalizedEndDate.getDay();
+      // WICHTIG: endDate ist exklusiv (letzter gebuchter Tag ist endDate - 1 Tag)
+      // Für eine Buchung von Samstag bis Samstag: Start = Samstag, End = nächster Samstag
+      // Der letzte gebuchte Tag ist also der Tag VOR endDate
+      const lastBookedDate = new Date(normalizedEndDate);
+      lastBookedDate.setDate(lastBookedDate.getDate() - 1);
+      const lastBookedDay = lastBookedDate.getDay(); // 0 = Sonntag, 6 = Samstag
       
-      // Warnung wenn Starttag nicht Samstag ODER Endtag nicht Samstag
-      if (startDay !== 6 || endDay !== 6) {
+      // Warnung wenn Starttag nicht Samstag ODER letzter gebuchter Tag nicht Samstag
+      if (startDay !== 6 || lastBookedDay !== 6) {
         const warningMessage = phase.warningMessage;
         const warningMsg = warningMessage
           ? warningMessage

@@ -20,6 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatDate, datesOverlap } from "@/lib/utils";
 import { Link as LinkIcon, CheckCircle2, Unlink } from "lucide-react";
 
@@ -60,8 +70,49 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isGrouping, setIsGrouping] = useState(false);
   const [isUngrouping, setIsUngrouping] = useState(false);
+  const [eventToMarkAsInfo, setEventToMarkAsInfo] = useState<string | null>(null);
+  const [confirmInfoDialogOpen, setConfirmInfoDialogOpen] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+
+  // Google Calendar exakte Hex-Farbcodes
+  const getGoogleCalendarColor = (colorId?: string) => {
+    // Offizielle Google Calendar Farbcodes
+    const colorMap: Record<string, { main: string; light: string; dark: string; text: string }> = {
+      '1': { main: '#7986CB', light: '#E8EAF6', dark: '#5C6BC0', text: '#1A237E' }, // Lavendel (Lavender)
+      '2': { main: '#33B679', light: '#C8E6C9', dark: '#26A69A', text: '#004D40' }, // Salbei (Sage)
+      '3': { main: '#8E24AA', light: '#F3E5F5', dark: '#7B1FA2', text: '#4A148C' }, // Traube (Grape)
+      '4': { main: '#E67C73', light: '#FFEBEE', dark: '#E53935', text: '#B71C1C' }, // Flamingo
+      '5': { main: '#F6BF26', light: '#FFF9C4', dark: '#FBC02D', text: '#F57F17' }, // Banane (Banana)
+      '6': { main: '#F4511E', light: '#FFE0B2', dark: '#E64A19', text: '#BF360C' }, // Mandarine (Tangerine)
+      '7': { main: '#039BE5', light: '#B3E5FC', dark: '#0288D1', text: '#01579B' }, // Pfau (Peacock)
+      '8': { main: '#616161', light: '#F5F5F5', dark: '#424242', text: '#212121' }, // Graphit (Graphite)
+      '9': { main: '#3F51B5', light: '#C5CAE9', dark: '#303F9F', text: '#1A237E' }, // Blaubeere (Blueberry)
+      '10': { main: '#0B8043', light: '#C8E6C9', dark: '#00695C', text: '#004D40' }, // Basilikum (Basil) - Info
+      '11': { main: '#D50000', light: '#FFCDD2', dark: '#B71C1C', text: '#B71C1C' }, // Tomate (Tomato)
+    };
+    
+    return colorMap[colorId || ''] || colorMap['6']; // Fallback zu Mandarine
+  };
+
+  // Konvertiere Google Calendar colorId zu inline Styles für Event-Badges
+  const getEventColorStyle = (colorId?: string) => {
+    const color = getGoogleCalendarColor(colorId);
+    return {
+      backgroundColor: color.light,
+      borderColor: color.main,
+      color: color.text,
+    };
+  };
+
+  // Konvertiere Google Calendar colorId zu inline Styles für Dialog-Boxen
+  const getEventDialogColorStyle = (colorId?: string) => {
+    const color = getGoogleCalendarColor(colorId);
+    return {
+      backgroundColor: color.light,
+      borderColor: color.main,
+    };
+  };
 
   // Aktueller Monat und Jahr
   const month = currentDate.getMonth();
@@ -91,9 +142,17 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
-  const handleMarkAsInfo = async (eventId: string) => {
-    setMarkingEventId(eventId);
-    const result = await markEventAsInfo(eventId);
+  const handleMarkAsInfoClick = (eventId: string) => {
+    setEventToMarkAsInfo(eventId);
+    setConfirmInfoDialogOpen(true);
+  };
+
+  const handleConfirmMarkAsInfo = async () => {
+    if (!eventToMarkAsInfo) return;
+    
+    setConfirmInfoDialogOpen(false);
+    setMarkingEventId(eventToMarkAsInfo);
+    const result = await markEventAsInfo(eventToMarkAsInfo);
     if (result.success) {
       toast({
         title: "Als Info markiert",
@@ -108,6 +167,17 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
       });
     }
     setMarkingEventId(null);
+    setEventToMarkAsInfo(null);
+  };
+
+  const handleMarkAsInfo = (eventId: string) => {
+    // Zeige Bestätigungsdialog (verwendet die gleiche Funktion wie handleMarkAsInfoClick)
+    // Schließe Detail-Dialog, falls geöffnet, um Overlay-Probleme zu vermeiden
+    if (isDetailDialogOpen) {
+      setIsDetailDialogOpen(false);
+    }
+    setEventToMarkAsInfo(eventId);
+    setConfirmInfoDialogOpen(true);
   };
 
   const handleUnmarkAsInfo = async (eventId: string) => {
@@ -129,7 +199,39 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
     setMarkingEventId(null);
   };
 
-  // Finde überlappende Events
+  // Prüfe ob Events für Gruppierung überlappen (inkl. gleicher Tag)
+  // Diese Funktion erlaubt auch Events, die sich nur am gleichen Tag berühren
+  // (z.B. Check-out Tag X = Check-in Tag X), damit sie manuell zusammengelegt werden können
+  const eventsOverlapForGrouping = (start1: Date, end1: Date, start2: Date, end2: Date): boolean => {
+    // Normalisiere auf Tagesanfang für Vergleich (ignoriere Uhrzeit)
+    const getLocalDateString = (date: Date): string => {
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Amsterdam',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      return formatter.format(date);
+    };
+
+    const normalizeDate = (date: Date) => {
+      const localDateStr = getLocalDateString(date);
+      const [year, month, day] = localDateStr.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    };
+    
+    const s1 = normalizeDate(start1);
+    const e1 = normalizeDate(end1);
+    const s2 = normalizeDate(start2);
+    const e2 = normalizeDate(end2);
+    
+    // Für Gruppierung: auch Events am gleichen Tag zulassen
+    // Events überlappen wenn sie sich berühren oder überschneiden
+    // Beispiel: 01.01-05.01 und 05.01-10.01 = ÜBERLAPPUNG für Gruppierung (5.1 ist Check-out + Check-in)
+    return s1 <= e2 && s2 <= e1;
+  };
+
+  // Finde überlappende Events (für Gruppierung - inkl. Events am gleichen Tag)
   const findOverlappingEvents = (events: CalendarEvent[]): CalendarEvent[][] => {
     const overlappingGroups: CalendarEvent[][] = [];
     const processed = new Set<string>();
@@ -143,9 +245,9 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
       for (let j = i + 1; j < events.length; j++) {
         if (processed.has(events[j].id)) continue;
 
-        // Prüfe ob dieses Event mit einem Event in der Gruppe überlappt
+        // Prüfe ob dieses Event mit einem Event in der Gruppe überlappt (inkl. gleicher Tag)
         const overlaps = group.some(e => 
-          datesOverlap(e.start, e.end, events[j].start, events[j].end)
+          eventsOverlapForGrouping(e.start, e.end, events[j].start, events[j].end)
         );
 
         if (overlaps) {
@@ -174,30 +276,27 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
       const firstWithColor = events.find(e => e.colorId && e.colorId !== '10');
       const targetColorId = firstWithColor?.colorId || '1'; // Fallback auf Farbe 1
 
-      // Update alle Events mit der gleichen Farbe
-      const updatePromises = eventIds.map(id => 
-        fetch("/api/admin/calendar-bookings/group", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            eventId: id,
-            colorId: targetColorId,
-          }),
-        })
-      );
+      // Update alle Events mit der gleichen Farbe und speichere Verlinkungen in der DB
+      const response = await fetch("/api/admin/calendar-bookings/group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventIds: eventIds,
+          colorId: targetColorId,
+        }),
+      });
 
-      const results = await Promise.all(updatePromises);
-      const allSuccess = results.every(res => res.ok);
+      const result = await response.json();
 
-      if (allSuccess) {
+      if (result.success) {
         toast({
           title: "Erfolgreich",
-          description: `${eventIds.length} Events wurden zusammengelegt (gleiche Farbe)`,
+          description: `${eventIds.length} Events wurden zusammengelegt`,
         });
         setIsDetailDialogOpen(false);
         router.refresh();
       } else {
-        throw new Error("Einige Updates sind fehlgeschlagen");
+        throw new Error(result.error || "Fehler beim Zusammenlegen");
       }
     } catch (error: any) {
       toast({
@@ -419,6 +518,23 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
         return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
       });
   }, [bookings, month, year]);
+
+  // Calendar Events des aktuellen Monats filtern und sortieren
+  const monthEvents = useMemo(() => {
+    return calendarEvents
+      .filter(event => {
+        const start = new Date(event.start);
+        const end = new Date(event.end);
+        // Prüfe ob Event im aktuellen Monat liegt
+        return (start.getMonth() === month && start.getFullYear() === year) ||
+               (end.getMonth() === month && end.getFullYear() === year) ||
+               (start < new Date(year, month + 1, 0) && end > new Date(year, month, 1));
+      })
+      .sort((a, b) => {
+        // Sortiere nach Startdatum
+        return new Date(a.start).getTime() - new Date(b.start).getTime();
+      });
+  }, [calendarEvents, month, year]);
 
   // Kalender-Tage generieren
   const calendarDays = [];
@@ -733,7 +849,7 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                                   router.push(`/admin/bookings/${booking.id}?from=calendar&month=${month + 1}&year=${year}`);
                                 }}
                                 className={`
-                                  text-xs sm:text-[10px] md:text-[11px] p-1.5 sm:p-0.5 md:p-1 rounded cursor-pointer
+                                  text-[10px] sm:text-xs md:text-[11px] p-1 sm:p-1.5 md:p-1.5 rounded cursor-pointer
                                   hover:opacity-90 transition-opacity flex-shrink-0 font-medium
                                   ${bgColorClass}
                                   ${textColorClass}
@@ -757,23 +873,44 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                           })}
                           
                           {/* Calendar Events anzeigen - auf mobilen Geräten bis zu 3 */}
-                          {dayEvents.slice(0, Math.max(0, 3 - dayBookings.length)).map((event) => (
-                            <div
-                              key={event.id}
-                              className="text-xs sm:text-[10px] md:text-[11px] p-1.5 sm:p-0.5 md:p-1 rounded bg-orange-100 dark:bg-orange-900 text-orange-900 dark:text-orange-100 border border-orange-300 dark:border-orange-700 flex-shrink-0"
-                              title={`Blockiert: ${event.summary}`}
-                            >
-                              <div className="flex items-center gap-1 sm:gap-0.5">
-                                <svg className="h-3 w-3 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                          {dayEvents.slice(0, Math.max(0, 3 - dayBookings.length)).map((event) => {
+                            const eventData = calendarEvents.find(e => e.id === event.id);
+                            const colorStyle = getEventColorStyle(eventData?.colorId);
+                            
+                            return (
+                              <div
+                                key={event.id}
+                                className="text-[10px] sm:text-xs md:text-[11px] p-1 sm:p-1.5 md:p-1.5 rounded border flex-shrink-0 relative"
+                                style={colorStyle}
+                                title={`Blockiert: ${event.summary}`}
+                              >
+                              <div className="flex items-center gap-1 sm:gap-1.5 md:gap-1 min-w-0">
+                                <svg className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3 md:w-3 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                                   <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                                 </svg>
-                                <span className="truncate leading-tight font-medium">{event.summary}</span>
+                                <span className="truncate leading-tight font-medium flex-1 min-w-0 text-left">{event.summary}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkAsInfoClick(event.id);
+                                  }}
+                                  className="flex-shrink-0 hover:opacity-70 transition-opacity ml-0.5 sm:ml-1 p-0.5"
+                                  title="Als Info markieren (nicht blockierend)"
+                                  disabled={markingEventId === event.id}
+                                >
+                                  {markingEventId === event.id ? (
+                                    <RefreshCw className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3 md:w-3 animate-spin opacity-50" />
+                                  ) : (
+                                    <Info className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-3 md:w-3 opacity-60 hover:opacity-100" />
+                                  )}
+                                </button>
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                           
                           {totalItems > 3 && (
                             <div className="text-xs sm:text-[9px] md:text-[10px] text-muted-foreground text-center pt-1 sm:pt-0.5 flex-shrink-0 font-semibold">
@@ -799,11 +936,13 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
             Alle Buchungen - {monthNames[month]} {year}
           </CardTitle>
           <CardDescription>
-            {monthBookings.length} {monthBookings.length === 1 ? "Buchung" : "Buchungen"} in diesem Monat
+            {monthBookings.length} {monthBookings.length === 1 ? "Buchung" : "Buchungen"} 
+            {monthEvents.length > 0 && `, ${monthEvents.length} ${monthEvents.length === 1 ? "Blockierung" : "Blockierungen"}`} in diesem Monat
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {/* Buchungen */}
             {monthBookings.map((booking) => {
                 const bgColorClass = getBookingColorClass(booking.id);
                 const textColorClass = getBookingTextColorClass(booking.id);
@@ -876,9 +1015,48 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                   </Link>
                 );
               })}
-            {monthBookings.length === 0 && (
+            
+            {/* Manuelle Blockierungen */}
+            {monthEvents.map((event) => {
+              const colorStyle = getEventColorStyle(event.colorId);
+              return (
+                <div
+                  key={event.id}
+                  className="p-3 rounded-lg border flex items-start justify-between gap-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                  style={colorStyle}
+                  onClick={() => {
+                    const eventStart = new Date(event.start);
+                    setSelectedDayForDetails(eventStart.getDate());
+                    setIsDetailDialogOpen(true);
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                      </svg>
+                      <span className="font-semibold text-sm truncate">{event.summary}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Calendar className="h-3 w-3 flex-shrink-0" />
+                      <span>
+                        {formatDate(event.start)} - {formatDate(event.end)}
+                      </span>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="flex-shrink-0 text-xs">
+                    Blockierung
+                  </Badge>
+                </div>
+              );
+            })}
+            
+            {monthBookings.length === 0 && monthEvents.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                Keine Buchungen in diesem Monat
+                Keine Buchungen oder Blockierungen in diesem Monat
               </div>
             )}
           </div>
@@ -935,13 +1113,20 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                                 <div className="flex items-start justify-between gap-4">
                                   <div className="flex items-start gap-2 flex-1">
                                     <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                                    <div>
+                                    <div className="flex-1">
                                       <h4 className="font-semibold text-green-900 dark:text-green-100 mb-1">
-                                        Bereits zusammengelegt
+                                        Bereits zusammengelegt ({group.length} Events)
                                       </h4>
-                                      <p className="text-sm text-green-700 dark:text-green-300">
-                                        Diese {group.length} Events haben die gleiche Farbe und werden als zusammengehörig erkannt.
+                                      <p className="text-sm text-green-700 dark:text-green-300 mb-2">
+                                        Diese Events haben die gleiche Farbe und werden als zusammengehörig erkannt:
                                       </p>
+                                      <ul className="text-xs sm:text-sm text-green-700 dark:text-green-300 space-y-1 list-disc list-inside">
+                                        {group.map((e) => (
+                                          <li key={e.id} className="truncate">
+                                            {e.summary} ({formatDate(e.start)} - {formatDate(e.end)})
+                                          </li>
+                                        ))}
+                                      </ul>
                                     </div>
                                   </div>
                                   <Button
@@ -962,14 +1147,20 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                           return (
                             <div key={idx} className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                               <div className="flex items-start justify-between gap-4 mb-3">
-                                <div>
+                                <div className="flex-1">
                                   <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-1">
-                                    Überlappende Events gefunden
+                                    Überlappende Events gefunden ({group.length} Events)
                                   </h4>
-                                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                                    {group.length} Events überlappen sich. 
-                                    Du kannst sie zusammenlegen, damit sie als zusammengehörig erkannt werden.
+                                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
+                                    Diese Events überlappen sich. Du kannst sie zusammenlegen, damit sie als zusammengehörig erkannt werden:
                                   </p>
+                                  <ul className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300 space-y-1 list-disc list-inside mb-3">
+                                    {group.map((e) => (
+                                      <li key={e.id} className="truncate">
+                                        {e.summary} ({formatDate(e.start)} - {formatDate(e.end)})
+                                      </li>
+                                    ))}
+                                  </ul>
                                 </div>
                               </div>
                               <Button
@@ -1057,26 +1248,63 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                       );
                     })}
                     
-                    {dayEvents.map((event) => (
-                      <div
-                        key={event.id}
-                        className="p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800"
-                      >
-                        <div className="font-medium flex items-center gap-2 mb-2">
-                          <svg className="h-4 w-4 text-orange-600 dark:text-orange-400" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                          </svg>
-                          {event.summary}
+                    {dayEvents.map((event) => {
+                      const eventData = calendarEvents.find(e => e.id === event.id);
+                      const isInfo = eventData?.colorId === '10';
+                      const dialogColorStyle = getEventDialogColorStyle(eventData?.colorId);
+                      
+                      return (
+                        <div
+                          key={event.id}
+                          className="p-4 border rounded-lg"
+                          style={dialogColorStyle}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="font-medium flex items-center gap-2 flex-1">
+                              {isInfo ? (
+                                <Info className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                              ) : (
+                                <svg className="h-4 w-4 text-orange-600 dark:text-orange-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                                </svg>
+                              )}
+                              <span className="flex items-center gap-2">
+                                {event.summary}
+                                {isInfo && (
+                                  <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700">
+                                    <Info className="h-3 w-3 mr-1" />
+                                    Info
+                                  </Badge>
+                                )}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => isInfo ? handleUnmarkAsInfo(event.id) : handleMarkAsInfo(event.id)}
+                              disabled={markingEventId === event.id}
+                              className="flex-shrink-0"
+                              title={isInfo ? "Info-Markierung entfernen (wird wieder blockierend)" : "Als Info markieren (nicht blockierend)"}
+                            >
+                              {markingEventId === event.id ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : isInfo ? (
+                                <X className="h-4 w-4" />
+                              ) : (
+                                <Info className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-2">
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(event.start)} - {formatDate(event.end)}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(event.start)} - {formatDate(event.end)}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </>
                 );
               })()}
@@ -1084,6 +1312,34 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Bestätigungsdialog für Info-Markierung */}
+      <AlertDialog open={confirmInfoDialogOpen} onOpenChange={setConfirmInfoDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Event als Info markieren?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchtest du dieses Event wirklich als Info markieren? Info-Events werden nicht mehr als blockierend angezeigt und erscheinen nicht mehr im Kalender.
+              {eventToMarkAsInfo && (() => {
+                const event = calendarEvents.find(e => e.id === eventToMarkAsInfo);
+                return event ? (
+                  <div className="mt-2 p-2 bg-muted rounded text-sm">
+                    <strong>{event.summary}</strong>
+                    <br />
+                    {formatDate(event.start)} - {formatDate(event.end)}
+                  </div>
+                ) : null;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmMarkAsInfo}>
+              Als Info markieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       
       <AdminBookingForm 

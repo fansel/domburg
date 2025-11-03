@@ -20,6 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { datesOverlap } from "@/lib/utils";
 
 interface CalendarBooking {
   id: string;
@@ -28,6 +29,7 @@ interface CalendarBooking {
   end: string;
   colorId?: string;
   isInfo?: boolean;
+  linkedEventIds?: string[]; // Array von verlinkten Event-IDs (aus DB)
 }
 
 export function CalendarBookingsManager() {
@@ -239,31 +241,29 @@ export function CalendarBookingsManager() {
       const firstWithColor = selectedBookingObjects.find(b => b.colorId && b.colorId !== '10');
       const targetColorId = firstWithColor?.colorId || '1'; // Fallback auf Farbe 1
 
-      // Update alle ausgewählten Events mit der gleichen Farbe
-      const updatePromises = Array.from(selectedBookings).map(id => 
-        fetch("/api/admin/calendar-bookings/group", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            eventId: id,
-            colorId: targetColorId,
-          }),
-        })
-      );
+      // Update alle ausgewählten Events mit der gleichen Farbe und speichere Verlinkungen
+      const selectedIdsArray = Array.from(selectedBookings);
+      const response = await fetch("/api/admin/calendar-bookings/group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventIds: selectedIdsArray,
+          colorId: targetColorId,
+        }),
+      });
 
-      const results = await Promise.all(updatePromises);
-      const allSuccess = results.every(res => res.ok);
+      const result = await response.json();
 
-      if (allSuccess) {
+      if (result.success) {
         toast({
           title: "Erfolgreich",
-          description: `${selectedBookings.size} Einträge wurden zusammengelegt (gleiche Farbe)`,
+          description: `${selectedBookings.size} Einträge wurden zusammengelegt`,
         });
         setSelectedBookings(new Set());
         setIsGrouping(false);
         loadBookings();
       } else {
-        throw new Error("Einige Updates sind fehlgeschlagen");
+        throw new Error(result.error || "Fehler beim Zusammenlegen");
       }
     } catch (error: any) {
       setIsGrouping(false);
@@ -449,21 +449,22 @@ export function CalendarBookingsManager() {
         </div>
       ) : (
         <div className="space-y-2 sm:space-y-3">
-          {listBookings.map((booking) => (
+          {listBookings.map((booking) => {
+            // Prüfe ob dieses Event gruppiert ist
+            // Events sind nur dann gruppiert, wenn sie explizit in der DB verlinkt sind
+            const linkedEventIds = booking.linkedEventIds || [];
+            const linkedEvents = !booking.isInfo && linkedEventIds.length > 0 
+              ? bookings.filter(b => linkedEventIds.includes(b.id) && !b.isInfo)
+              : [];
+            const isGrouped = linkedEvents.length > 0;
+            const groupSize = linkedEvents.length + 1;
+            
+            return (
             <Card 
               key={booking.id} 
-              className={`border relative ${selectedBookings.has(booking.id) ? 'ring-2 ring-primary bg-primary/5' : ''} ${booking.isInfo ? 'opacity-60' : ''}`}
+              className={`border relative ${selectedBookings.has(booking.id) ? 'ring-2 ring-primary bg-primary/5' : ''} ${booking.isInfo ? 'opacity-60' : ''} ${isGrouped ? 'border-green-300 dark:border-green-700 bg-green-50/30 dark:bg-green-950/20' : ''}`}
             >
               <CardContent className="p-3 sm:p-4 sm:pt-4">
-                {!editingId && !booking.isInfo && (
-                  <div className="absolute top-3 right-3 z-10 bg-background rounded border border-border p-0.5 shadow-sm">
-                    <Checkbox
-                      checked={selectedBookings.has(booking.id)}
-                      onCheckedChange={() => handleToggleSelection(booking.id)}
-                      className="h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                    />
-                  </div>
-                )}
                 {editingId === booking.id ? (
                   <div className="space-y-3">
                     <div className="space-y-2">
@@ -540,15 +541,30 @@ export function CalendarBookingsManager() {
                 ) : (
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm sm:text-base mb-2 break-words">{booking.summary}</h4>
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
+                      <div className="flex items-start gap-2 mb-2">
+                        {!editingId && !booking.isInfo && (
+                          <Checkbox
+                            checked={selectedBookings.has(booking.id)}
+                            onCheckedChange={() => handleToggleSelection(booking.id)}
+                            className="h-4 w-4 mt-0.5 flex-shrink-0 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          />
+                        )}
+                        <h4 className="font-semibold text-sm sm:text-base break-words flex-1">{booking.summary}</h4>
+                        {isGrouped && (
+                          <Badge variant="outline" className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700 text-xs flex-shrink-0">
+                            <LinkIcon className="h-3 w-3 mr-1" />
+                            {groupSize} verlinkt
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap mb-2">
                         <Calendar className="h-4 w-4 flex-shrink-0" />
                         <span className="break-words">
                           {format(new Date(booking.start), "dd.MM.yyyy", { locale: de })} -{" "}
                           {format(new Date(booking.end), "dd.MM.yyyy", { locale: de })}
                         </span>
                       </div>
-                      <div className="flex gap-2 mt-2 flex-wrap">
+                      <div className="flex gap-2 flex-wrap items-start">
                         {booking.isInfo ? (
                           <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-xs">
                             <Info className="h-3 w-3 mr-1" />
@@ -559,21 +575,13 @@ export function CalendarBookingsManager() {
                             Blockierung
                           </Badge>
                         )}
-                        {/* Zeige wenn Event zu einer Gruppe gehört (gleiche Farbe wie andere Events) */}
-                        {!booking.isInfo && booking.colorId && (() => {
-                          const sameColorEvents = bookings.filter(b => 
-                            b.id !== booking.id && 
-                            !b.isInfo && 
-                            b.colorId === booking.colorId &&
-                            b.colorId !== '10'
-                          );
-                          const isGrouped = sameColorEvents.length > 0;
-                          
-                          return isGrouped ? (
-                            <div className="flex items-center gap-2">
+                        {/* Zeige zusammengehörige Events prominenter */}
+                        {isGrouped && (
+                          <div className="flex flex-col gap-2 w-full">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 text-xs">
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
-                                Gruppiert ({sameColorEvents.length + 1})
+                                Verlinkt mit {linkedEvents.length} {linkedEvents.length === 1 ? 'weiterem Event' : 'weiteren Events'}
                               </Badge>
                               {!editingId && (
                                 <Button
@@ -584,12 +592,35 @@ export function CalendarBookingsManager() {
                                   className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                                 >
                                   <Unlink className="h-3 w-3 mr-1" />
-                                  Trennen
+                                  Verlinkung trennen
                                 </Button>
                               )}
                             </div>
-                          ) : null;
-                        })()}
+                            <div className="bg-green-50/50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md p-2 sm:p-3">
+                              <div className="text-xs font-semibold text-green-900 dark:text-green-100 mb-1.5">
+                                Verlinkte Events ({groupSize}):
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs sm:text-sm text-green-800 dark:text-green-200 flex items-center gap-1.5">
+                                  <div className="h-2 w-2 rounded-full bg-green-600 dark:bg-green-400 flex-shrink-0"></div>
+                                  <span className="font-medium">{booking.summary}</span>
+                                  <span className="text-green-600 dark:text-green-400 text-[10px]">
+                                    ({format(new Date(booking.start), "dd.MM.", { locale: de })} - {format(new Date(booking.end), "dd.MM.yyyy", { locale: de })})
+                                  </span>
+                                </div>
+                                {linkedEvents.map(event => (
+                                  <div key={event.id} className="text-xs sm:text-sm text-green-800 dark:text-green-200 flex items-center gap-1.5">
+                                    <div className="h-2 w-2 rounded-full bg-green-600 dark:bg-green-400 flex-shrink-0"></div>
+                                    <span className="font-medium">{event.summary}</span>
+                                    <span className="text-green-600 dark:text-green-400 text-[10px]">
+                                      ({format(new Date(event.start), "dd.MM.", { locale: de })} - {format(new Date(event.end), "dd.MM.yyyy", { locale: de })})
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-1 sm:gap-1 flex-shrink-0">
@@ -614,7 +645,8 @@ export function CalendarBookingsManager() {
                 )}
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import { updateCalendarEvent } from "@/lib/google-calendar";
 import { getBookingColorId } from "@/lib/utils";
+import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,6 +58,17 @@ export async function POST(request: NextRequest) {
     });
 
     await Promise.all(updatePromises);
+
+    // Entferne alle Verlinkungen zwischen diesen Events aus der Datenbank
+    // Lösche alle Verlinkungen die eines dieser Events enthalten
+    await prisma.linkedCalendarEvent.deleteMany({
+      where: {
+        OR: [
+          { eventId1: { in: eventIds } },
+          { eventId2: { in: eventIds } },
+        ],
+      },
+    });
 
     // Prüfe auf Konflikte nach dem Trennen (Farbe ändern kann Konflikte beeinflussen)
     const { checkAndNotifyConflictsForCalendarEvent } = await import("@/lib/booking-conflicts");

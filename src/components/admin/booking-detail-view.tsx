@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Calendar, User, Mail, Users, Edit, Trash2, 
-  Save, X, RotateCcw
+  Save, X, RotateCcw, RefreshCw
 } from "lucide-react";
 import {
   Dialog,
@@ -115,11 +115,14 @@ export function BookingDetailView({
   const handleCancel = async (reason: string) => {
     const result = await cancelBooking(booking.id, reason);
     if (result.success) {
-      window.location.reload();
       toast({
         title: "Storniert",
         description: "Buchung wurde storniert",
       });
+      // Kurze Verzögerung, damit Toast angezeigt wird, dann Seite neu laden
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } else {
       toast({
         title: "Fehler",
@@ -452,17 +455,36 @@ export function BookingDetailView({
 function CancelDialog({ onCancel }: { onCancel: (reason: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
 
-  const handleConfirm = () => {
-    if (reason.trim()) {
-      onCancel(reason);
+  const handleConfirm = async () => {
+    if (reason.trim() && !isCancelling) {
+      setIsCancelling(true);
+      try {
+        await onCancel(reason);
+        setIsOpen(false);
+        setReason("");
+      } finally {
+        setIsCancelling(false);
+      }
+    }
+  };
+
+  const handleClose = () => {
+    if (!isCancelling) {
       setIsOpen(false);
       setReason("");
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open && !isCancelling) {
+        handleClose();
+      } else if (open) {
+        setIsOpen(true);
+      }
+    }}>
       <DialogTrigger asChild>
         <Button variant="destructive" size="sm" className="w-full sm:w-auto">
           <Trash2 className="h-4 w-4 mr-2" />
@@ -490,15 +512,28 @@ function CancelDialog({ onCancel }: { onCancel: (reason: string) => void }) {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
+          <Button 
+            variant="outline" 
+            onClick={handleClose}
+            type="button"
+            disabled={isCancelling}
+          >
             Abbrechen
           </Button>
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={!reason.trim()}
+            disabled={!reason.trim() || isCancelling}
+            type="button"
           >
-            Stornieren bestätigen
+            {isCancelling ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Wird storniert...
+              </>
+            ) : (
+              "Stornieren bestätigen"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

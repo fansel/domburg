@@ -54,6 +54,134 @@ export async function GET(request: NextRequest) {
       return !isAppBooking;
     });
 
+    // Hole alle Verlinkungen für diese Events
+    const eventIds = manualBookings.map(b => b.id);
+    const linkedEvents = await prisma.linkedCalendarEvent.findMany({
+      where: {
+        OR: [
+          { eventId1: { in: eventIds } },
+          { eventId2: { in: eventIds } },
+        ],
+      },
+    });
+
+    // Erstelle eine Map: eventId -> Array von verlinkten Event-IDs
+    const linkedEventMap = new Map<string, string[]>();
+    linkedEvents.forEach(link => {
+      // Füge beide Richtungen hinzu
+      if (!linkedEventMap.has(link.eventId1)) {
+        linkedEventMap.set(link.eventId1, []);
+      }
+      if (!linkedEventMap.has(link.eventId2)) {
+        linkedEventMap.set(link.eventId2, []);
+      }
+      linkedEventMap.get(link.eventId1)!.push(link.eventId2);
+      linkedEventMap.get(link.eventId2)!.push(link.eventId1);
+    });
+
+    // Automatische Verlinkung: Events mit gleicher Farbe + mehr als 1 Tag Überschneidung
+    // Prüfe alle Event-Paare
+    const newLinks: Array<{ eventId1: string; eventId2: string }> = [];
+    const processedPairs = new Set<string>();
+    
+    for (let i = 0; i < manualBookings.length; i++) {
+      const event1 = manualBookings[i];
+      if (event1.colorId === '10' || !event1.colorId) continue; // Info-Events überspringen
+      
+      const event1Start = new Date(event1.start);
+      const event1End = new Date(event1.end);
+      
+      for (let j = i + 1; j < manualBookings.length; j++) {
+        const event2 = manualBookings[j];
+        if (event2.colorId === '10' || !event2.colorId) continue; // Info-Events überspringen
+        if (event1.colorId !== event2.colorId) continue; // Verschiedene Farben überspringen
+        
+        // Prüfe ob Events bereits verlinkt sind
+        const pairKey = [event1.id, event2.id].sort().join('-');
+        if (processedPairs.has(pairKey)) continue;
+        processedPairs.add(pairKey);
+        
+        const alreadyLinked = linkedEventMap.get(event1.id)?.includes(event2.id) || 
+                             linkedEventMap.get(event2.id)?.includes(event1.id);
+        if (alreadyLinked) continue;
+        
+        // Prüfe Überlappung: mehr als 1 Tag
+        const event2Start = new Date(event2.start);
+        const event2End = new Date(event2.end);
+        
+        // Normalisiere auf Tagesanfang für Vergleich
+        const normalizeDate = (date: Date) => {
+          const d = new Date(date);
+          d.setHours(0, 0, 0, 0);
+          return d;
+        };
+        
+        const s1 = normalizeDate(event1Start);
+        const e1 = normalizeDate(event1End);
+        const s2 = normalizeDate(event2Start);
+        const e2 = normalizeDate(event2End);
+        
+        // Prüfe ob Events sich überlappen
+        if (s1 <= e2 && s2 <= e1) {
+          // Berechne die tatsächliche Überlappung in Tagen
+          const overlapStart = s1 > s2 ? s1 : s2;
+          const overlapEnd = e1 < e2 ? e1 : e2;
+          const overlapDays = Math.floor((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // Mehr als 1 Tag Überschneidung = automatisch verlinken
+          if (overlapDays > 1) {
+            const [id1, id2] = [event1.id, event2.id].sort();
+            newLinks.push({ eventId1: id1, eventId2: id2 });
+          }
+        }
+      }
+    }
+    
+    // Speichere neue automatische Verlinkungen in der DB
+    if (newLinks.length > 0) {
+      await Promise.all(
+        newLinks.map(link =>
+          prisma.linkedCalendarEvent.upsert({
+            where: {
+              eventId1_eventId2: {
+                eventId1: link.eventId1,
+                eventId2: link.eventId2,
+              },
+            },
+            create: {
+              eventId1: link.eventId1,
+              eventId2: link.eventId2,
+              createdBy: null, // Automatisch erkannt
+            },
+            update: {}, // Update nichts, nur erstellen wenn nicht vorhanden
+          })
+        )
+      );
+      
+      // Lade Verlinkungen neu nach dem Speichern
+      const updatedLinkedEvents = await prisma.linkedCalendarEvent.findMany({
+        where: {
+          OR: [
+            { eventId1: { in: eventIds } },
+            { eventId2: { in: eventIds } },
+          ],
+        },
+      });
+      
+      // Aktualisiere linkedEventMap
+      linkedEventMap.clear();
+      updatedLinkedEvents.forEach(link => {
+        if (!linkedEventMap.has(link.eventId1)) {
+          linkedEventMap.set(link.eventId1, []);
+        }
+        if (!linkedEventMap.has(link.eventId2)) {
+          linkedEventMap.set(link.eventId2, []);
+        }
+        linkedEventMap.get(link.eventId1)!.push(link.eventId2);
+        linkedEventMap.get(link.eventId2)!.push(link.eventId1);
+      });
+    }
+
     return NextResponse.json({
       success: true,
       bookings: manualBookings.map((booking) => ({
@@ -63,6 +191,7 @@ export async function GET(request: NextRequest) {
         end: booking.end.toISOString(),
         colorId: booking.colorId,
         isInfo: booking.colorId === '10', // colorId=10 = Grün = Info
+        linkedEventIds: linkedEventMap.get(booking.id) || [], // Array von verlinkten Event-IDs
       })),
     });
   } catch (error: any) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getCalendarEvents } from '@/lib/google-calendar';
+import { datesOverlap } from '@/lib/utils';
 
 /**
  * API Route für Putzhilfe-Kalender
@@ -121,7 +122,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Google Calendar Events laden (optional) - erweiterter Zeitraum
-    let calendarEvents: Array<{ start: Date; end: Date; summary?: string; isExternal?: boolean }> = [];
+    let calendarEvents: Array<{ start: Date; end: Date; summary?: string; isExternal?: boolean; colorId?: string; id?: string }> = [];
     try {
       const events = await getCalendarEvents(calendarStartDate, calendarEndDate);
       // Filtere nur blockierende Events (keine Info-Events, keine App-Buchungen)
@@ -138,6 +139,8 @@ export async function GET(request: NextRequest) {
         .map(event => ({
           start: event.start,
           end: event.end,
+          id: event.id,
+          colorId: event.colorId,
           // Anonymisiere summary: Entferne potenzielle Gästedaten
           // Falls summary noch potenzielle Gästedaten enthält (z.B. von manuell erstellten Events),
           // ersetze es mit generischem Text
@@ -150,6 +153,98 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.warn('Could not load calendar events for cleaning calendar:', error);
     }
+
+    // Gruppiere Events die in der DB verlinkt sind
+    // Verlinkte Events werden als zusammengehörig behandelt (keine Putzzeit zwischen ihnen)
+    const eventIds = calendarEvents.map(e => e.id).filter((id): id is string => !!id);
+    
+    // Hole alle Verlinkungen aus der DB
+    const linkedEvents = eventIds.length > 0 ? await prisma.linkedCalendarEvent.findMany({
+      where: {
+        OR: [
+          { eventId1: { in: eventIds } },
+          { eventId2: { in: eventIds } },
+        ],
+      },
+    }) : [];
+    
+    // Erstelle eine Map: eventId -> Array von verlinkten Event-IDs
+    const linkedEventMap = new Map<string, string[]>();
+    linkedEvents.forEach(link => {
+      if (!linkedEventMap.has(link.eventId1)) {
+        linkedEventMap.set(link.eventId1, []);
+      }
+      if (!linkedEventMap.has(link.eventId2)) {
+        linkedEventMap.set(link.eventId2, []);
+      }
+      linkedEventMap.get(link.eventId1)!.push(link.eventId2);
+      linkedEventMap.get(link.eventId2)!.push(link.eventId1);
+    });
+    
+    // Finde alle Gruppen von verlinkten Events (transitive Closure)
+    const groups: Array<Set<string>> = [];
+    const processedEvents = new Set<string>();
+    
+    calendarEvents.forEach((event) => {
+      if (!event.id || processedEvents.has(event.id)) return;
+      
+      // Finde alle transitiv verlinkten Events
+      const group = new Set<string>([event.id]);
+      processedEvents.add(event.id);
+      
+      const queue = [event.id];
+      while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        const linkedIds = linkedEventMap.get(currentId) || [];
+        
+        linkedIds.forEach(linkedId => {
+          if (!group.has(linkedId)) {
+            group.add(linkedId);
+            processedEvents.add(linkedId);
+            queue.push(linkedId);
+          }
+        });
+      }
+      
+      if (group.size > 1) {
+        groups.push(group);
+      }
+    });
+    
+    // Erstelle kombinierte Events für jede Gruppe
+    const groupedEventIds = new Set<string>();
+    const combinedEvents: Array<typeof calendarEvents[0]> = [];
+    
+    groups.forEach((group, groupIndex) => {
+      const groupEventIds = Array.from(group);
+      const groupEvents = calendarEvents.filter(e => e.id && groupEventIds.includes(e.id));
+      
+      if (groupEvents.length > 0) {
+        // Sortiere nach Startdatum
+        const sortedGroup = groupEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
+        const groupStart = sortedGroup[0].start;
+        const groupEnd = sortedGroup.reduce((latest, e) => e.end > latest ? e.end : latest, sortedGroup[0].end);
+        
+        // Markiere alle Events der Gruppe zum Entfernen
+        groupEventIds.forEach(id => groupedEventIds.add(id));
+        
+        // Erstelle kombiniertes Event
+        combinedEvents.push({
+          start: groupStart,
+          end: groupEnd,
+          summary: `${groupEvents.length} zusammengehörige Termine`,
+          isExternal: true,
+          colorId: sortedGroup[0].colorId,
+          id: `group-${groupIndex}-${groupStart.getTime()}`,
+        });
+      }
+    });
+    
+    // Entferne einzelne Events die jetzt gruppiert sind
+    calendarEvents = calendarEvents.filter(event => !event.id || !groupedEventIds.has(event.id));
+    
+    // Füge kombinierte Gruppenevents hinzu
+    calendarEvents.push(...combinedEvents);
 
     // Bereite Daten für Kalenderansicht vor
     // Genau wie der Buchungskalender: Alle Tage zwischen Start und Ende markieren

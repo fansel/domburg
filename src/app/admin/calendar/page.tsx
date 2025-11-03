@@ -118,21 +118,44 @@ export default async function AdminCalendarPage({
   const twentyFourMonthsLater = new Date(today);
   twentyFourMonthsLater.setMonth(twentyFourMonthsLater.getMonth() + 24);
   
+  // Hole alle Buchungen mit googleEventId aus der Datenbank
+  const bookingsWithEventId = await prisma.booking.findMany({
+    where: {
+      googleEventId: { not: null },
+    },
+    select: {
+      googleEventId: true,
+    },
+  });
+  const appBookingEventIds = new Set(
+    bookingsWithEventId
+      .map((b) => b.googleEventId)
+      .filter((id): id is string => id !== null)
+  );
+  
   let calendarEvents: Array<{ id: string; summary: string; start: Date; end: Date; colorId?: string }> = [];
   try {
     const allEvents = await getCalendarEvents(twelveMonthsAgo, twentyFourMonthsLater);
     
-    // Filtere nach Farbe und eigenen Buchungen
+    // Filtere nur manuelle Einträge (keine App-Buchungen, keine Info-Events)
+    // Eine App-Buchung ist identifizierbar durch:
+    // 1. Hat eine googleEventId die in der Datenbank verlinkt ist, ODER
+    // 2. Beginnt mit "Buchung:" (genaues Format wie bei der Erstellung), ODER
+    // 3. Enthält das 🏠 Emoji, ODER
+    // 4. Enthält Preis-Format (z.B. "100€/200€")
     calendarEvents = allEvents.filter(event => {
-      // 1. Eigene Buchungen der App (blockieren nicht)
-      const isOwnBooking = event.summary.includes('Buchung:');
+      // Prüfe ob Event-ID in der Datenbank verlinkt ist
+      if (event.id && appBookingEventIds.has(event.id)) {
+        return false; // Es ist eine App-Buchung
+      }
       
-      // 2. Google Calendar Farben-Filter
-      // Farb-IDs in Google Calendar:
-      // 1=Lavendel, 2=Salbei, 3=Traube, 4=Flamingo, 5=Banane, 
-      // 6=Mandarine, 7=Pfau, 8=Graphit, 9=Blaubeere, 10=Basilikum, 11=Tomate
-      // Farbe 10 (Basilikum/Grün) = Info-Events (blockieren nicht)
-      const infoColorIds = ['10']; // Grün für Info-Events
+      // Prüfe Titel-Format (App-Buchungen beginnen immer mit "Buchung:")
+      const isOwnBooking = event.summary?.startsWith("Buchung:") || 
+                           event.summary?.includes("🏠") ||
+                           event.summary?.match(/\d+€\/\d+€/); // Preis-Einträge
+      
+      // Info-Events (colorId: '10') werden NICHT im Kalender angezeigt
+      const infoColorIds = ['10'];
       const isInfoColor = event.colorId && infoColorIds.includes(event.colorId);
       
       return !isOwnBooking && !isInfoColor;
