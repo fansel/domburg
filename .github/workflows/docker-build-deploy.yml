@@ -28,7 +28,6 @@ jobs:
           driver-opts: |
             image=moby/buildkit:master
             network=host
-            memory=12288
 
       - name: Use temporary Docker config
         run: |
