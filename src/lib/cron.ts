@@ -5,12 +5,20 @@
 import cron from 'node-cron';
 
 let conflictCheckJob: cron.ScheduledTask | null = null;
+let isRunning = false; // Verhindert mehrfache gleichzeitige Ausführungen
 
 /**
  * Prüft Konflikte für manuelle Kalender-Events
  * Wird intern aufgerufen (kein HTTP Request nötig)
  */
 async function checkConflictsForManualEvents() {
+  // Verhindere mehrfache gleichzeitige Ausführungen
+  if (isRunning) {
+    console.log('[Cron] Conflict check already running, skipping...');
+    return;
+  }
+
+  isRunning = true;
   const startTime = Date.now();
   try {
     console.log('[Cron] Starting conflict check for manual calendar events...');
@@ -22,14 +30,16 @@ async function checkConflictsForManualEvents() {
     const { getPublicUrl, sendBookingConflictNotificationToAdmin } = await import('./email');
     const { formatConflict } = await import('./booking-conflicts');
     
-    // Hole alle manuellen Events (letzten 24 Stunden + zukünftige)
+    // Hole alle manuellen Events (letzten 7 Tage + 1 Jahr in die Zukunft)
+    // Reduzierter Zeitraum um Memory-Probleme zu vermeiden
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 1); // Letzten 24 Stunden
+    startDate.setDate(startDate.getDate() - 7); // Letzten 7 Tage
     
     const endDate = new Date();
-    endDate.setFullYear(endDate.getFullYear() + 2);
+    endDate.setFullYear(endDate.getFullYear() + 1); // Nur 1 Jahr (statt 2)
     
     const events = await getCalendarEvents(startDate, endDate);
+    console.log(`[Cron] Loaded ${events.length} calendar events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
     
     // Filtere manuelle Events (nicht von App erstellt)
     const bookingsWithEventId = await prisma.booking.findMany({
@@ -58,8 +68,10 @@ async function checkConflictsForManualEvents() {
 
     console.log(`[Cron] Found ${manualEvents.length} manual calendar events to check`);
 
-    // Hole alle aktuellen Konflikte
+    // Hole alle aktuellen Konflikte (nur relevante für den Zeitraum)
+    // findAllConflicts() lädt ALLE Buchungen - das könnte bei vielen Buchungen Memory-Probleme verursachen
     const allConflicts = await findAllConflicts();
+    console.log(`[Cron] Found ${allConflicts.length} total conflicts to check`);
     
     // Prüfe Konflikte für jedes manuelle Event
     let checked = 0;
@@ -271,9 +283,27 @@ async function checkConflictsForManualEvents() {
 
     const duration = Date.now() - startTime;
     console.log(`[Cron] Checked ${checked} events, sent ${notificationsSent} notifications (took ${duration}ms)`);
+    
+    // Memory cleanup: Clear large arrays
+    // (JavaScript GC wird das automatisch machen, aber explizit für Debugging)
+    if (duration > 30000) {
+      console.warn(`[Cron] Warning: Conflict check took ${duration}ms (>30s), consider optimizing`);
+    }
   } catch (error: any) {
     const duration = Date.now() - startTime;
     console.error(`[Cron] Error checking conflicts (took ${duration}ms):`, error);
+  } finally {
+    // Stelle sicher dass Flag immer zurückgesetzt wird
+    isRunning = false;
+    
+    // Force garbage collection hint (nur wenn --expose-gc flag gesetzt ist)
+    if (global.gc && typeof global.gc === 'function') {
+      try {
+        global.gc();
+      } catch (e) {
+        // Ignore
+      }
+    }
   }
 }
 

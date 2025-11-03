@@ -16,6 +16,13 @@ const nextConfig = {
     // Image-Optimierung deaktivieren (kann Build beschleunigen)
     unoptimized: false, // oder true für komplett deaktiviert
   },
+  // Kompilierungs-Optimierungen
+  compiler: {
+    // Deaktiviere entfernte console.logs im Production Build (spart etwas)
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',
@@ -49,9 +56,27 @@ const nextConfig = {
       });
       
       config.externals.push(externalsObj);
+      
+      // node-cron als extern markieren (wird zur Laufzeit geladen, spart Build-Speicher)
+      // WICHTIG: Bei standalone output werden node_modules kopiert, also wird es zur Laufzeit verfügbar sein
+      config.externals.push({
+        'node-cron': 'commonjs node-cron',
+      });
     }
+    
+    // Memory-Optimierungen für Build
+    if (process.env.NODE_ENV === 'production') {
+      // Reduziere Webpack Cache für weniger Speicher
+      config.cache = {
+        ...config.cache,
+        maxMemoryGenerations: 1,
+      };
+    }
+    
     return config;
   },
+  // Deaktiviere Source Maps im Production Build (spart viel Speicher/Zeit)
+  productionBrowserSourceMaps: false,
 }
 
 module.exports = nextConfig
