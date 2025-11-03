@@ -1,11 +1,23 @@
--- CreateEnum
+-- CreateEnum (mit IF NOT EXISTS)
+DO $$ BEGIN
 CREATE TYPE "UserRole" AS ENUM ('GUEST', 'ADMIN', 'SUPERADMIN');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- CreateEnum
+-- CreateEnum (mit IF NOT EXISTS)
+DO $$ BEGIN
 CREATE TYPE "BookingStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- CreateEnum
+-- CreateEnum (mit IF NOT EXISTS)
+DO $$ BEGIN
 CREATE TYPE "AccessType" AS ENUM ('GUEST', 'CLEANING');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- CreateTable
 CREATE TABLE "User" (

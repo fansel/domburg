@@ -53,10 +53,12 @@ export async function calculateBookingPrice(
   const breakdown: Array<{ date: string; price: number; phase?: string }> = [];
   let totalNightlyPrice = 0;
 
-  // Normalisiere Datums-Objekte für Tag-zu-Tag-Vergleiche (setze Zeit auf 00:00:00)
+  // Normalisiere Datums-Objekte für Tag-zu-Tag-Vergleiche (setze Zeit auf 00:00:00 UTC)
+  // Verwende UTC um Zeitzonen-Probleme zu vermeiden
   const normalizeDate = (date: Date): Date => {
     const normalized = new Date(date);
-    normalized.setHours(0, 0, 0, 0);
+    // Verwende UTC für konsistente Berechnung
+    normalized.setUTCHours(0, 0, 0, 0);
     return normalized;
   };
 
@@ -154,7 +156,7 @@ export async function calculateBookingPrice(
   
   // Finde die relevante Preisphase für den Starttag
   // Prüfe alle Phasen und nimm die mit der höchsten Priorität, die den Starttag enthält
-  let startDatePhase: (typeof pricingPhases[0] & { minNights?: number | null; saturdayToSaturday?: boolean; warningMessage?: string | null }) | undefined;
+  let startDatePhase: (typeof pricingPhases[0] & { minNights?: number | null; saturdayToSaturday?: boolean }) | undefined;
   
   // Suche alle Phasen die den Starttag enthalten, sortiert nach Priorität
   // WICHTIG: Ignoriere das Jahr und prüfe nur Monat/Tag (für jahresübergreifende Phasen)
@@ -206,10 +208,7 @@ export async function calculateBookingPrice(
     // Prüfe Mindestanzahl Nächte
     const minNights = phase.minNights;
     if (minNights != null && nights < minNights) {
-      const warningMessage = phase.warningMessage;
-      const warningMsg = warningMessage 
-        ? warningMessage
-        : `Für diese Saison ist eine Mindestbuchung von ${minNights} Nächten erforderlich. Du buchst ${nights} ${nights === 1 ? 'Nacht' : 'Nächte'}.`;
+      const warningMsg = `Für diese Saison ist eine Mindestbuchung von ${minNights} Nächten erforderlich. Du buchst ${nights} ${nights === 1 ? 'Nacht' : 'Nächte'}.`;
       warnings.push(warningMsg);
       // Speichere minNights für bessere Extraktion im Frontend
       (warnings as any).minNights = minNights;
@@ -218,21 +217,78 @@ export async function calculateBookingPrice(
     // Prüfe Samstag-zu-Samstag Regel
     const saturdayToSaturday = phase.saturdayToSaturday;
     if (saturdayToSaturday === true) {
-      const startDay = normalizedStartDate.getDay(); // 0 = Sonntag, 6 = Samstag
-      // WICHTIG: endDate ist exklusiv (letzter gebuchter Tag ist endDate - 1 Tag)
-      // Für eine Buchung von Samstag bis Samstag: Start = Samstag, End = nächster Samstag
-      // Der letzte gebuchte Tag ist also der Tag VOR endDate
-      const lastBookedDate = new Date(normalizedEndDate);
-      lastBookedDate.setDate(lastBookedDate.getDate() - 1);
-      const lastBookedDay = lastBookedDate.getDay(); // 0 = Sonntag, 6 = Samstag
+      // Konvertiere Daten in Europe/Amsterdam Zeitzone für Wochentag-Berechnung
+      // Das Datum kommt als UTC, muss aber in der lokalen Zeitzone interpretiert werden
+      const getDayOfWeekInTimezone = (date: Date, timezone: string = 'Europe/Amsterdam'): number => {
+        // Verwende Intl.DateTimeFormat um das Datum in der lokalen Zeitzone zu formatieren
+        // und dann den Wochentag zu extrahieren
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: timezone,
+          weekday: 'long',
+        });
+        const weekday = formatter.format(date);
+        
+        const weekdayMap: Record<string, number> = {
+          'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 
+          'Thursday': 4, 'Friday': 5, 'Saturday': 6
+        };
+        
+        return weekdayMap[weekday] ?? 0;
+      };
       
-      // Warnung wenn Starttag nicht Samstag ODER letzter gebuchter Tag nicht Samstag
-      if (startDay !== 6 || lastBookedDay !== 6) {
-        const warningMessage = phase.warningMessage;
-        const warningMsg = warningMessage
-          ? warningMessage
-          : 'Für diese Saison sind nur Buchungen von Samstag zu Samstag möglich.';
-        warnings.push(warningMsg);
+      // Verwende die ORIGINALEN Daten (vor Normalisierung) für Wochentag-Berechnung
+      // Die Normalisierung setzt auf UTC-Mitternacht, was das Datum verschieben kann
+      const startDay = getDayOfWeekInTimezone(startDate); // 0 = Sonntag, 6 = Samstag
+      
+      // WICHTIG: endDate ist exklusiv (letzter gebuchter Tag ist endDate - 1 Tag)
+      // Für eine Buchung von Samstag zu Samstag: Start = Samstag, End = nächster Samstag
+      // Der letzte gebuchte Tag ist also der Tag VOR endDate
+      // Erstelle ein neues Datum für den letzten gebuchten Tag (1 Tag vor endDate)
+      const lastBookedDate = new Date(endDate);
+      lastBookedDate.setDate(lastBookedDate.getDate() - 1);
+      const lastBookedDay = getDayOfWeekInTimezone(lastBookedDate); // 0 = Sonntag, 6 = Samstag
+      
+      const endDay = getDayOfWeekInTimezone(endDate); // 0 = Sonntag, 6 = Samstag
+      
+      // Debug: Log für besseres Verständnis
+      console.log('Saturday check (Europe/Amsterdam):', {
+        startDate: normalizedStartDate.toISOString(),
+        startDay,
+        startDayName: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][startDay],
+        endDate: normalizedEndDate.toISOString(),
+        endDay,
+        endDayName: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][endDay],
+        lastBookedDate: lastBookedDate.toISOString(),
+        lastBookedDay,
+        lastBookedDayName: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][lastBookedDay],
+        isStartSaturday: startDay === 6,
+        isLastDaySaturday: lastBookedDay === 6,
+        nights,
+        willShowWarning: !(startDay === 6 && (endDay === 0 || lastBookedDay === 6 || (nights > 0 && nights % 7 === 0)))
+      });
+      
+      // Eine Samstag-zu-Samstag-Buchung ist gültig wenn:
+      // 1. Starttag ist Samstag (6) UND Endtag ist Samstag (6) UND Anzahl Nächte ist Vielfaches von 7
+      // ODER
+      // 2. Starttag ist Samstag (6) UND Endtag ist Sonntag (0) - dann ist letzter Tag = Samstag
+      // ODER
+      // 3. Starttag ist Samstag (6) UND letzter gebuchter Tag ist Samstag (6)
+      // 
+      // Wenn jemand "Samstag bis Samstag" im Kalender auswählt:
+      // - startDate = Samstag, endDate = nächster Samstag
+      // - lastBookedDay = Freitag (endDate - 1)
+      // - Aber: Anzahl Nächte = 7, also ist es eine volle Woche = gültig
+      const isValidSaturdayToSaturday = startDay === 6 && (
+        // Fall 1: Start = Samstag UND End = Samstag UND 7 Nächte (oder Vielfaches)
+        (endDay === 6 && nights > 0 && nights % 7 === 0) ||
+        // Fall 2: Start = Samstag UND End = Sonntag (dann ist letzter Tag = Samstag)
+        endDay === 0 ||
+        // Fall 3: Start = Samstag UND letzter gebuchter Tag = Samstag
+        lastBookedDay === 6
+      );
+      
+      if (!isValidSaturdayToSaturday) {
+        warnings.push('Für diese Saison sind nur Buchungen von Samstag zu Samstag möglich.');
       }
     }
   }

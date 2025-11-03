@@ -117,6 +117,26 @@ export default async function AdminBookingsPage() {
                   {formatCurrency(parseFloat(booking.totalPrice.toString()))}
                 </div>
               )}
+              {/* Warnhinweise aus pricingDetails */}
+              {(() => {
+                const pricingDetails = booking.pricingDetails as any;
+                const warnings = pricingDetails?.warnings as string[] | undefined;
+                if (warnings && warnings.length > 0) {
+                  return (
+                    <div className="flex items-start gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
+                      <AlertTriangle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 space-y-1">
+                        {warnings.map((warning, index) => (
+                          <Badge key={index} variant="outline" className="text-[10px] sm:text-xs bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30 text-amber-800 dark:text-amber-200 w-full sm:w-auto justify-start">
+                            {warning}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               {booking.message && (
                 <div className="text-xs sm:text-sm">
                   <div className="font-medium">Nachricht:</div>

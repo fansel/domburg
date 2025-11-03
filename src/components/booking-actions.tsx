@@ -152,7 +152,9 @@ export function BookingActions({ bookingId, canApprove = true }: BookingActionsP
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  setShowApproveDialog(false);
                 }}
+                disabled={isApproving}
               >
                 Abbrechen
               </AlertDialogCancel>
@@ -215,7 +217,9 @@ export function BookingActions({ bookingId, canApprove = true }: BookingActionsP
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  setShowRejectDialog(false);
                 }}
+                disabled={isRejecting}
               >
                 Abbrechen
               </AlertDialogCancel>

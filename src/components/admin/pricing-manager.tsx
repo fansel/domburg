@@ -38,7 +38,6 @@ type PricingPhaseWithNumbers = Omit<PricingPhase, 'pricePerNight' | 'familyPrice
   familyPricePerNight: number | null;
   minNights?: number | null;
   saturdayToSaturday?: boolean;
-  warningMessage?: string | null;
 };
 
 interface PricingManagerProps {
@@ -96,7 +95,6 @@ export function PricingManager({
           familyPricePerNight: result.phase.familyPricePerNight ? parseFloat(result.phase.familyPricePerNight.toString()) : null,
           minNights: (result.phase as any).minNights ?? null,
           saturdayToSaturday: (result.phase as any).saturdayToSaturday ?? false,
-          warningMessage: (result.phase as any).warningMessage ?? null,
         };
         setPhases(phases.map((p) => (p.id === editingPhase.id ? convertedPhase : p)));
         setIsPhaseDialogOpen(false);
@@ -122,7 +120,6 @@ export function PricingManager({
           familyPricePerNight: result.phase.familyPricePerNight ? parseFloat(result.phase.familyPricePerNight.toString()) : null,
           minNights: (result.phase as any).minNights ?? null,
           saturdayToSaturday: (result.phase as any).saturdayToSaturday ?? false,
-          warningMessage: (result.phase as any).warningMessage ?? null,
         };
         setPhases([...phases, convertedPhase]);
         setIsPhaseDialogOpen(false);
@@ -599,7 +596,6 @@ const PhaseDialog = ({
     isActive: true,
     minNights: null,
     saturdayToSaturday: false,
-    warningMessage: null,
   });
 
   // Aktualisiere formData wenn phase sich ändert
@@ -619,7 +615,6 @@ const PhaseDialog = ({
         // Explizit neue Felder laden (mit Type-Assertion)
         minNights: phaseWithNewFields.minNights !== undefined ? phaseWithNewFields.minNights : null,
         saturdayToSaturday: phaseWithNewFields.saturdayToSaturday !== undefined ? phaseWithNewFields.saturdayToSaturday : false,
-        warningMessage: phaseWithNewFields.warningMessage || null,
       });
     } else {
       // Reset für neue Phase
@@ -632,10 +627,9 @@ const PhaseDialog = ({
         endDate: new Date(),
         priority: 1,
         isActive: true,
-        minNights: null,
-        saturdayToSaturday: false,
-        warningMessage: null,
-      });
+      minNights: null,
+      saturdayToSaturday: false,
+    });
     }
   }, [phase]);
 
@@ -800,22 +794,6 @@ const PhaseDialog = ({
               <Label htmlFor="saturdayToSaturday" className="text-xs sm:text-sm">
                 Nur Samstag zu Samstag erlauben
               </Label>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="warningMessage" className="text-xs sm:text-sm">Warnhinweis (optional)</Label>
-              <Textarea
-                id="warningMessage"
-                placeholder="Benutzerdefinierte Warnung wenn Regeln nicht eingehalten werden..."
-                value={formData.warningMessage || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, warningMessage: e.target.value || null })
-                }
-                className="text-sm sm:text-base"
-                rows={2}
-              />
-              <p className="text-xs text-muted-foreground">
-                Dieser Hinweis wird angezeigt wenn die Buchungsregeln nicht eingehalten werden (z.B. Mindestnächte oder Samstag-zu-Samstag)
-              </p>
             </div>
           </div>
           <div className="flex items-center space-x-2">

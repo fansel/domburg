@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Calendar, User, Mail, Users, Edit, Trash2, 
-  Save, X, RotateCcw, RefreshCw
+  Save, X, RotateCcw, RefreshCw, AlertTriangle
 } from "lucide-react";
 import {
   Dialog,
@@ -416,6 +416,30 @@ export function BookingDetailView({
                 </div>
               </div>
             )}
+
+            {/* Warnhinweise aus pricingDetails */}
+            {(() => {
+              const pricingDetails = booking.pricingDetails as any;
+              const warnings = pricingDetails?.warnings as string[] | undefined;
+              if (warnings && warnings.length > 0) {
+                return (
+                  <div className="mt-4 space-y-2">
+                    <Label className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                      <AlertTriangle className="h-4 w-4" />
+                      Hinweise zur Buchung
+                    </Label>
+                    <div className="space-y-2">
+                      {warnings.map((warning, index) => (
+                        <div key={index} className="text-sm p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-lg text-amber-800 dark:text-amber-200">
+                          {warning}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {booking.message && (
               <div className="mt-4 space-y-2">

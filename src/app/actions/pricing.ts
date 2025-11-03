@@ -55,7 +55,6 @@ export async function createPricingPhase(data: {
   isActive: boolean;
   minNights?: number | null;
   saturdayToSaturday?: boolean;
-  warningMessage?: string | null;
 }) {
   try {
     const user = await getCurrentUser();
@@ -94,7 +93,6 @@ export async function createPricingPhase(data: {
         isActive: data.isActive,
         minNights: data.minNights || null,
         saturdayToSaturday: data.saturdayToSaturday || false,
-        warningMessage: data.warningMessage || null,
       },
     });
 
@@ -130,7 +128,6 @@ export async function updatePricingPhase(
     isActive: boolean;
     minNights: number | null;
     saturdayToSaturday: boolean;
-    warningMessage: string | null;
   }>
 ) {
   try {
@@ -167,7 +164,6 @@ export async function updatePricingPhase(
     // Neue Felder für Saison-Regeln
     if (data.minNights !== undefined) updateData.minNights = data.minNights || null;
     if (data.saturdayToSaturday !== undefined) updateData.saturdayToSaturday = data.saturdayToSaturday;
-    if (data.warningMessage !== undefined) updateData.warningMessage = data.warningMessage || null;
 
     // Verwende Type-Assertion für neue Felder (falls Prisma-Client noch nicht neu generiert wurde)
     const phase = await (prisma.pricingPhase as any).update({

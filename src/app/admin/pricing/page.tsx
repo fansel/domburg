@@ -63,7 +63,6 @@ export default async function AdminPricingPage() {
     // Stelle sicher, dass alle Felder vorhanden sind (auch die neuen)
     minNights: (phase as any).minNights ?? null,
     saturdayToSaturday: (phase as any).saturdayToSaturday ?? false,
-    warningMessage: (phase as any).warningMessage ?? null,
   }));
 
   return (
