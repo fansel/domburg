@@ -25,8 +25,11 @@ export default function CleaningPage() {
   const [calendarData, setCalendarData] = useState<Record<string, CalendarDay>>({});
   const [periods, setPeriods] = useState<Array<{ id: string; start: string; end: string; type: 'booking' | 'external'; colorIndex: number }>>([]);
   const [colorPalette, setColorPalette] = useState<Array<{ bg: string; border: string; label: string }>>([]);
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [isLoading, setIsLoading] = useState(true);
+  // Starte immer mit dem aktuellen Monat
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [isLoading, setIsLoading] = useState(false); // Starte ohne Ladeanzeige
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [guestCode, setGuestCode] = useState("");
 
@@ -60,6 +63,7 @@ export default function CleaningPage() {
 
   // Kalender laden
   const loadCalendar = async () => {
+    // Setze isLoading nur für Klick-Prevention
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -81,11 +85,12 @@ export default function CleaningPage() {
     }
   };
 
-  // Kalender neu laden wenn Monat sich ändert
+  // Kalender neu laden wenn Monat sich ändert (nach dem Wechsel)
   useEffect(() => {
     if (isAuthenticated) {
       loadCalendar();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, year, isAuthenticated]);
 
   const handleGuestCodeSubmit = async () => {
@@ -135,15 +140,21 @@ export default function CleaningPage() {
   };
 
   const goToPreviousMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
+    const newDate = new Date(year, month - 1, 1);
+    setCurrentDate(newDate);
+    // loadCalendar wird automatisch durch useEffect ausgelöst
   };
 
   const goToNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
+    const newDate = new Date(year, month + 1, 1);
+    setCurrentDate(newDate);
+    // loadCalendar wird automatisch durch useEffect ausgelöst
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date());
+    const today = new Date();
+    setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    // loadCalendar wird automatisch durch useEffect ausgelöst
   };
 
   // Monatsnamen
@@ -276,30 +287,38 @@ export default function CleaningPage() {
 
         <Card>
           <CardHeader className="pb-3 sm:pb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <h2 className="text-lg sm:text-xl font-semibold">
-                {monthNames[month]} {year}
-              </h2>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={goToPreviousMonth}
+                disabled={isLoading}
+                className="h-9 w-9 sm:h-10 sm:w-10 disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                <h2 className="text-lg sm:text-xl font-semibold text-center">
+                  {monthNames[month]} {year}
+                </h2>
                 <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={goToToday}>
                   {t("housekeeping.today")}
                 </Button>
-                <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="icon" onClick={goToNextMonth}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
               </div>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={goToNextMonth}
+                disabled={isLoading}
+                className="h-9 w-9 sm:h-10 sm:w-10 disabled:opacity-50"
+              >
+                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <p className="text-muted-foreground">{t("housekeeping.loadingCalendar")}</p>
-              </div>
-            ) : (
-              <>
+            {/* Keine Ladeanzeige - Kalender wird sofort angezeigt, Daten erscheinen nach dem Laden */}
+            <div className={isLoading ? "pointer-events-none opacity-50" : ""}>
                 {/* Legende */}
                 <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-4 mb-4 sm:mb-6 pb-3 sm:pb-4 border-b">
                   <div className="flex items-center gap-1.5 sm:gap-2">
@@ -329,7 +348,7 @@ export default function CleaningPage() {
                     <span className="text-xs sm:text-sm">{t("housekeeping.legend.arrivalAndDeparture")}</span>
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-muted/50 border border-border flex-shrink-0"></div>
+                    <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-blue-500 border-2 border-blue-700 flex-shrink-0"></div>
                     <span className="text-xs sm:text-sm">{t("housekeeping.legend.occupied")}</span>
                   </div>
                 </div>
@@ -539,127 +558,9 @@ export default function CleaningPage() {
                     );
                   })}
                 </div>
-              </>
-            )}
+            </div>
           </CardContent>
         </Card>
-
-        {/* Übersicht der freien Zeiten */}
-        {periods.length > 0 && (() => {
-          // Berechne freie Zeiten zwischen Buchungen
-          // Sortiere Perioden nach Enddatum (Check-out)
-          const sortedPeriods = [...periods].sort((a, b) => {
-            const endA = new Date(a.end);
-            const endB = new Date(b.end);
-            return endA.getTime() - endB.getTime();
-          });
-
-          const freeTimes: Array<{ 
-            checkoutDate: string; 
-            checkinDate: string; 
-            checkoutDateTime: Date; 
-            checkinDateTime: Date;
-            hours: number;
-          }> = [];
-
-          for (let i = 0; i < sortedPeriods.length - 1; i++) {
-            const currentPeriod = sortedPeriods[i];
-            const nextPeriod = sortedPeriods[i + 1];
-
-            // Check-out Datum der aktuellen Periode (end ist der Check-out Tag)
-            const checkoutDay = new Date(currentPeriod.end);
-            const checkoutDate = new Date(checkoutDay);
-            checkoutDate.setHours(11, 0, 0, 0); // Check-out um 11:00
-
-            // Check-in Datum der nächsten Periode (start ist der Check-in Tag)
-            const checkinDay = new Date(nextPeriod.start);
-            const checkinDate = new Date(checkinDay);
-            checkinDate.setHours(15, 0, 0, 0); // Check-in ab 15:00
-
-            // Normalisiere Tage für Vergleich (nur Datum, keine Uhrzeit)
-            checkoutDay.setHours(0, 0, 0, 0);
-            checkinDay.setHours(0, 0, 0, 0);
-
-            // Wenn Check-in Tag gleich oder nach Check-out Tag liegt, gibt es eine freie Zeit
-            // (Check-out um 11:00 bis Check-in ab 15:00 am gleichen oder späteren Tag)
-            if (checkinDay >= checkoutDay) {
-              // Berechne Stunden zwischen Check-out und Check-in
-              const hours = (checkinDate.getTime() - checkoutDate.getTime()) / (1000 * 60 * 60);
-              
-              // Nur anzeigen wenn mindestens 4 Stunden frei sind (Check-out 11:00 bis Check-in 15:00 am gleichen Tag = 4h)
-              if (hours >= 4) {
-                freeTimes.push({
-                  checkoutDate: currentPeriod.end,
-                  checkinDate: nextPeriod.start,
-                  checkoutDateTime: checkoutDate,
-                  checkinDateTime: checkinDate,
-                  hours: Math.round(hours * 10) / 10, // Auf 1 Dezimalstelle runden
-                });
-              }
-            }
-          }
-
-          return freeTimes.length > 0 ? (
-            <Card className="mt-4 sm:mt-6">
-              <CardHeader className="pb-3 sm:pb-6">
-                <CardTitle className="text-base sm:text-lg">{t("housekeeping.freeTimes.title")}</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  {t("housekeeping.freeTimes.description")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {freeTimes.map((freeTime, index) => {
-                    const locale = language === "nl" ? "nl-NL" : language === "en" ? "en-US" : "de-DE";
-                    const formatDate = (dateStr: string) => {
-                      const d = new Date(dateStr);
-                      return d.toLocaleDateString(locale, { 
-                        day: '2-digit', 
-                        month: '2-digit', 
-                        year: 'numeric' 
-                      });
-                    };
-
-                    const formatDateTime = (date: Date) => {
-                      return date.toLocaleDateString(locale, { 
-                        day: '2-digit', 
-                        month: '2-digit', 
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      });
-                    };
-
-                    return (
-                      <div
-                        key={index}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border-2 border-green-200 rounded-lg bg-green-50 gap-2 sm:gap-0"
-                      >
-                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                          <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-green-500 border-2 border-green-700 flex-shrink-0"></div>
-                          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-                            <span className="text-xs sm:text-sm font-medium truncate">
-                              {formatDateTime(freeTime.checkoutDateTime)}
-                            </span>
-                          </div>
-                          <span className="text-muted-foreground">→</span>
-                          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-                            <span className="text-xs sm:text-sm font-medium truncate">
-                              {formatDateTime(freeTime.checkinDateTime)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground flex-shrink-0 sm:ml-4">
-                          {freeTime.hours} {freeTime.hours === 1 ? t("housekeeping.freeTimes.hour") : t("housekeeping.freeTimes.hours")}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          ) : null;
-        })()}
 
         {/* Übersicht der belegten Zeiträume */}
         {periods.length > 0 && (
@@ -725,6 +626,153 @@ export default function CleaningPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Übersicht der Reinigungstage */}
+        {(() => {
+          const cleaningDays: Array<{ 
+            date: string; 
+            dateObj: Date;
+            reason: 'both' | 'between';
+            description: string;
+          }> = [];
+
+          const locale = language === "nl" ? "nl-NL" : language === "en" ? "en-US" : "de-DE";
+          
+          // 1. Finde Tage wo Check-in UND Check-out am selben Tag ist
+          Object.keys(calendarData).forEach((dayKey) => {
+            const dayData = calendarData[dayKey];
+            if (dayData && dayData.type === 'both') {
+              const dateObj = new Date(dayKey + 'T00:00:00');
+              cleaningDays.push({
+                date: dayKey,
+                dateObj,
+                reason: 'both',
+                description: t("housekeeping.cleaningDays.sameDay")
+              });
+            }
+          });
+
+          // 2. Finde Tage zwischen Check-out (11:00) und nächstem Check-in (15:00) mit genug Zeit (mindestens 4 Stunden)
+          if (periods.length > 0) {
+            // Sortiere Perioden nach Enddatum (Check-out)
+            const sortedPeriods = [...periods].sort((a, b) => {
+              const endA = new Date(a.end);
+              const endB = new Date(b.end);
+              return endA.getTime() - endB.getTime();
+            });
+
+            for (let i = 0; i < sortedPeriods.length; i++) {
+              const currentPeriod = sortedPeriods[i];
+              
+              // Check-out Datum der aktuellen Periode (end ist der Check-out Tag)
+              const checkoutDay = new Date(currentPeriod.end);
+              const checkoutDate = new Date(checkoutDay);
+              checkoutDate.setHours(11, 0, 0, 0); // Check-out um 11:00
+
+              // Finde nächste Periode (Check-in)
+              let nextPeriod = null;
+              for (let j = i + 1; j < sortedPeriods.length; j++) {
+                const candidatePeriod = sortedPeriods[j];
+                const candidateStartDay = new Date(candidatePeriod.start);
+                if (candidateStartDay >= checkoutDay) {
+                  nextPeriod = candidatePeriod;
+                  break;
+                }
+              }
+
+              if (nextPeriod) {
+                // Check-in Datum der nächsten Periode (start ist der Check-in Tag)
+                const checkinDay = new Date(nextPeriod.start);
+                const checkinDate = new Date(checkinDay);
+                checkinDate.setHours(15, 0, 0, 0); // Check-in ab 15:00
+
+                // Normalisiere Tage für Vergleich (nur Datum, keine Uhrzeit)
+                checkoutDay.setHours(0, 0, 0, 0);
+                checkinDay.setHours(0, 0, 0, 0);
+
+                // Berechne Stunden zwischen Check-out (11:00) und Check-in (15:00)
+                const hours = (checkinDate.getTime() - checkoutDate.getTime()) / (1000 * 60 * 60);
+                
+                // Wenn mindestens 4 Stunden zwischen Check-out und Check-in sind
+                if (hours >= 4 && checkoutDay <= checkinDay) {
+                  // Tag ist der Check-out Tag (zwischen Check-out und nächstem Check-in)
+                  const cleaningDayKey = currentPeriod.end;
+                  
+                  // Nur hinzufügen wenn nicht schon vorhanden (kann passieren wenn auch 'both' Tag)
+                  if (!cleaningDays.find(c => c.date === cleaningDayKey)) {
+                    const dateObj = new Date(cleaningDayKey + 'T00:00:00');
+                    
+                    // Bestimme Beschreibung basierend auf verfügbarer Zeit zwischen Check-out und Check-in
+                    let description = '';
+                    if (hours >= 24) {
+                      // Mehr als 24 Stunden = mehr als ein Tag Zeit - keine Eile
+                      const days = Math.floor(hours / 24);
+                      if (days >= 1) {
+                        description = t("housekeeping.cleaningDays.betweenCheckinLong", { days });
+                      } else {
+                        description = t("housekeeping.cleaningDays.betweenCheckinManyHours", { hours: Math.floor(hours) });
+                      }
+                    } else {
+                      // 4-24 Stunden = wenig Zeit, muss sofort sauber machen
+                      description = t("housekeeping.cleaningDays.betweenCheckin");
+                    }
+                    
+                    cleaningDays.push({
+                      date: cleaningDayKey,
+                      dateObj,
+                      reason: 'between',
+                      description
+                    });
+                  }
+                }
+              }
+            }
+          }
+
+          // Sortiere nach Datum
+          cleaningDays.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+          const formatDate = (dateStr: string) => {
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleDateString(locale, { 
+              weekday: 'short',
+              day: '2-digit', 
+              month: '2-digit', 
+              year: 'numeric' 
+            });
+          };
+
+          return cleaningDays.length > 0 ? (
+            <Card className="mt-4 sm:mt-6">
+              <CardHeader className="pb-3 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">{t("housekeeping.cleaningDays.title")}</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  {t("housekeeping.cleaningDays.description")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {cleaningDays.map((cleaningDay, index) => (
+                    <div
+                      key={index}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border-2 border-orange-200 rounded-lg bg-orange-50 gap-2 sm:gap-0"
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                        <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-orange-500 border-2 border-orange-700 flex-shrink-0"></div>
+                        <span className="text-xs sm:text-sm font-medium">
+                          {formatDate(cleaningDay.date)}
+                        </span>
+                      </div>
+                      <div className="text-xs sm:text-sm text-muted-foreground flex-shrink-0 sm:ml-4">
+                        {cleaningDay.description}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null;
+        })()}
       </div>
     </div>
   );

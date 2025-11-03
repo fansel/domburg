@@ -420,6 +420,14 @@
       "hour": "hour",
       "hours": "hours"
     },
+    "cleaningDays": {
+      "title": "Cleaning days",
+      "description": "Days when cleaning is required",
+      "sameDay": "Check-in & Check-out on same day",
+      "betweenCheckin": "Between check-out and check-in (limited time)",
+      "betweenCheckinLong": "{{days}} day(s) until next check-in",
+      "betweenCheckinManyHours": "{{hours}} hours until next check-in"
+    },
     "occupiedPeriods": {
       "title": "Occupied periods",
       "description": "Overview of all periods with arrival and departure",

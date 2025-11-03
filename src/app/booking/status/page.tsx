@@ -169,7 +169,7 @@ function BookingStatusPageContent() {
   }
 
   return (
-      <div className="min-h-screen bg-background p-4 py-4 sm:py-8">
+    <div className="min-h-screen bg-background p-4 py-4 sm:py-8">
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         <div className="text-center mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">{t("bookingStatus.title")}</h1>

@@ -426,6 +426,14 @@
       "night": "Nacht",
       "nights": "Nächte"
     },
+    "cleaningDays": {
+      "title": "Reinigungstage",
+      "description": "Tage an denen gereinigt werden muss",
+      "sameDay": "Check-in & Check-out am selben Tag",
+      "betweenCheckin": "Zwischen Check-out und Check-in (wenig Zeit)",
+      "betweenCheckinLong": "{{days}} Tag(e) bis nächster Check-in",
+      "betweenCheckinManyHours": "{{hours}} Stunden bis nächster Check-in"
+    },
     "bookingCount": {
       "one": "{{count}} Buchung",
       "other": "{{count}} Buchungen"

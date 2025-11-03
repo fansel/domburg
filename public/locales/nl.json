@@ -420,6 +420,14 @@
       "hour": "uur",
       "hours": "uur"
     },
+    "cleaningDays": {
+      "title": "Schoonmaakdagen",
+      "description": "Dagen waarop schoonmaak nodig is",
+      "sameDay": "Check-in & Check-out op dezelfde dag",
+      "betweenCheckin": "Tussen check-out en check-in (weinig tijd)",
+      "betweenCheckinLong": "{{days}} dag(en) tot volgende check-in",
+      "betweenCheckinManyHours": "{{hours}} uur tot volgende check-in"
+    },
     "occupiedPeriods": {
       "title": "Bezette periodes",
       "description": "Overzicht van alle periodes met aankomst en vertrek",
