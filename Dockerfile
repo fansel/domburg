@@ -1,24 +1,20 @@
 # =========================================================
-# 🚀 Ultra-Fast Next.js + Prisma Production Dockerfile
-#   - Uses Bun (super fast) for build
-#   - Works even without bun.lockb
+# 🚀 Next.js + Prisma Production Dockerfile
+#   - Uses Node.js for build (more memory-efficient than Bun in containers)
 #   - Produces small, clean final image
 # =========================================================
 
 # ---------- 1. Builder Stage ----------
-    FROM oven/bun:1.1.30 AS builder
+    FROM node:20-bookworm AS builder
     WORKDIR /app
     
-
-    RUN apt-get update -y && apt-get install -y openssl
+    RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
     
     # Copy only package manifest first for caching
-    COPY package.json ./
-    # If you already have a bun.lockb locally, uncomment the next line:
-    # COPY bun.lockb ./
+    COPY package.json package-lock.json* ./
     
-    # Install dependencies with Bun (fastest)
-    RUN bun install
+    # Install dependencies with npm
+    RUN npm ci --only=production=false
     
     # Copy the rest of the source code
     COPY . .
@@ -27,21 +23,16 @@
     ENV NODE_ENV=production
     ENV NEXT_TELEMETRY_DISABLED=1
     ENV CI=1
-    # Bun und Node.js Memory-Limits
     ENV NODE_OPTIONS="--max-old-space-size=6144"
-    ENV BUN_JSC_memoryLimitMB=6144
     
-    # Generate Prisma client (faster via bunx)
+    # Generate Prisma client
     RUN echo "=== Generating Prisma client ===" && \
-        bunx prisma generate && \
+        npx prisma generate && \
         echo "=== Prisma client generated ==="
     
-    # Build Next.js (ultra fast with Bun)
-    # Nutze explizit node für den Build wenn Bun zu viel Memory braucht
+    # Build Next.js
     RUN echo "=== Starting Next.js build ===" && \
-        NODE_OPTIONS="--max-old-space-size=6144" bun run build || \
-        (echo "=== Bun build failed, trying with node ===" && \
-         NODE_OPTIONS="--max-old-space-size=6144" npm run build) && \
+        npm run build && \
         echo "=== Build completed successfully ==="
     
     # ---------- 2. Runner Stage ----------
