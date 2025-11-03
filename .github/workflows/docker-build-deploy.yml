@@ -29,7 +29,6 @@ jobs:
             image=moby/buildkit:master
             network=host
             memory=8192
-            cpu=4
 
       - name: Use temporary Docker config
         run: |
