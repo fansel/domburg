@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookingForm } from "@/components/booking-form";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, House } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
 
 export default function BookPage() {
@@ -74,13 +74,12 @@ export default function BookPage() {
       <div className="container mx-auto px-4 py-4 sm:py-8 lg:py-12">
         <div className="mb-4 lg:mb-6">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => router.push("/")}
             className="mb-2 lg:mb-4"
-            size="sm"
           >
-            <House className="mr-2 h-4 w-4" />
-            {t("book.mainMenu")}
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            {t("common.back")}
           </Button>
           <h1 className="text-center text-lg lg:text-2xl font-semibold text-muted-foreground">{t("book.newRequest")}</h1>
         </div>

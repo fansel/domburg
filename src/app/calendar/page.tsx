@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { BookingCalendar } from "@/components/booking-calendar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 export default function CalendarPage() {
   const [isValidated, setIsValidated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const router = useRouter();
+  const { t } = useTranslation();
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
 
@@ -49,8 +51,8 @@ export default function CalendarPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-4 sm:py-8">
-        <Button variant="outline" className="mb-4" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Zurück
+        <Button variant="outline" className="mb-4" onClick={() => router.push("/")}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t("common.back")}
         </Button>
         <h1 className="text-2xl font-bold mb-6">Verfügbarkeitskalender</h1>
         <p className="text-muted-foreground mb-6">

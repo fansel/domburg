@@ -103,7 +103,8 @@
     "successTitle": "Request sent",
     "successMessage": "Your request has been sent successfully. You'll receive a confirmation via email.",
     "yourCode": "Your request code",
-    "keepCode": "Keep this code to check your request status"
+    "keepCode": "Keep this code to check your request status",
+    "bookingNumber": "Booking number"
   },
   "admin": {
     "dashboard": "Dashboard",

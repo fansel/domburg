@@ -103,7 +103,8 @@
     "successTitle": "Aanvraag verstuurd",
     "successMessage": "Uw aanvraag is succesvol verstuurd. U ontvangt een bevestiging per e-mail.",
     "yourCode": "Uw aanvraagcode",
-    "keepCode": "Bewaar deze code om de status van uw aanvraag te controleren"
+    "keepCode": "Bewaar deze code om de status van uw aanvraag te controleren",
+    "bookingNumber": "Boekingsnummer"
   },
   "admin": {
     "dashboard": "Dashboard",

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { Search, Calendar, Users, Mail, MessageSquare, Euro, CheckCircle, Clock, XCircle } from "lucide-react";
+import { Search, Calendar, Users, Mail, MessageSquare, Euro, CheckCircle, Clock, XCircle, ArrowLeft } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
 
 interface Booking {
@@ -171,6 +171,11 @@ function BookingStatusPageContent() {
   return (
     <div className="min-h-screen bg-background p-4 py-4 sm:py-8">
       <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
+        <div className="mb-4">
+          <Button variant="outline" onClick={() => router.push("/")}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> {t("common.back")}
+          </Button>
+        </div>
         <div className="text-center mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">{t("bookingStatus.title")}</h1>
           <p className="text-sm sm:text-base text-muted-foreground">
@@ -370,14 +375,6 @@ function BookingStatusPageContent() {
           </Card>
         )}
 
-        <div className="text-center">
-          <Button 
-            variant="link" 
-            onClick={() => window.location.href = '/'}
-          >
-            {t("bookingStatus.backToHome")}
-          </Button>
-        </div>
       </div>
     </div>
   );

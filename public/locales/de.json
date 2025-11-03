@@ -103,7 +103,8 @@
     "successTitle": "Anfrage gesendet",
     "successMessage": "Deine Anfrage wurde erfolgreich gesendet. Du erhältst eine Bestätigung per E-Mail.",
     "yourCode": "Dein Anfrage-Code",
-    "keepCode": "Bewahre diesen Code auf, um den Status deiner Anfrage zu prüfen"
+    "keepCode": "Bewahre diesen Code auf, um den Status deiner Anfrage zu prüfen",
+    "bookingNumber": "Buchungsnummer"
   },
   "admin": {
     "dashboard": "Dashboard",
