@@ -473,9 +473,6 @@ function HomePageContent() {
                       autoComplete="off"
                       className="h-12 text-base text-center font-medium border-2 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg"
                     />
-                    <p className="text-xs text-gray-500 text-center">
-                      {t("home.findInConfirmation")}
-                    </p>
                   </div>
                   
                   <Button
@@ -573,9 +570,6 @@ function HomePageContent() {
                       autoComplete="off"
                       className="h-12 text-center font-medium border-2 focus:border-primary focus:ring-2 focus:ring-primary/20"
                     />
-                    <p className="text-xs text-gray-500 text-center">
-                      {t("home.findInConfirmation")}
-                    </p>
                   </div>
                 </div>
                 <div className="space-y-3">
