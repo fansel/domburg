@@ -169,7 +169,7 @@ export default async function AdminBookingsPage() {
         </Link>
         {isPending && user.canApproveBookings && (
           <CardContent className="pt-0">
-            <PendingBookingActions bookingId={booking.id} />
+            <PendingBookingActions bookingId={booking.id} initialAdminNotes={booking.adminNotes} />
           </CardContent>
         )}
       </Card>

@@ -483,7 +483,6 @@ const SettingCard = ({
     <div className="flex flex-col p-3 sm:p-4 border rounded-lg space-y-2 sm:space-y-3">
       <div className="flex-1">
         <p className="font-medium text-sm sm:text-base">{setting.description || setting.key}</p>
-        <p className="text-[10px] sm:text-xs text-muted-foreground">{setting.key}</p>
       </div>
       
       {hasDualPrice ? (

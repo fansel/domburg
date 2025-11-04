@@ -146,8 +146,10 @@ function toast({ duration, ...props }: Toast) {
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
-  // Setze automatischen Dismiss nach der angegebenen oder Standard-Dauer (2 Sekunden)
-  const toastDuration = duration || 2000
+  // Setze automatischen Dismiss nach der angegebenen oder Standard-Dauer
+  // Standard: 2 Sekunden, für destruktive (Fehler) Toasts: 5 Sekunden (3 Sekunden länger)
+  const defaultDuration = props.variant === "destructive" ? 5000 : 2000
+  const toastDuration = duration || defaultDuration
   setTimeout(() => {
     dismiss()
   }, toastDuration)

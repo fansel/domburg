@@ -867,7 +867,7 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                                 } : {}}
                                 title={`${booking.guestName || booking.guestEmail} - ${getStatusLabel(booking.status)}`}
                               >
-                                <div className="font-semibold truncate leading-tight">{booking.guestName?.split(" ")[0] || booking.guestEmail.split("@")[0]}</div>
+                                <div className="font-semibold truncate leading-tight">{booking.guestName || booking.guestEmail.split("@")[0]}</div>
                               </div>
                             );
                           })}
@@ -987,8 +987,8 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                         <div className="flex-1 min-w-0">
                           <div className={`font-semibold ${isPending ? 'font-bold' : ''} text-sm sm:text-base flex items-center gap-2 mb-1 ${textColorClass} ${isPending ? 'text-yellow-700 dark:text-yellow-300' : ''}`}>
                             <User className="h-4 w-4 flex-shrink-0" />
-                            <span className="truncate">{booking.guestName || booking.guestEmail}</span>
-                            {isPending && <Badge variant="secondary" className="ml-2 text-xs bg-yellow-500 text-yellow-950 border border-yellow-600 dark:border-yellow-400">Ausstehend</Badge>}
+                            <span className="break-words">{booking.guestName || booking.guestEmail}</span>
+                            {isPending && <Badge variant="secondary" className="ml-2 text-xs bg-yellow-500 text-yellow-950 border border-yellow-600 dark:border-yellow-400 flex-shrink-0">Ausstehend</Badge>}
                           </div>
                           <div className="text-xs sm:text-sm text-muted-foreground space-y-0.5 sm:space-y-1">
                             <div className="flex items-center gap-2">

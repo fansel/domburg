@@ -56,6 +56,7 @@ const sections: WikiSection[] = [
 
 export function AdminWiki() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["overview"]));
+  const [navExpanded, setNavExpanded] = useState(false);
 
   const toggleSection = (sectionId: string) => {
     const newExpanded = new Set(expandedSections);
@@ -69,8 +70,8 @@ export function AdminWiki() {
 
   return (
     <div className="space-y-4">
-      {/* Navigation */}
-      <Card className="sticky top-20 z-40 shadow-md">
+      {/* Navigation - Auf Smartphones kollabierbar, auf Desktop sticky */}
+      <Card className="sticky top-20 z-40 shadow-md hidden md:block">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg sm:text-xl">Schnellnavigation</CardTitle>
         </CardHeader>
@@ -105,6 +106,53 @@ export function AdminWiki() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Mobile Navigation - Kollabierbar am unteren Rand */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t shadow-lg">
+        <Button
+          variant="outline"
+          className="w-full rounded-none border-0 border-b"
+          onClick={() => setNavExpanded(!navExpanded)}
+        >
+          <ChevronDown className={cn("h-4 w-4 mr-2 transition-transform", navExpanded && "rotate-180")} />
+          Schnellnavigation
+        </Button>
+        {navExpanded && (
+          <div className="p-4 max-h-[60vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2">
+              {sections.map((section) => {
+                const Icon = section.icon;
+                const isExpanded = expandedSections.has(section.id);
+                return (
+                  <Button
+                    key={section.id}
+                    variant={isExpanded ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      toggleSection(section.id);
+                      setNavExpanded(false);
+                      // Scroll zu Section
+                      setTimeout(() => {
+                        document.getElementById(`section-${section.id}`)?.scrollIntoView({ 
+                          behavior: "smooth", 
+                          block: "start" 
+                        });
+                      }, 100);
+                    }}
+                    className="justify-start text-xs"
+                  >
+                    <Icon className="h-3 w-3 mr-1.5 flex-shrink-0" />
+                    <span className="truncate">{section.title}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Padding am unteren Rand für Mobile Navigation */}
+      <div className="md:hidden h-16"></div>
 
       {/* Sections */}
       <div className="space-y-4">

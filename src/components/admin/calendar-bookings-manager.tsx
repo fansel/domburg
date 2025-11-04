@@ -194,7 +194,7 @@ export function CalendarBookingsManager() {
     setSelectedBookings(newSelection);
   };
 
-  // Prüfe ob ausgewählte Events bereits die gleiche Farbe haben
+  // Prüfe ob ausgewählte Events bereits in der DB verlinkt sind
   const areSelectedBookingsAlreadyGrouped = () => {
     if (selectedBookings.size < 2) return false;
     
@@ -205,11 +205,45 @@ export function CalendarBookingsManager() {
     const nonInfoEvents = selectedBookingObjects.filter(b => !b.isInfo && b.colorId !== '10');
     if (nonInfoEvents.length < 2) return false;
     
-    // Prüfe ob alle die gleiche Farbe haben
-    const firstColorId = nonInfoEvents[0]?.colorId;
-    if (!firstColorId) return false;
+    // Prüfe ob alle Events explizit in der DB verlinkt sind (über linkedEventIds)
+    // Alle Events müssen miteinander transitiv verlinkt sein
+    const allEventIds = new Set(nonInfoEvents.map(e => e.id));
     
-    return nonInfoEvents.every(b => b.colorId === firstColorId);
+    // Erstelle einen Graph der Verlinkungen
+    const linkGraph = new Map<string, Set<string>>();
+    nonInfoEvents.forEach(event => {
+      const linkedIds = event.linkedEventIds || [];
+      linkGraph.set(event.id, new Set(linkedIds));
+      
+      // Füge auch umgekehrte Verlinkungen hinzu
+      linkedIds.forEach(linkedId => {
+        if (!linkGraph.has(linkedId)) {
+          linkGraph.set(linkedId, new Set());
+        }
+        linkGraph.get(linkedId)!.add(event.id);
+      });
+    });
+    
+    // Prüfe ob alle Events transitiv verbunden sind (BFS)
+    const visited = new Set<string>();
+    const queue = [nonInfoEvents[0].id];
+    visited.add(nonInfoEvents[0].id);
+    
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const neighbors = linkGraph.get(current) || new Set();
+      
+      neighbors.forEach(neighbor => {
+        // Nur Events aus der Auswahl berücksichtigen
+        if (allEventIds.has(neighbor) && !visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      });
+    }
+    
+    // Alle Events müssen erreichbar sein
+    return nonInfoEvents.every(event => visited.has(event.id));
   };
 
   const handleGroupSelected = async () => {
@@ -222,13 +256,10 @@ export function CalendarBookingsManager() {
       return;
     }
 
-    // Prüfe ob bereits gruppiert
+    // Prüfe ob bereits verlinkt - wenn ja, dann trennen statt zusammenlegen
     if (areSelectedBookingsAlreadyGrouped()) {
-      toast({
-        title: "Bereits zusammengelegt",
-        description: "Diese Events haben bereits die gleiche Farbe und sind zusammengelegt.",
-        variant: "default",
-      });
+      // Trenne die Events statt sie zusammenzulegen
+      await handleUngroupSelected();
       return;
     }
 
@@ -327,7 +358,58 @@ export function CalendarBookingsManager() {
       .map(b => b.id);
   };
 
+  // Trenne nur das angeklickte Event (nicht alle Events mit gleicher Farbe)
+  // Wenn es nur 2 verlinkte Events gibt, löst sich die gesamte Verlinkung auf
+  const handleUngroupSingle = async (eventId: string) => {
+    const booking = bookings.find(b => b.id === eventId);
+    if (!booking) return;
+
+    const linkedEventIds = booking.linkedEventIds || [];
+    if (linkedEventIds.length === 0) {
+      toast({
+        title: "Info",
+        description: "Dieser Eintrag ist nicht verlinkt",
+      });
+      return;
+    }
+
+    try {
+      setIsUngrouping(true);
+
+      // Lösche nur die Verlinkungen zu diesem Event
+      const response = await fetch("/api/admin/calendar-bookings/ungroup-single", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Fehler beim Trennen");
+      }
+
+      toast({
+        title: "Erfolgreich",
+        description: "Event wurde von der Verlinkung getrennt",
+      });
+      setIsUngrouping(false);
+      // Warte kurz, damit die DB-Änderungen verarbeitet werden
+      setTimeout(() => {
+        loadBookings();
+      }, 500);
+    } catch (error: any) {
+      setIsUngrouping(false);
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Trennen",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Trenne alle Events mit der gleichen Farbe (inkl. dem gegebenen Event)
+  // Wird verwendet wenn mehrere Events über den Tab-Reiter ausgewählt wurden
   const handleUngroupByColor = async (eventId: string) => {
     const sameColorEvents = findEventsWithSameColor(eventId);
     if (sameColorEvents.length === 0) {
@@ -434,8 +516,13 @@ export function CalendarBookingsManager() {
     );
   }
 
-  const blockingBookings = bookings.filter(b => !b.isInfo);
-  const infoBookings = bookings.filter(b => b.isInfo);
+  // Sortiere nach Startdatum (chronologisch aufsteigend)
+  const blockingBookings = bookings
+    .filter(b => !b.isInfo)
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  const infoBookings = bookings
+    .filter(b => b.isInfo)
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
   const BookingList = ({ bookings: listBookings }: { bookings: CalendarBooking[] }) => (
     <>
@@ -458,6 +545,13 @@ export function CalendarBookingsManager() {
               : [];
             const isGrouped = linkedEvents.length > 0;
             const groupSize = linkedEvents.length + 1;
+            
+            // Sortiere alle Events (aktuelles + verlinkte) nach Startdatum
+            const allGroupedEvents = isGrouped 
+              ? [booking, ...linkedEvents].sort((a, b) => 
+                  new Date(a.start).getTime() - new Date(b.start).getTime()
+                )
+              : [];
             
             return (
             <Card 
@@ -587,7 +681,7 @@ export function CalendarBookingsManager() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleUngroupByColor(booking.id)}
+                                  onClick={() => handleUngroupSingle(booking.id)}
                                   disabled={isUngrouping}
                                   className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                                 >
@@ -601,14 +695,7 @@ export function CalendarBookingsManager() {
                                 Verlinkte Events ({groupSize}):
                               </div>
                               <div className="space-y-1">
-                                <div className="text-xs sm:text-sm text-green-800 dark:text-green-200 flex items-center gap-1.5">
-                                  <div className="h-2 w-2 rounded-full bg-green-600 dark:bg-green-400 flex-shrink-0"></div>
-                                  <span className="font-medium">{booking.summary}</span>
-                                  <span className="text-green-600 dark:text-green-400 text-[10px]">
-                                    ({format(new Date(booking.start), "dd.MM.", { locale: de })} - {format(new Date(booking.end), "dd.MM.yyyy", { locale: de })})
-                                  </span>
-                                </div>
-                                {linkedEvents.map(event => (
+                                {allGroupedEvents.map(event => (
                                   <div key={event.id} className="text-xs sm:text-sm text-green-800 dark:text-green-200 flex items-center gap-1.5">
                                     <div className="h-2 w-2 rounded-full bg-green-600 dark:bg-green-400 flex-shrink-0"></div>
                                     <span className="font-medium">{event.summary}</span>

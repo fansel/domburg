@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Calendar, User, Mail, Users, Edit, Trash2, 
-  Save, X, RotateCcw, RefreshCw, AlertTriangle
+  Save, X, RotateCcw, RefreshCw, AlertTriangle, CheckCircle, XCircle
 } from "lucide-react";
 import {
   Dialog,
@@ -22,7 +22,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { cancelBooking, restoreBooking } from "@/app/actions/booking";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { cancelBooking, restoreBooking, approveBooking, rejectBooking } from "@/app/actions/booking";
 import {
   updateBooking,
 } from "@/app/actions/booking-management";
@@ -52,6 +63,8 @@ export function BookingDetailView({
   const [booking, setBooking] = useState(initialBooking);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
   
   const [editData, setEditData] = useState({
     startDate: new Date(booking.startDate).toISOString().split("T")[0],
@@ -102,6 +115,10 @@ export function BookingDetailView({
         title: "Gespeichert",
         description: "Buchung aktualisiert",
       });
+      // Seite neu laden um sicherzustellen, dass alle Daten aktualisiert sind
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } else {
       toast({
         title: "Fehler",
@@ -146,6 +163,50 @@ export function BookingDetailView({
         description: result.error,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleApprove = async (adminNotes?: string) => {
+    setIsApproving(true);
+    const result = await approveBooking(booking.id, adminNotes);
+    if (result.success) {
+      toast({
+        title: "Genehmigt",
+        description: "Buchung wurde genehmigt",
+      });
+      // Kurze Verzögerung, damit Toast angezeigt wird, dann Seite neu laden
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } else {
+      toast({
+        title: "Fehler",
+        description: result.error,
+        variant: "destructive",
+      });
+      setIsApproving(false);
+    }
+  };
+
+  const handleReject = async (rejectionReason: string, adminNotes?: string) => {
+    setIsRejecting(true);
+    const result = await rejectBooking(booking.id, rejectionReason, adminNotes);
+    if (result.success) {
+      toast({
+        title: "Abgelehnt",
+        description: "Buchung wurde abgelehnt",
+      });
+      // Kurze Verzögerung, damit Toast angezeigt wird, dann Seite neu laden
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } else {
+      toast({
+        title: "Fehler",
+        description: result.error,
+        variant: "destructive",
+      });
+      setIsRejecting(false);
     }
   };
 
@@ -469,6 +530,18 @@ export function BookingDetailView({
               </p>
             )}
           </div>
+
+          {/* Genehmigen/Ablehnen für PENDING Anfragen */}
+          {!isEditing && booking.status === "PENDING" && (
+            (currentUser.role === "SUPERADMIN" || currentUser.canApproveBookings !== false) && (
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex gap-2">
+                  <RejectDialog onReject={handleReject} isRejecting={isRejecting} isApproving={isApproving} />
+                  <ApproveDialog onApprove={handleApprove} isApproving={isApproving} isRejecting={isRejecting} />
+                </div>
+              </div>
+            )
+          )}
         </CardContent>
       </Card>
     </div>
@@ -562,6 +635,180 @@ function CancelDialog({ onCancel }: { onCancel: (reason: string) => void }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Approve Dialog Component
+function ApproveDialog({ onApprove, isApproving, isRejecting }: { onApprove: (adminNotes?: string) => void; isApproving: boolean; isRejecting: boolean }) {
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [adminNotes, setAdminNotes] = useState("");
+
+  const handleConfirm = async () => {
+    await onApprove(adminNotes || undefined);
+    setShowApproveDialog(false);
+    setAdminNotes("");
+  };
+
+  return (
+    <AlertDialog 
+      open={showApproveDialog} 
+      onOpenChange={(open) => {
+        if (!isApproving) {
+          setShowApproveDialog(open);
+        }
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="default"
+          className="flex-1"
+          disabled={isApproving || isRejecting}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <CheckCircle className="mr-2 h-4 w-4" />
+          Genehmigen
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Buchung genehmigen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Diese Buchung wird genehmigt und automatisch im Google Calendar eingetragen.
+            Der Gast wird benachrichtigt.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="py-4">
+          <Label htmlFor="adminNotes">Admin-Notizen (optional)</Label>
+          <Textarea
+            id="adminNotes"
+            value={adminNotes}
+            onChange={(e) => setAdminNotes(e.target.value)}
+            placeholder="Optionale Notizen zur Buchung..."
+            rows={3}
+            className="mt-2"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowApproveDialog(false);
+            }}
+            disabled={isApproving}
+          >
+            Abbrechen
+          </AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleConfirm();
+            }} 
+            disabled={isApproving}
+          >
+            {isApproving ? "Wird genehmigt..." : "Ja, genehmigen"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+// Reject Dialog Component
+function RejectDialog({ onReject, isRejecting, isApproving }: { onReject: (rejectionReason: string, adminNotes?: string) => void; isRejecting: boolean; isApproving: boolean }) {
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [adminNotes, setAdminNotes] = useState("");
+
+  const handleConfirm = async () => {
+    if (!rejectionReason.trim()) return;
+    await onReject(rejectionReason, adminNotes || undefined);
+    setShowRejectDialog(false);
+    setRejectionReason("");
+    setAdminNotes("");
+  };
+
+  return (
+    <AlertDialog 
+      open={showRejectDialog} 
+      onOpenChange={(open) => {
+        if (!isRejecting) {
+          setShowRejectDialog(open);
+        }
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="destructive"
+          className="flex-1"
+          disabled={isApproving || isRejecting}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <XCircle className="mr-2 h-4 w-4" />
+          Ablehnen
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Buchung ablehnen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Bitte geben Sie einen Grund für die Ablehnung an. Der Gast wird benachrichtigt.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="py-4 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="rejectionReason">Ablehnungsgrund *</Label>
+            <Textarea
+              id="rejectionReason"
+              placeholder="z.B. Zeitraum bereits gebucht, Haus in Renovierung, etc."
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              rows={3}
+              className="mt-2"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="adminNotesReject">Admin-Notizen (optional)</Label>
+            <Textarea
+              id="adminNotesReject"
+              value={adminNotes}
+              onChange={(e) => setAdminNotes(e.target.value)}
+              placeholder="Optionale Notizen zur Buchung..."
+              rows={3}
+              className="mt-2"
+            />
+          </div>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowRejectDialog(false);
+            }}
+            disabled={isRejecting}
+          >
+            Abbrechen
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleConfirm();
+            }}
+            disabled={isRejecting || !rejectionReason.trim()}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isRejecting ? "Wird abgelehnt..." : "Ablehnen"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

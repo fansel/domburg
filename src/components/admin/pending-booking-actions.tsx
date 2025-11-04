@@ -5,9 +5,10 @@ import { BookingActions } from "@/components/booking-actions";
 
 interface PendingBookingActionsProps {
   bookingId: string;
+  initialAdminNotes?: string | null;
 }
 
-export function PendingBookingActions({ bookingId }: PendingBookingActionsProps) {
+export function PendingBookingActions({ bookingId, initialAdminNotes }: PendingBookingActionsProps) {
   const [canApprove, setCanApprove] = useState(true);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function PendingBookingActions({ bookingId }: PendingBookingActionsProps)
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <BookingActions bookingId={bookingId} canApprove={canApprove} />
+      <BookingActions bookingId={bookingId} canApprove={canApprove} initialAdminNotes={initialAdminNotes} />
     </div>
   );
 }
