@@ -660,6 +660,7 @@ export async function sendBookingConflictNotificationToAdmin({
   conflictType,
   conflictDescription,
   bookings,
+  calendarEvents,
   adminUrl,
 }: {
   adminEmail: string;
@@ -673,6 +674,12 @@ export async function sendBookingConflictNotificationToAdmin({
     endDate: Date;
     status: string;
   }>;
+  calendarEvents?: Array<{
+    id: string;
+    summary: string;
+    start: Date;
+    end: Date;
+  }>;
   adminUrl?: string;
 }) {
   const appUrl = await getPublicUrl();
@@ -684,6 +691,18 @@ export async function sendBookingConflictNotificationToAdmin({
     const guestName = booking.guestName || booking.guestEmail.split('@')[0];
     return `• ${guestName} (${booking.bookingCode}): ${formatEmailDate(booking.startDate)} - ${formatEmailDate(booking.endDate)} [${booking.status}]`;
   }).join('\n');
+  
+  // Erstelle eine formatierte Liste der beteiligten Calendar Events
+  const calendarEventsList = (calendarEvents || []).map(event => {
+    const summary = event.summary || 'Unbenannter Eintrag';
+    return `• ${summary}: ${formatEmailDate(event.start)} - ${formatEmailDate(event.end)}`;
+  }).join('\n');
+  
+  // Kombiniere beide Listen
+  const allItemsList = [
+    ...(bookings.length > 0 ? [`Buchungen (${bookings.length}):`, bookingsList] : []),
+    ...(calendarEvents && calendarEvents.length > 0 ? [`Manuelle Blockierungen (${calendarEvents.length}):`, calendarEventsList] : []),
+  ].join('\n\n');
   
   let conflictTypeLabel = '';
   switch (conflictType) {
@@ -698,11 +717,13 @@ export async function sendBookingConflictNotificationToAdmin({
       break;
   }
   
+  const totalCount = bookings.length + (calendarEvents?.length || 0);
+  
   return sendTemplatedEmail('admin_booking_conflict', adminEmail, {
     conflictType: conflictTypeLabel,
     conflictDescription,
-    bookingsList,
-    bookingsCount: bookings.length.toString(),
+    bookingsList: allItemsList,
+    bookingsCount: totalCount.toString(),
     adminUrl: conflictsUrl,
     firstBookingCode: bookings[0]?.bookingCode || '',
   }, replyTo, undefined, 'admin_booking_conflict');

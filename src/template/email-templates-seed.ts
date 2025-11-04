@@ -947,7 +947,7 @@ Hollandhaus Buchungssystem`,
       </div>
 
       <div class="conflict-box">
-        <h3>Betroffene Buchungen ({{bookingsCount}}):</h3>
+        <h3>Betroffene Einträge ({{bookingsCount}}):</h3>
         <div class="bookings-list">{{bookingsList}}</div>
       </div>
       
@@ -969,7 +969,7 @@ KONFLIKTTYP:
 
 {{conflictDescription}}
 
-BETROFFENE BUCHUNGEN ({{bookingsCount}}):
+BETROFFENE EINTRÄGE ({{bookingsCount}}):
 ----------------------------------------
 {{bookingsList}}
 

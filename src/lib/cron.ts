@@ -112,6 +112,30 @@ async function checkConflictsForManualEvents() {
               status: booking.status,
             }));
 
+            // Bereite Calendar Events Daten vor
+            const calendarEventsData = [];
+            if (conflict.calendarEvent) {
+              calendarEventsData.push({
+                id: conflict.calendarEvent.id,
+                summary: conflict.calendarEvent.summary || 'Unbenannter Eintrag',
+                start: conflict.calendarEvent.start,
+                end: conflict.calendarEvent.end,
+              });
+            }
+            if (conflict.calendarEvents) {
+              for (const event of conflict.calendarEvents) {
+                // Vermeide Duplikate (wenn calendarEvent bereits hinzugefügt wurde)
+                if (!calendarEventsData.find(e => e.id === event.id)) {
+                  calendarEventsData.push({
+                    id: event.id,
+                    summary: event.summary || 'Unbenannter Eintrag',
+                    start: event.start,
+                    end: event.end,
+                  });
+                }
+              }
+            }
+
             let atLeastOneSuccess = false;
             for (const adminEmail of adminEmails) {
               try {
@@ -120,6 +144,7 @@ async function checkConflictsForManualEvents() {
                   conflictType: conflict.type,
                   conflictDescription,
                   bookings: bookingsData,
+                  calendarEvents: calendarEventsData.length > 0 ? calendarEventsData : undefined,
                   adminUrl: `${appUrl}/admin/bookings`,
                 });
                 
@@ -173,6 +198,30 @@ async function checkConflictsForManualEvents() {
               status: booking.status,
             }));
 
+            // Bereite Calendar Events Daten vor
+            const calendarEventsData = [];
+            if (conflict.calendarEvent) {
+              calendarEventsData.push({
+                id: conflict.calendarEvent.id,
+                summary: conflict.calendarEvent.summary || 'Unbenannter Eintrag',
+                start: conflict.calendarEvent.start,
+                end: conflict.calendarEvent.end,
+              });
+            }
+            if (conflict.calendarEvents) {
+              for (const event of conflict.calendarEvents) {
+                // Vermeide Duplikate (wenn calendarEvent bereits hinzugefügt wurde)
+                if (!calendarEventsData.find(e => e.id === event.id)) {
+                  calendarEventsData.push({
+                    id: event.id,
+                    summary: event.summary || 'Unbenannter Eintrag',
+                    start: event.start,
+                    end: event.end,
+                  });
+                }
+              }
+            }
+
             let atLeastOneSuccess = false;
             for (const adminEmail of adminEmails) {
               try {
@@ -181,6 +230,7 @@ async function checkConflictsForManualEvents() {
                   conflictType: conflict.type,
                   conflictDescription,
                   bookings: bookingsData,
+                  calendarEvents: calendarEventsData.length > 0 ? calendarEventsData : undefined,
                   adminUrl: `${appUrl}/admin/bookings`,
                 });
                 

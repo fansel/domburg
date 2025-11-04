@@ -631,6 +631,30 @@ export async function checkAndNotifyConflictsForCalendarEvent(eventId: string): 
         status: booking.status,
       }));
 
+      // Bereite Calendar Events Daten vor
+      const calendarEventsData = [];
+      if (conflict.calendarEvent) {
+        calendarEventsData.push({
+          id: conflict.calendarEvent.id,
+          summary: conflict.calendarEvent.summary || 'Unbenannter Eintrag',
+          start: conflict.calendarEvent.start,
+          end: conflict.calendarEvent.end,
+        });
+      }
+      if (conflict.calendarEvents) {
+        for (const event of conflict.calendarEvents) {
+          // Vermeide Duplikate (wenn calendarEvent bereits hinzugefügt wurde)
+          if (!calendarEventsData.find(e => e.id === event.id)) {
+            calendarEventsData.push({
+              id: event.id,
+              summary: event.summary || 'Unbenannter Eintrag',
+              start: event.start,
+              end: event.end,
+            });
+          }
+        }
+      }
+
       // Sende E-Mail an alle betroffenen Admins
       const { sendBookingConflictNotificationToAdmin } = await import("./email");
       
@@ -642,6 +666,7 @@ export async function checkAndNotifyConflictsForCalendarEvent(eventId: string): 
             conflictType: conflict.type,
             conflictDescription,
             bookings: bookingsData,
+            calendarEvents: calendarEventsData.length > 0 ? calendarEventsData : undefined,
             adminUrl: `${appUrl}/admin/bookings`,
           });
           
@@ -725,6 +750,30 @@ export async function checkAndNotifyConflictsForBooking(bookingId: string): Prom
         status: booking.status,
       }));
 
+      // Bereite Calendar Events Daten vor
+      const calendarEventsData = [];
+      if (conflict.calendarEvent) {
+        calendarEventsData.push({
+          id: conflict.calendarEvent.id,
+          summary: conflict.calendarEvent.summary || 'Unbenannter Eintrag',
+          start: conflict.calendarEvent.start,
+          end: conflict.calendarEvent.end,
+        });
+      }
+      if (conflict.calendarEvents) {
+        for (const event of conflict.calendarEvents) {
+          // Vermeide Duplikate (wenn calendarEvent bereits hinzugefügt wurde)
+          if (!calendarEventsData.find(e => e.id === event.id)) {
+            calendarEventsData.push({
+              id: event.id,
+              summary: event.summary || 'Unbenannter Eintrag',
+              start: event.start,
+              end: event.end,
+            });
+          }
+        }
+      }
+
       // Sende E-Mail an alle betroffenen Admins
       const { sendBookingConflictNotificationToAdmin } = await import("./email");
       
@@ -736,6 +785,7 @@ export async function checkAndNotifyConflictsForBooking(bookingId: string): Prom
             conflictType: conflict.type,
             conflictDescription,
             bookings: bookingsData,
+            calendarEvents: calendarEventsData.length > 0 ? calendarEventsData : undefined,
             adminUrl: `${appUrl}/admin/bookings`,
           });
           

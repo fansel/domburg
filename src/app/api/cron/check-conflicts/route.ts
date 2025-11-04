@@ -54,41 +54,116 @@ export async function GET(request: NextRequest) {
     // Hole alle aktuellen Konflikte
     const allConflicts = await findAllConflicts();
     
-    // Prüfe Konflikte für jedes manuelle Event
+    // Prüfe Konflikte pro Konflikt (nicht pro Event), damit jeder Konflikt nur einmal benachrichtigt wird
     let checked = 0;
     let notificationsSent = 0;
     
-    for (const event of manualEvents) {
-      if (!event.id) continue;
-      
-      // Finde Konflikte die dieses Event betreffen
-      const relevantConflicts = allConflicts.filter(conflict => {
-        if (conflict.type === "CALENDAR_CONFLICT") {
-          return conflict.calendarEvent?.id === event.id;
-        } else if (conflict.type === "OVERLAPPING_CALENDAR_EVENTS") {
-          return conflict.calendarEvents?.some(e => e.id === event.id);
-        }
+    // Sammle alle Konflikte, die manuelle Events betreffen
+    const relevantConflicts = allConflicts.filter(conflict => {
+      if (conflict.type === "CALENDAR_CONFLICT") {
+        // Prüfe ob das Calendar Event ein manuelles Event ist
+        return conflict.calendarEvent?.id && 
+               manualEvents.some(me => me.id === conflict.calendarEvent?.id);
+      } else if (conflict.type === "OVERLAPPING_CALENDAR_EVENTS") {
+        // Prüfe ob mindestens eines der Calendar Events ein manuelles Event ist
+        return conflict.calendarEvents?.some(e => 
+          manualEvents.some(me => me.id === e.id)
+        );
+      } else if (conflict.type === "OVERLAPPING_REQUESTS") {
+        // Für OVERLAPPING_REQUESTS prüfen wir separat weiter unten
         return false;
-      });
-
-      if (relevantConflicts.length > 0) {
-        // Prüfe ob Konflikt bereits benachrichtigt wurde
-        const conflict = relevantConflicts[0]; // Nimm ersten relevanten Konflikt
-        const conflictKey = generateConflictKey(conflict);
-        
-        const { isConflictNotified } = await import("@/lib/booking-conflicts");
-        const alreadyNotified = await isConflictNotified(conflictKey, conflict.type);
-        
-        if (!alreadyNotified && conflict.severity === "HIGH") {
-          await checkAndNotifyConflictsForCalendarEvent(event.id);
-          notificationsSent++;
-        }
-        
-        checked++;
       }
+      return false;
+    });
+
+    // Prüfe jeden Konflikt nur einmal (nicht pro Event)
+    for (const conflict of relevantConflicts) {
+      if (conflict.severity !== "HIGH") {
+        checked++;
+        continue;
+      }
+      
+      const conflictKey = generateConflictKey(conflict);
+      const { isConflictNotified, markConflictAsNotified } = await import("@/lib/booking-conflicts");
+      const alreadyNotified = await isConflictNotified(conflictKey, conflict.type);
+      
+      if (!alreadyNotified) {
+        // Hole Admins und sende Benachrichtigung
+        const { getAdminsToNotify } = await import("@/lib/notifications");
+        const adminEmails = await getAdminsToNotify("bookingConflict");
+        
+        if (adminEmails.length > 0) {
+          const { getPublicUrl } = await import("@/lib/email");
+          const appUrl = await getPublicUrl();
+          const { formatConflict } = await import("@/lib/booking-conflicts");
+          const { sendBookingConflictNotificationToAdmin } = await import("@/lib/email");
+          
+          const conflictDescription = formatConflict(conflict);
+          const bookingsData = conflict.bookings.map(booking => ({
+            bookingCode: booking.bookingCode,
+            guestName: booking.guestName,
+            guestEmail: booking.guestEmail,
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            status: booking.status,
+          }));
+
+          // Bereite Calendar Events Daten vor
+          const calendarEventsData = [];
+          if (conflict.calendarEvent) {
+            calendarEventsData.push({
+              id: conflict.calendarEvent.id,
+              summary: conflict.calendarEvent.summary || 'Unbenannter Eintrag',
+              start: conflict.calendarEvent.start,
+              end: conflict.calendarEvent.end,
+            });
+          }
+          if (conflict.calendarEvents) {
+            for (const event of conflict.calendarEvents) {
+              // Vermeide Duplikate (wenn calendarEvent bereits hinzugefügt wurde)
+              if (!calendarEventsData.find(e => e.id === event.id)) {
+                calendarEventsData.push({
+                  id: event.id,
+                  summary: event.summary || 'Unbenannter Eintrag',
+                  start: event.start,
+                  end: event.end,
+                });
+              }
+            }
+          }
+
+          let atLeastOneSuccess = false;
+          for (const adminEmail of adminEmails) {
+            try {
+              const result = await sendBookingConflictNotificationToAdmin({
+                adminEmail,
+                conflictType: conflict.type,
+                conflictDescription,
+                bookings: bookingsData,
+                calendarEvents: calendarEventsData.length > 0 ? calendarEventsData : undefined,
+                adminUrl: `${appUrl}/admin/bookings`,
+              });
+              
+              if (result.success) {
+                atLeastOneSuccess = true;
+              }
+            } catch (error: any) {
+              console.error(`[Cron] Error sending notification:`, error);
+            }
+          }
+
+          if (atLeastOneSuccess) {
+            await markConflictAsNotified(conflictKey, conflict.type);
+            notificationsSent++;
+          }
+        }
+      }
+      
+      checked++;
     }
 
     // Prüfe auch überlappende Calendar Events (Events untereinander)
+    // Diese werden bereits oben abgedeckt, aber hier nochmal explizit für Vollständigkeit
     const overlappingConflicts = allConflicts.filter(c => c.type === "OVERLAPPING_CALENDAR_EVENTS");
     
     for (const conflict of overlappingConflicts) {
@@ -125,6 +200,30 @@ export async function GET(request: NextRequest) {
               status: booking.status,
             }));
 
+            // Bereite Calendar Events Daten vor
+            const calendarEventsData = [];
+            if (conflict.calendarEvent) {
+              calendarEventsData.push({
+                id: conflict.calendarEvent.id,
+                summary: conflict.calendarEvent.summary || 'Unbenannter Eintrag',
+                start: conflict.calendarEvent.start,
+                end: conflict.calendarEvent.end,
+              });
+            }
+            if (conflict.calendarEvents) {
+              for (const event of conflict.calendarEvents) {
+                // Vermeide Duplikate (wenn calendarEvent bereits hinzugefügt wurde)
+                if (!calendarEventsData.find(e => e.id === event.id)) {
+                  calendarEventsData.push({
+                    id: event.id,
+                    summary: event.summary || 'Unbenannter Eintrag',
+                    start: event.start,
+                    end: event.end,
+                  });
+                }
+              }
+            }
+
             let atLeastOneSuccess = false;
             for (const adminEmail of adminEmails) {
               try {
@@ -133,6 +232,7 @@ export async function GET(request: NextRequest) {
                   conflictType: conflict.type,
                   conflictDescription,
                   bookings: bookingsData,
+                  calendarEvents: calendarEventsData.length > 0 ? calendarEventsData : undefined,
                   adminUrl: `${appUrl}/admin/bookings`,
                 });
                 
