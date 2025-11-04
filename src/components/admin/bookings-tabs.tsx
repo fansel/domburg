@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { ConflictManager } from "@/components/admin/conflict-manager";
 import { CalendarBookingsManager } from "@/components/admin/calendar-bookings-manager";
@@ -31,6 +31,24 @@ export function BookingsTabs({
   const { t } = useTranslation();
   const [conflictsCount, setConflictsCount] = useState<number>(initialConflictsCount);
   const [activeTab, setActiveTab] = useState<string>("pending");
+
+  // Lade aktuelle Konfliktanzahl beim ersten Mount (damit sie aktuell ist, auch wenn Cron Job gerade gelaufen ist)
+  useEffect(() => {
+    const fetchConflictsCount = async () => {
+      try {
+        const response = await fetch("/api/admin/conflicts");
+        const data = await response.json();
+        if (data.success && data.count !== undefined) {
+          setConflictsCount(data.count);
+        }
+      } catch (error) {
+        console.error("Error fetching conflicts count:", error);
+        // Bei Fehler: Initialwert beibehalten
+      }
+    };
+
+    fetchConflictsCount();
+  }, []);
 
   const tabs = [
     {
