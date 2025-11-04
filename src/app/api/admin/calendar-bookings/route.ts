@@ -492,7 +492,7 @@ export async function DELETE(request: NextRequest) {
       });
     } else {
       // Es ist ein externes Event - nur aus Google Calendar löschen
-      await deleteCalendarEvent(id);
+    await deleteCalendarEvent(id);
 
       // Lösche alle Konflikteinträge die dieses Event enthalten
       await prisma.ignoredConflict.deleteMany({
@@ -513,11 +513,11 @@ export async function DELETE(request: NextRequest) {
         },
       });
 
-      return NextResponse.json({
-        success: true,
-        message: "Kalendereintrag wurde gelöscht",
+    return NextResponse.json({
+      success: true,
+      message: "Kalendereintrag wurde gelöscht",
         bookingCancelled: false,
-      });
+    });
     }
   } catch (error: any) {
     console.error("Error deleting calendar booking:", error);
