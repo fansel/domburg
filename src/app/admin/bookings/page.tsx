@@ -76,10 +76,10 @@ export default async function AdminBookingsPage() {
                 <CardTitle className="text-sm sm:text-base lg:text-lg truncate">
                   {booking.guestName || booking.guestEmail}
                 </CardTitle>
-                <CardDescription className="space-y-0.5 sm:space-y-1">
+                <div className="space-y-0.5 sm:space-y-1 text-sm text-muted-foreground">
                   <div className="truncate text-[10px] sm:text-xs lg:text-sm">{booking.guestEmail}</div>
                   <div className="font-mono text-[9px] sm:text-[10px] lg:text-xs">{booking.bookingCode}</div>
-                </CardDescription>
+                </div>
               </div>
               <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 {getStatusBadge(booking.status)}

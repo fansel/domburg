@@ -1077,21 +1077,20 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
       {/* Detail-Dialog für Tag mit Buchungen */}
       {selectedDayForDetails !== null && (
         <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[95vh] sm:max-h-[80vh] overflow-y-auto w-[100vw] sm:w-full mx-0 sm:mx-0 p-2.5 sm:p-6">
-            <DialogHeader className="pb-2 sm:pb-0">
-              <DialogTitle className="text-sm sm:text-lg leading-tight">
-                {new Date(year, month, selectedDayForDetails).toLocaleDateString("de-DE", { 
-                  weekday: "long", 
-                  day: "numeric", 
-                  month: "long", 
-                  year: "numeric" 
-                })}
+          <DialogContent className="max-w-2xl max-h-[95vh] sm:max-h-[80vh] overflow-y-auto w-[95vw] sm:w-full mx-auto p-4 sm:p-6">
+            <DialogHeader className="pb-3 sm:pb-4">
+              <DialogTitle className="text-base sm:text-lg md:text-xl leading-tight">
+                {selectedDayForDetails !== null && (
+                  <>
+                    {formatDate(new Date(year, month, selectedDayForDetails))} - Details
+                  </>
+                )}
               </DialogTitle>
-              <DialogDescription className="text-[10px] sm:text-sm mt-0.5 sm:mt-1">
+              <DialogDescription className="text-xs sm:text-sm mt-1.5 sm:mt-2 leading-relaxed">
                 Alle Buchungen und Termine für diesen Tag
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-1.5 sm:space-y-3 mt-1 sm:mt-4">
+            <div className="space-y-3 sm:space-y-4 overflow-y-auto max-h-[60vh] sm:max-h-[50vh] pr-1 sm:pr-2">
               {(() => {
                 const dayBookings = getBookingsForDay(selectedDayForDetails);
                 const dayEvents = getEventsForDay(selectedDayForDetails);
@@ -1120,21 +1119,24 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
 
                           if (allSameColor) {
                             return (
-                              <div key={idx} className="p-2 sm:p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md sm:rounded-lg">
-                                <div className="flex flex-col sm:flex-row items-start justify-between gap-2 sm:gap-4">
-                                  <div className="flex items-start gap-1.5 sm:gap-2 flex-1 min-w-0">
-                                    <CheckCircle2 className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                              <div key={idx} className="p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg mb-3 sm:mb-4">
+                                <div className="flex flex-col gap-3 sm:gap-4">
+                                  <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
+                                    <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                                     <div className="flex-1 min-w-0">
-                                      <h4 className="font-semibold text-xs sm:text-base text-green-900 dark:text-green-100 mb-0.5 sm:mb-1 leading-tight">
+                                      <h4 className="font-semibold text-sm sm:text-base text-green-900 dark:text-green-100 mb-1.5 sm:mb-2 leading-tight">
                                         Bereits zusammengelegt ({group.length} Events)
                                       </h4>
-                                      <p className="text-[10px] sm:text-sm text-green-700 dark:text-green-300 mb-1 sm:mb-2 leading-tight">
+                                      <p className="text-xs sm:text-sm text-green-700 dark:text-green-300 mb-2 sm:mb-3 leading-relaxed">
                                         Diese Events haben die gleiche Farbe und werden als zusammengehörig erkannt:
                                       </p>
-                                      <ul className="text-[10px] sm:text-sm text-green-700 dark:text-green-300 space-y-0.5 sm:space-y-1 list-disc list-inside leading-tight">
+                                      <ul className="text-xs sm:text-sm text-green-700 dark:text-green-300 space-y-1.5 sm:space-y-2 list-disc list-inside leading-relaxed">
                                         {group.map((e) => (
-                                          <li key={e.id} className="truncate">
-                                            {e.summary} ({formatDate(e.start)} - {formatDate(e.end)})
+                                          <li key={e.id} className="break-words pr-2">
+                                            <span className="font-medium">{e.summary}</span>
+                                            <span className="ml-1 text-green-600 dark:text-green-400">
+                                              ({formatDate(e.start)} - {formatDate(e.end)})
+                                            </span>
                                           </li>
                                         ))}
                                       </ul>
@@ -1145,10 +1147,12 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                                     size="sm"
                                     onClick={() => handleUngroupEvents(group.map(e => e.id))}
                                     disabled={isUngrouping}
-                                    className="w-full sm:w-auto flex-shrink-0 border-green-300 dark:border-green-700 h-8 sm:h-8 text-[10px] sm:text-sm mt-1 sm:mt-0"
+                                    className="w-full sm:w-auto flex-shrink-0 border-green-300 dark:border-green-700 h-10 sm:h-9 text-xs sm:text-sm font-medium"
                                   >
-                                    <Unlink className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                                    {isUngrouping ? "Trennen..." : "Trennen"}
+                                    <Unlink className="h-4 w-4 mr-2 flex-shrink-0" />
+                                    <span className="whitespace-nowrap">
+                                      {isUngrouping ? "Trennen..." : "Trennen"}
+                                    </span>
                                   </Button>
                                 </div>
                               </div>
@@ -1156,19 +1160,22 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                           }
 
                           return (
-                            <div key={idx} className="p-2 sm:p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md sm:rounded-lg">
-                              <div className="mb-1.5 sm:mb-3">
+                            <div key={idx} className="p-3 sm:p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg mb-3 sm:mb-4">
+                              <div className="mb-3 sm:mb-4">
                                 <div className="flex-1 min-w-0">
-                                  <h4 className="font-semibold text-xs sm:text-base text-yellow-900 dark:text-yellow-100 mb-0.5 sm:mb-1 leading-tight">
+                                  <h4 className="font-semibold text-sm sm:text-base text-yellow-900 dark:text-yellow-100 mb-1.5 sm:mb-2 leading-tight">
                                     Überlappende Events gefunden ({group.length} Events)
                                   </h4>
-                                  <p className="text-[10px] sm:text-sm text-yellow-700 dark:text-yellow-300 mb-1 sm:mb-2 leading-tight">
+                                  <p className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300 mb-2 sm:mb-3 leading-relaxed">
                                     Diese Events überlappen sich. Du kannst sie zusammenlegen, damit sie als zusammengehörig erkannt werden:
                                   </p>
-                                  <ul className="text-[10px] sm:text-sm text-yellow-700 dark:text-yellow-300 space-y-0.5 sm:space-y-1 list-disc list-inside mb-1.5 sm:mb-3 leading-tight">
+                                  <ul className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300 space-y-1.5 sm:space-y-2 list-disc list-inside mb-3 sm:mb-4 leading-relaxed">
                                     {group.map((e) => (
-                                      <li key={e.id} className="truncate">
-                                        {e.summary} ({formatDate(e.start)} - {formatDate(e.end)})
+                                      <li key={e.id} className="break-words pr-2">
+                                        <span className="font-medium">{e.summary}</span>
+                                        <span className="ml-1 text-yellow-600 dark:text-yellow-400">
+                                          ({formatDate(e.start)} - {formatDate(e.end)})
+                                        </span>
                                       </li>
                                     ))}
                                   </ul>
@@ -1179,10 +1186,12 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                                 size="sm"
                                 onClick={() => handleGroupEvents(group.map(e => e.id))}
                                 disabled={isGrouping}
-                                className="w-full sm:w-auto border-yellow-300 dark:border-yellow-700 h-8 sm:h-8 text-[10px] sm:text-sm"
+                                className="w-full sm:w-auto border-yellow-300 dark:border-yellow-700 h-10 sm:h-9 text-xs sm:text-sm font-medium"
                               >
-                                <LinkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                                {isGrouping ? "Zusammenlegen..." : `${group.length} Events zusammenlegen`}
+                                <LinkIcon className="h-4 w-4 mr-2 flex-shrink-0" />
+                                <span className="whitespace-nowrap">
+                                  {isGrouping ? "Zusammenlegen..." : `${group.length} Events zusammenlegen`}
+                                </span>
                               </Button>
                             </div>
                           );
@@ -1202,7 +1211,7 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                           className="block"
                         >
                           <div className={`
-                            p-2 sm:p-4 border-2 rounded-md sm:rounded-lg hover:opacity-90 transition-all cursor-pointer
+                            p-3 sm:p-4 border-2 rounded-lg hover:opacity-90 transition-all cursor-pointer mb-2 sm:mb-3
                             ${isPending ? 'border-dashed border-yellow-500 dark:border-yellow-400 opacity-100 shadow-md bg-yellow-50/50 dark:bg-yellow-900/20' : ''}
                           `}
                           style={isPending ? {
@@ -1271,10 +1280,10 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                       return (
                         <div
                           key={event.id}
-                          className="p-2 sm:p-4 border rounded-md sm:rounded-lg"
+                          className="p-3 sm:p-4 border rounded-lg mb-2 sm:mb-3"
                           style={dialogColorStyle}
                         >
-                          <div className="flex items-start justify-between gap-1.5 sm:gap-2 mb-1 sm:mb-2">
+                          <div className="flex items-start justify-between gap-2 sm:gap-3 mb-2 sm:mb-3">
                             <div className="font-medium flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
                               {isInfo ? (
                                 <Info className="h-3 w-3 sm:h-4 sm:w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
