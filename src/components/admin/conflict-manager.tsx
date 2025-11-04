@@ -65,7 +65,7 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
     }
   };
 
-  // Lade gruppierte Events (gleiche Farbe) beim Laden der Konflikte
+  // Lade verlinkte Events (aus DB) beim Laden der Konflikte
   useEffect(() => {
     loadConflicts();
     checkGroupedEvents();
@@ -77,22 +77,17 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
       const calendarData = await calendarResponse.json();
       const events = calendarData.bookings || [];
       
-      // Gruppiere Events nach Farbe
-      const colorGroups = new Map<string, string[]>();
-      events.forEach((e: any) => {
-        if (!e.isInfo && e.colorId && e.colorId !== '10') {
-          if (!colorGroups.has(e.colorId)) {
-            colorGroups.set(e.colorId, []);
-          }
-          colorGroups.get(e.colorId)!.push(e.id);
-        }
-      });
-      
-      // Markiere alle Event-Gruppen mit mehr als einem Event als gruppiert
+      // Erstelle Set aller Events die transitiv verlinkt sind
+      // Verwende linkedEventIds aus der Datenbank, nicht nur Farbe
       const grouped = new Set<string>();
-      colorGroups.forEach((eventIds) => {
-        if (eventIds.length > 1) {
-          eventIds.forEach(id => grouped.add(id));
+      
+      events.forEach((e: any) => {
+        if (!e.isInfo && e.linkedEventIds && e.linkedEventIds.length > 0) {
+          // Event ist verlinkt - markiere es und alle transitiv verlinkten Events
+          grouped.add(e.id);
+          e.linkedEventIds.forEach((linkedId: string) => {
+            grouped.add(linkedId);
+          });
         }
       });
       
@@ -104,7 +99,11 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
 
   const areEventsGrouped = (eventIds: string[]): boolean => {
     if (eventIds.length < 2) return false;
-    return eventIds.every(id => groupedEventSets.has(id));
+    
+    // Prüfe ob alle Events transitiv verlinkt sind
+    // Da die API bereits transitiv geschlossene linkedEventIds zurückgibt,
+    // reicht es zu prüfen, ob alle Events im grouped Set sind
+    return groupedEventSets.size > 0 && eventIds.every(id => groupedEventSets.has(id));
   };
 
   const getSeverityColor = (severity: "HIGH" | "MEDIUM") => {

@@ -215,7 +215,7 @@ export async function GET(request: NextRequest) {
     const groupedEventIds = new Set<string>();
     const combinedEvents: Array<typeof calendarEvents[0]> = [];
     
-    groups.forEach((group, groupIndex) => {
+    groups.forEach((group) => {
       const groupEventIds = Array.from(group);
       const groupEvents = calendarEvents.filter(e => e.id && groupEventIds.includes(e.id));
       
@@ -228,6 +228,11 @@ export async function GET(request: NextRequest) {
         // Markiere alle Events der Gruppe zum Entfernen
         groupEventIds.forEach(id => groupedEventIds.add(id));
         
+        // Erstelle konsistente ID für die Gruppe basierend auf allen Event-IDs
+        // Sortiere Event-IDs für Konsistenz
+        const sortedEventIds = groupEventIds.sort().join('-');
+        const groupId = `group-${sortedEventIds}`;
+        
         // Erstelle kombiniertes Event
         combinedEvents.push({
           start: groupStart,
@@ -235,7 +240,7 @@ export async function GET(request: NextRequest) {
           summary: `${groupEvents.length} zusammengehörige Termine`,
           isExternal: true,
           colorId: sortedGroup[0].colorId,
-          id: `group-${groupIndex}-${groupStart.getTime()}`,
+          id: groupId,
         });
       }
     });
@@ -280,6 +285,19 @@ export async function GET(request: NextRequest) {
       return formatter.format(date);
     };
 
+    // Hilfsfunktion: Berechnet einen konsistenten colorIndex basierend auf einer ID
+    // Dies stellt sicher, dass die gleiche Buchung/Event immer die gleiche Farbe hat
+    const getColorIndexFromId = (id: string): number => {
+      // Einfacher Hash: Summiere die Character-Codes der ID
+      let hash = 0;
+      for (let i = 0; i < id.length; i++) {
+        hash = ((hash << 5) - hash) + id.charCodeAt(i);
+        hash = hash & hash; // Konvertiere zu 32-bit Integer
+      }
+      // Konvertiere zu positivem Index
+      return Math.abs(hash) % colorPalette.length;
+    };
+
     // Sammle alle Check-in und Check-out Tage für Buchungen (für kombinierte Prüfung)
     // WICHTIG: endDate in der DB ist der letzte buchbare Tag, aber im Cleaning Calendar
     // ist der Check-out Tag endDate + 1 (Person ist noch am endDate da, checkt erst am nächsten Tag aus)
@@ -295,7 +313,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Hauptbuchungen: Mit Farbe und in periods
-    bookings.forEach((booking, index) => {
+    bookings.forEach((booking) => {
       // Verwende getLocalDateString um UTC korrekt in lokale Zeitzone zu konvertieren
       const startKey = getLocalDateString(booking.startDate);
       const endKey = getLocalDateString(booking.endDate);
@@ -303,9 +321,10 @@ export async function GET(request: NextRequest) {
       // WICHTIG: endDate ist BEREITS der Check-out Tag!
       // Keine +1 Tag Berechnung nötig
 
-      // Eindeutige ID für diese Buchung
-      const periodId = `booking-${index}`;
-      const colorIndex = index % colorPalette.length;
+      // Eindeutige ID für diese Buchung (verwende booking.id für Konsistenz)
+      const periodId = `booking-${booking.id}`;
+      // Verwende getColorIndexFromId für konsistente Farbe über alle Monate hinweg
+      const colorIndex = getColorIndexFromId(booking.id);
 
       // Für Übersicht speichern (Check-in bis Check-out)
       periods.push({
@@ -466,8 +485,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Füge auch Calendar Events hinzu (genau wie Buchungen)
-    calendarEvents.forEach((event, index) => {
-      if (!event.isExternal) return;
+    calendarEvents.forEach((event) => {
+      if (!event.isExternal || !event.id) return;
       
       const start = new Date(event.start);
       const end = new Date(event.end);
@@ -480,10 +499,10 @@ export async function GET(request: NextRequest) {
       const startKey = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
       const endKey = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
-      // Eindeutige ID für dieses Event
-      const periodId = `external-${index}`;
-      // Für externe Events verwenden wir die Buchungen-Indizes weiter
-      const colorIndex = (bookings.length + index) % colorPalette.length;
+      // Eindeutige ID für dieses Event (verwende event.id für Konsistenz)
+      const periodId = `external-${event.id}`;
+      // Verwende getColorIndexFromId für konsistente Farbe über alle Monate hinweg
+      const colorIndex = getColorIndexFromId(event.id);
 
       // Für Übersicht speichern (Check-in bis Check-out)
       periods.push({

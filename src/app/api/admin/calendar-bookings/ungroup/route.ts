@@ -76,17 +76,11 @@ export async function POST(request: NextRequest) {
     await resetConflictNotificationsForEvents(eventIds);
 
     // Prüfe auf Konflikte nach dem Trennen (Farbe ändern kann Konflikte beeinflussen)
-    const { checkAndNotifyConflictsForCalendarEvent } = await import("@/lib/booking-conflicts");
+    const { checkAndNotifyConflictsForCalendarEvents } = await import("@/lib/booking-conflicts");
     
-    // Prüfe alle Events auf Konflikte
-    Promise.all(
-      eventIds.map(eventId => 
-        checkAndNotifyConflictsForCalendarEvent(eventId).catch(error => {
-          console.error(`[Calendar] Error checking conflicts after ungrouping event ${eventId}:`, error);
-        })
-      )
-    ).catch(() => {
-      // Fehler nicht weiterwerfen
+    // Prüfe alle Events auf einmal, um Duplikate zu vermeiden
+    checkAndNotifyConflictsForCalendarEvents(eventIds).catch(error => {
+      console.error(`[Calendar] Error checking conflicts after ungrouping events:`, error);
     });
 
     return NextResponse.json({

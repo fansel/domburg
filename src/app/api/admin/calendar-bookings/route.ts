@@ -182,6 +182,30 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Hilfsfunktion: Finde alle transitiv verlinkten Events für ein Event
+    const getTransitiveLinkedEvents = (eventId: string): string[] => {
+      const connected = new Set<string>([eventId]);
+      const queue = [eventId];
+      const visited = new Set<string>([eventId]);
+      
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        const linkedIds = linkedEventMap.get(current) || [];
+        
+        linkedIds.forEach(linkedId => {
+          if (!visited.has(linkedId)) {
+            visited.add(linkedId);
+            connected.add(linkedId);
+            queue.push(linkedId);
+          }
+        });
+      }
+      
+      // Entferne das ursprüngliche Event aus der Liste
+      connected.delete(eventId);
+      return Array.from(connected);
+    };
+
     return NextResponse.json({
       success: true,
       bookings: manualBookings.map((booking) => ({
@@ -191,7 +215,7 @@ export async function GET(request: NextRequest) {
         end: booking.end.toISOString(),
         colorId: booking.colorId,
         isInfo: booking.colorId === '10', // colorId=10 = Grün = Info
-        linkedEventIds: linkedEventMap.get(booking.id) || [], // Array von verlinkten Event-IDs
+        linkedEventIds: getTransitiveLinkedEvents(booking.id), // Transitiv geschlossene Event-IDs
       })),
     });
   } catch (error: any) {

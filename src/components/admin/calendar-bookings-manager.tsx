@@ -356,14 +356,16 @@ export function CalendarBookingsManager() {
     }
   };
 
-  // Finde alle Events mit der gleichen Farbe wie das gegebene Event
-  const findEventsWithSameColor = (eventId: string): string[] => {
+  // Finde alle transitiv verlinkten Events für das gegebene Event
+  const findLinkedEvents = (eventId: string): string[] => {
     const event = bookings.find(b => b.id === eventId);
-    if (!event || !event.colorId || event.colorId === '10') return [];
+    if (!event || !event.linkedEventIds || event.linkedEventIds.length === 0) return [];
     
-    return bookings
-      .filter(b => b.colorId === event.colorId && b.id !== eventId && !b.isInfo)
-      .map(b => b.id);
+    // Verwende linkedEventIds aus der Datenbank (bereits transitiv geschlossen)
+    return event.linkedEventIds.filter(id => {
+      const linkedEvent = bookings.find(b => b.id === id);
+      return linkedEvent && !linkedEvent.isInfo;
+    });
   };
 
   // Trenne nur das angeklickte Event (nicht alle Events mit gleicher Farbe)
@@ -418,20 +420,20 @@ export function CalendarBookingsManager() {
     }
   };
 
-  // Trenne alle Events mit der gleichen Farbe (inkl. dem gegebenen Event)
+  // Trenne alle transitiv verlinkten Events (inkl. dem gegebenen Event)
   // Wird verwendet wenn mehrere Events über den Tab-Reiter ausgewählt wurden
   const handleUngroupByColor = async (eventId: string) => {
-    const sameColorEvents = findEventsWithSameColor(eventId);
-    if (sameColorEvents.length === 0) {
+    const linkedEvents = findLinkedEvents(eventId);
+    if (linkedEvents.length === 0) {
       toast({
         title: "Info",
-        description: "Dieser Eintrag ist nicht gruppiert",
+        description: "Dieser Eintrag ist nicht verlinkt",
       });
       return;
     }
 
     // Füge das aktuelle Event zur Liste hinzu
-    const allEventIds = [eventId, ...sameColorEvents];
+    const allEventIds = [eventId, ...linkedEvents];
 
     try {
       setIsUngrouping(true);

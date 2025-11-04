@@ -651,25 +651,39 @@ export async function markConflictAsNotified(
 }
 
 /**
- * Prüft Konflikte für ein manuelles Kalender-Event und sendet Benachrichtigungen an Admins
+ * Prüft Konflikte für mehrere Kalender-Events und sendet Benachrichtigungen an Admins
+ * Diese Funktion dedupliziert Konflikte, sodass jeder Konflikt nur einmal benachrichtigt wird
  */
-export async function checkAndNotifyConflictsForCalendarEvent(eventId: string): Promise<void> {
+export async function checkAndNotifyConflictsForCalendarEvents(eventIds: string[]): Promise<void> {
   try {
+    if (eventIds.length === 0) {
+      return;
+    }
+
     // Hole alle Konflikte
     const conflicts = await findAllConflicts();
     
-    // Finde Konflikte die dieses Event betreffen
+    // Finde alle Konflikte die eines der Events betreffen
     const relevantConflicts = conflicts.filter(conflict => {
       if (conflict.type === "CALENDAR_CONFLICT") {
-        return conflict.calendarEvent?.id === eventId;
+        return conflict.calendarEvent?.id && eventIds.includes(conflict.calendarEvent.id);
       } else if (conflict.type === "OVERLAPPING_CALENDAR_EVENTS") {
-        return conflict.calendarEvents?.some(e => e.id === eventId);
+        return conflict.calendarEvents?.some(e => e.id && eventIds.includes(e.id));
       }
       return false;
     });
 
     if (relevantConflicts.length === 0) {
       return;
+    }
+
+    // Dedupliziere Konflikte basierend auf conflictKey
+    const uniqueConflicts = new Map<string, typeof relevantConflicts[0]>();
+    for (const conflict of relevantConflicts) {
+      const conflictKey = generateConflictKey(conflict);
+      if (!uniqueConflicts.has(conflictKey)) {
+        uniqueConflicts.set(conflictKey, conflict);
+      }
     }
 
     // Hole Admins, die Konflikt-Benachrichtigungen erhalten möchten
@@ -685,8 +699,8 @@ export async function checkAndNotifyConflictsForCalendarEvent(eventId: string): 
     const { getPublicUrl } = await import("./email");
     const appUrl = await getPublicUrl();
 
-    // Sende Benachrichtigung für jeden relevanten Konflikt (nur HIGH severity)
-    for (const conflict of relevantConflicts) {
+    // Sende Benachrichtigung für jeden eindeutigen Konflikt (nur HIGH severity)
+    for (const conflict of uniqueConflicts.values()) {
       if (conflict.severity !== "HIGH") {
         console.log(`[Conflict] Skipping notification for ${conflict.type} - severity is ${conflict.severity} (not HIGH)`);
         continue;
@@ -694,11 +708,26 @@ export async function checkAndNotifyConflictsForCalendarEvent(eventId: string): 
 
       // Prüfe ob dieser Konflikt bereits benachrichtigt wurde
       const conflictKey = generateConflictKey(conflict);
-      const alreadyNotified = await isConflictNotified(conflictKey, conflict.type);
       
-      if (alreadyNotified) {
-        console.log(`[Conflict] Skipping notification for ${conflict.type} - already notified`);
-        continue;
+      // Atomar prüfen und markieren: Versuche zu markieren, wenn bereits vorhanden, überspringe
+      const prismaClient = prisma || (await import('./prisma')).default;
+      try {
+        // Versuche zu erstellen - wenn bereits vorhanden, wird Fehler geworfen
+        await prismaClient.notifiedConflict.create({
+          data: {
+            conflictKey,
+            conflictType: conflict.type,
+          },
+        });
+        // Erfolgreich erstellt = noch nicht benachrichtigt
+      } catch (error: any) {
+        // Wenn bereits vorhanden (P2002 = unique constraint violation), überspringe
+        if (error?.code === 'P2002') {
+          console.log(`[Conflict] Skipping notification for ${conflict.type} - already notified (key: ${conflictKey})`);
+          continue;
+        }
+        // Andere Fehler weiterwerfen
+        throw error;
       }
 
       const conflictDescription = formatConflict(conflict);
@@ -756,20 +785,34 @@ export async function checkAndNotifyConflictsForCalendarEvent(eventId: string): 
             atLeastOneSuccess = true;
           }
           
-          console.log(`[Conflict] Notification sent to ${adminEmail} for calendar event ${eventId}:`, result.success ? "success" : "failed", result.error || "");
+          console.log(`[Conflict] Notification sent to ${adminEmail} for events ${eventIds.join(', ')}:`, result.success ? "success" : "failed", result.error || "");
         } catch (error: any) {
           console.error(`[Conflict] Error sending notification to ${adminEmail}:`, error);
         }
       }
 
-      // Markiere Konflikt als benachrichtigt (nur wenn mindestens eine E-Mail erfolgreich gesendet wurde)
-      if (atLeastOneSuccess) {
-        await markConflictAsNotified(conflictKey, conflict.type);
+      // Wenn kein Erfolg beim Senden, entferne die Markierung wieder
+      if (!atLeastOneSuccess) {
+        await prismaClient.notifiedConflict.deleteMany({
+          where: {
+            conflictKey,
+            conflictType: conflict.type,
+          },
+        });
+        console.log(`[Conflict] Removed notification mark for ${conflictKey} - no emails sent successfully`);
       }
     }
   } catch (error) {
-    console.error("[Conflict] Error checking and notifying conflicts for calendar event:", error);
+    console.error("[Conflict] Error checking and notifying conflicts for calendar events:", error);
   }
+}
+
+/**
+ * Prüft Konflikte für ein manuelles Kalender-Event und sendet Benachrichtigungen an Admins
+ * Diese Funktion ruft intern checkAndNotifyConflictsForCalendarEvents auf
+ */
+export async function checkAndNotifyConflictsForCalendarEvent(eventId: string): Promise<void> {
+  return checkAndNotifyConflictsForCalendarEvents([eventId]);
 }
 
 /**

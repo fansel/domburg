@@ -296,20 +296,15 @@ export async function POST(request: NextRequest) {
     });
 
     // Prüfe auf Konflikte nach dem Trennen (Farbe ändern kann Konflikte beeinflussen)
-    const { checkAndNotifyConflictsForCalendarEvent } = await import("@/lib/booking-conflicts");
+    const { checkAndNotifyConflictsForCalendarEvents } = await import("@/lib/booking-conflicts");
     
     const allAffectedEventIds = remainingEventIds.length > 0 
       ? [eventId, ...remainingEventIds]
       : [eventId];
     
-    Promise.all(
-      allAffectedEventIds.map((affectedEventId: string) =>
-        checkAndNotifyConflictsForCalendarEvent(affectedEventId).catch((error: any) => {
-          console.error(`[Calendar] Error checking conflicts after ungrouping single event ${affectedEventId}:`, error);
-        })
-      )
-    ).catch(() => {
-      // Fehler nicht weiterwerfen
+    // Prüfe alle Events auf einmal, um Duplikate zu vermeiden
+    checkAndNotifyConflictsForCalendarEvents(allAffectedEventIds).catch((error: any) => {
+      console.error(`[Calendar] Error checking conflicts after ungrouping single event:`, error);
     });
 
     return NextResponse.json({

@@ -61,7 +61,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hole alle bestehenden Verlinkungen für diese Events
+    // Finde alle transitiv verbundenen Events für jedes neue Event
+    // Dies muss iterativ geschehen, da wir alle Verlinkungen aus der DB holen müssen
+    const getAllConnectedEventIds = async (startEventId: string): Promise<Set<string>> => {
+      const connected = new Set<string>([startEventId]);
+      const queue = [startEventId];
+      const visited = new Set<string>([startEventId]);
+      
+      // Iterative Suche: Hole alle Verlinkungen für alle gefundenen Events
+      while (queue.length > 0) {
+        const currentBatch = Array.from(queue);
+        queue.length = 0; // Leere Queue
+        
+        // Hole alle Verlinkungen für die aktuelle Batch
+        const currentLinks = await prisma.linkedCalendarEvent.findMany({
+          where: {
+            OR: currentBatch.map(id => [
+              { eventId1: id },
+              { eventId2: id },
+            ]).flat(),
+          },
+        });
+        
+        // Verarbeite alle gefundenen Verlinkungen
+        currentLinks.forEach((link: { eventId1: string; eventId2: string }) => {
+          const otherId = currentBatch.includes(link.eventId1) ? link.eventId2 : link.eventId1;
+          if (!visited.has(otherId)) {
+            visited.add(otherId);
+            connected.add(otherId);
+            queue.push(otherId);
+          }
+        });
+      }
+      
+      return connected;
+    };
+
+    // Erstelle Map: eventId -> Array von verlinkten Event-IDs (für Validierung)
+    // Hole zunächst alle direkten Verlinkungen für die neuen Events
     const existingLinks = await prisma.linkedCalendarEvent.findMany({
       where: {
         OR: [
@@ -71,7 +108,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Erstelle Map: eventId -> Array von verlinkten Event-IDs (transitive Closure)
     const linkedEventMap = new Map<string, string[]>();
     existingLinks.forEach((link: { eventId1: string; eventId2: string }) => {
       if (!linkedEventMap.has(link.eventId1)) {
@@ -84,7 +120,7 @@ export async function POST(request: NextRequest) {
       linkedEventMap.get(link.eventId2)!.push(link.eventId1);
     });
 
-    // Finde transitive Closure: Alle Events die über bestehende Links verbunden sind
+    // Finde transitive Closure: Alle Events die über bestehende Links verbunden sind (für Validierung)
     const getConnectedEventIds = (eventId: string): Set<string> => {
       const connected = new Set<string>([eventId]);
       const queue = [eventId];
@@ -225,7 +261,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update alle Events mit der gleichen Farbe
+    // Finde alle transitiv verbundenen Events für jedes neue Event
+    // Dies stellt sicher, dass alle Events in einer durchgehenden Kette verlinkt werden
+    const allLinkedEventIds = new Set<string>(eventIdArray);
+    
+    // Für jedes neue Event: Finde alle transitiv verbundenen Events (iterativ aus DB)
+    for (const eventId of eventIdArray) {
+      const connectedEvents = await getAllConnectedEventIds(eventId);
+      connectedEvents.forEach(connectedId => allLinkedEventIds.add(connectedId));
+    }
+    
+    // Update alle Events mit der gleichen Farbe (nur die neuen Events)
     await Promise.all(
       eventIdArray.map((eventId: string) =>
         updateCalendarEvent(eventId, { colorId })
@@ -233,12 +279,14 @@ export async function POST(request: NextRequest) {
     );
 
     // Speichere Verlinkungen in der Datenbank (alle Events miteinander verlinken)
-    // Erstelle Verlinkungen zwischen allen Event-Paaren
+    // Erstelle Verlinkungen zwischen allen Event-Paaren in der erweiterten Menge
+    // Dies stellt sicher, dass alle Events transitiv verbunden sind (vollständige transitive Closure)
+    const allEventsToLink = Array.from(allLinkedEventIds);
     const linkPromises: Promise<any>[] = [];
-    for (let i = 0; i < eventIdArray.length; i++) {
-      for (let j = i + 1; j < eventIdArray.length; j++) {
-        const eventId1 = eventIdArray[i];
-        const eventId2 = eventIdArray[j];
+    for (let i = 0; i < allEventsToLink.length; i++) {
+      for (let j = i + 1; j < allEventsToLink.length; j++) {
+        const eventId1 = allEventsToLink[i];
+        const eventId2 = allEventsToLink[j];
         // Sortiere IDs für konsistente Speicherung
         const [id1, id2] = [eventId1, eventId2].sort();
         
@@ -263,16 +311,11 @@ export async function POST(request: NextRequest) {
     await Promise.all(linkPromises);
 
     // Prüfe auf Konflikte nach dem Gruppieren (Farbe ändern kann Konflikte beeinflussen)
-    const { checkAndNotifyConflictsForCalendarEvent } = await import("@/lib/booking-conflicts");
+    const { checkAndNotifyConflictsForCalendarEvents } = await import("@/lib/booking-conflicts");
     
-    Promise.all(
-      eventIdArray.map((eventId: string) =>
-        checkAndNotifyConflictsForCalendarEvent(eventId).catch((error: any) => {
-          console.error(`[Calendar] Error checking conflicts after grouping event ${eventId}:`, error);
-        })
-      )
-    ).catch(() => {
-      // Fehler nicht weiterwerfen
+    // Prüfe alle Events auf einmal, um Duplikate zu vermeiden
+    checkAndNotifyConflictsForCalendarEvents(eventIdArray).catch((error: any) => {
+      console.error(`[Calendar] Error checking conflicts after grouping events:`, error);
     });
 
     return NextResponse.json({
