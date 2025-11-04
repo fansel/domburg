@@ -32,22 +32,49 @@ export function BookingsTabs({
   const [conflictsCount, setConflictsCount] = useState<number>(initialConflictsCount);
   const [activeTab, setActiveTab] = useState<string>("pending");
 
-  // Lade aktuelle Konfliktanzahl beim ersten Mount (damit sie aktuell ist, auch wenn Cron Job gerade gelaufen ist)
-  useEffect(() => {
-    const fetchConflictsCount = async () => {
-      try {
-        const response = await fetch("/api/admin/conflicts");
-        const data = await response.json();
-        if (data.success && data.count !== undefined) {
-          setConflictsCount(data.count);
-        }
-      } catch (error) {
-        console.error("Error fetching conflicts count:", error);
-        // Bei Fehler: Initialwert beibehalten
+  // Funktion zum Aktualisieren der Konfliktanzahl
+  const fetchConflictsCount = async () => {
+    try {
+      const response = await fetch("/api/admin/conflicts");
+      const data = await response.json();
+      if (data.success && data.count !== undefined) {
+        setConflictsCount(data.count);
       }
+    } catch (error) {
+      console.error("Error fetching conflicts count:", error);
+      // Bei Fehler: Aktuellen Wert beibehalten
+    }
+  };
+
+  // Lade aktuelle Konfliktanzahl beim ersten Mount
+  useEffect(() => {
+    fetchConflictsCount();
+  }, []);
+
+  // Höre auf Custom Events, die von anderen Komponenten gesendet werden
+  // wenn Aktionen ausgeführt werden, die Konflikte beeinflussen könnten
+  useEffect(() => {
+    const handleConflictsUpdate = () => {
+      // Kurze Verzögerung, damit die DB-Änderungen verarbeitet werden
+      setTimeout(() => {
+        fetchConflictsCount();
+      }, 500);
     };
 
-    fetchConflictsCount();
+    // Höre auf verschiedene Events, die Konflikte beeinflussen könnten
+    window.addEventListener('calendar-event-updated', handleConflictsUpdate);
+    window.addEventListener('calendar-event-grouped', handleConflictsUpdate);
+    window.addEventListener('calendar-event-ungrouped', handleConflictsUpdate);
+    window.addEventListener('calendar-event-deleted', handleConflictsUpdate);
+    window.addEventListener('booking-updated', handleConflictsUpdate);
+
+    return () => {
+      window.removeEventListener('calendar-event-updated', handleConflictsUpdate);
+      window.removeEventListener('calendar-event-grouped', handleConflictsUpdate);
+      window.removeEventListener('calendar-event-ungrouped', handleConflictsUpdate);
+      window.removeEventListener('calendar-event-deleted', handleConflictsUpdate);
+      window.removeEventListener('booking-updated', handleConflictsUpdate);
+    };
   }, []);
 
   const tabs = [

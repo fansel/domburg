@@ -131,6 +131,8 @@ export function CalendarBookingsManager() {
         });
         setEditingId(null);
         loadBookings();
+        // Dispatch Event für Konfliktanzahl-Update
+        window.dispatchEvent(new CustomEvent('calendar-event-updated'));
       } else {
         toast({
           title: "Fehler",
@@ -168,6 +170,8 @@ export function CalendarBookingsManager() {
         });
         loadBookings();
         setSelectedBookings(new Set()); // Selection zurücksetzen
+        // Dispatch Event für Konfliktanzahl-Update
+        window.dispatchEvent(new CustomEvent('calendar-event-deleted'));
       } else {
         toast({
           title: "Fehler",
@@ -293,6 +297,8 @@ export function CalendarBookingsManager() {
         setSelectedBookings(new Set());
         setIsGrouping(false);
         loadBookings();
+        // Dispatch Event für Konfliktanzahl-Update
+        window.dispatchEvent(new CustomEvent('calendar-event-grouped'));
       } else {
         throw new Error(result.error || "Fehler beim Zusammenlegen");
       }
@@ -338,6 +344,8 @@ export function CalendarBookingsManager() {
       setSelectedBookings(new Set());
       setIsUngrouping(false);
       loadBookings();
+      // Dispatch Event für Konfliktanzahl-Update
+      window.dispatchEvent(new CustomEvent('calendar-event-ungrouped'));
     } catch (error: any) {
       setIsUngrouping(false);
       toast({
@@ -398,6 +406,8 @@ export function CalendarBookingsManager() {
       setTimeout(() => {
         loadBookings();
       }, 500);
+      // Dispatch Event für Konfliktanzahl-Update
+      window.dispatchEvent(new CustomEvent('calendar-event-ungrouped'));
     } catch (error: any) {
       setIsUngrouping(false);
       toast({
@@ -445,6 +455,8 @@ export function CalendarBookingsManager() {
       setSelectedBookings(new Set());
       setIsUngrouping(false);
       loadBookings();
+      // Dispatch Event für Konfliktanzahl-Update
+      window.dispatchEvent(new CustomEvent('calendar-event-ungrouped'));
     } catch (error: any) {
       setIsUngrouping(false);
       toast({
@@ -482,6 +494,8 @@ export function CalendarBookingsManager() {
         setIsDialogOpen(false);
         setNewBooking({ summary: "", start: "", end: "", isInfo: false });
         loadBookings();
+        // Dispatch Event für Konfliktanzahl-Update
+        window.dispatchEvent(new CustomEvent('calendar-event-updated'));
       } else {
         toast({
           title: "Fehler",

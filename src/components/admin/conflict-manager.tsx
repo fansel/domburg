@@ -149,6 +149,8 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
         });
         loadConflicts(); // Neu laden um aktualisierte Konflikte zu sehen
         checkGroupedEvents(); // Aktualisiere Gruppierungen
+        // Dispatch Event für Konfliktanzahl-Update
+        window.dispatchEvent(new CustomEvent('calendar-event-grouped'));
       } else {
         throw new Error(result.error || "Fehler beim Zusammenlegen");
       }

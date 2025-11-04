@@ -295,6 +295,8 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
         });
         setIsDetailDialogOpen(false);
         router.refresh();
+        // Dispatch Event für Konfliktanzahl-Update
+        window.dispatchEvent(new CustomEvent('calendar-event-grouped'));
       } else {
         throw new Error(result.error || "Fehler beim Zusammenlegen");
       }
@@ -333,6 +335,8 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
       });
       setIsDetailDialogOpen(false);
       router.refresh();
+      // Dispatch Event für Konfliktanzahl-Update
+      window.dispatchEvent(new CustomEvent('calendar-event-ungrouped'));
     } catch (error: any) {
       toast({
         title: "Fehler",
