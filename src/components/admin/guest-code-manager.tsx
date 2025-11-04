@@ -93,12 +93,48 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
     setIsCreating(false);
   };
 
-  const handleCopy = (code: string) => {
-    navigator.clipboard.writeText(code);
-    toast({
-      title: "Kopiert",
-      description: "Code wurde in die Zwischenablage kopiert",
-    });
+  const handleCopy = async (code: string) => {
+    try {
+      // Prüfe ob Clipboard API verfügbar ist
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(code);
+        toast({
+          title: "Kopiert",
+          description: "Code wurde in die Zwischenablage kopiert",
+        });
+      } else {
+        // Fallback-Methode: Verwende temporäres Input-Element
+        const textArea = document.createElement("textarea");
+        textArea.value = code;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          const successful = document.execCommand("copy");
+          if (successful) {
+            toast({
+              title: "Kopiert",
+              description: "Code wurde in die Zwischenablage kopiert",
+            });
+          } else {
+            throw new Error("Copy-Befehl fehlgeschlagen");
+          }
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+    } catch (error) {
+      console.error("Fehler beim Kopieren:", error);
+      toast({
+        title: "Fehler",
+        description: "Code konnte nicht kopiert werden. Bitte manuell kopieren.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleToggle = async (id: string, currentState: boolean) => {

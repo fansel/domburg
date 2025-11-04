@@ -17,6 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "@/contexts/LanguageContext";
 
 interface AdminBookingFormProps {
@@ -47,24 +49,36 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pricing, setPricing] = useState<PriceCalculation | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+  const [useFamilyPrice, setUseFamilyPrice] = useState(false);
+  const [activeTab, setActiveTab] = useState<"booking" | "manual">("booking");
   const { toast } = useToast();
   const router = useRouter();
+  
+  const isManualEntry = activeTab === "manual";
+
+  // Hilfsfunktion: Konvertiere Date zu lokaler YYYY-MM-DD Format
+  const formatDateToLocalString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Pre-fill dates if provided
   useEffect(() => {
     if (initialStartDate) {
-      setStartDate(initialStartDate.toISOString().split("T")[0]);
+      setStartDate(formatDateToLocalString(initialStartDate));
     }
     if (initialEndDate) {
-      setEndDate(initialEndDate.toISOString().split("T")[0]);
+      setEndDate(formatDateToLocalString(initialEndDate));
     }
   }, [initialStartDate, initialEndDate, open]);
 
   // Reset form when dialog closes
   useEffect(() => {
     if (!open) {
-      setStartDate(initialStartDate?.toISOString().split("T")[0] || "");
-      setEndDate(initialEndDate?.toISOString().split("T")[0] || "");
+      setStartDate(initialStartDate ? formatDateToLocalString(initialStartDate) : "");
+      setEndDate(initialEndDate ? formatDateToLocalString(initialEndDate) : "");
       setNumberOfAdults(2);
       setNumberOfChildren(0);
       setGuestEmail("");
@@ -72,17 +86,19 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
       setGuestPhone("");
       setMessage("");
       setPricing(null);
+      setUseFamilyPrice(false);
+      setActiveTab("booking");
     }
   }, [open, initialStartDate, initialEndDate]);
 
-  // Live-Preisberechnung wenn Datum geändert wird
+  // Live-Preisberechnung wenn Datum oder Family-Preis geändert wird
   useEffect(() => {
-    if (startDate && endDate) {
+    if (startDate && endDate && !isManualEntry) {
       calculatePrice();
     } else {
       setPricing(null);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, useFamilyPrice, isManualEntry]);
 
   const calculatePrice = async () => {
     if (!startDate || !endDate) return;
@@ -95,6 +111,7 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
         body: JSON.stringify({
           startDate: new Date(startDate).toISOString(),
           endDate: new Date(endDate).toISOString(),
+          useFamilyPrice: useFamilyPrice,
         }),
       });
 
@@ -121,20 +138,64 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
       return;
     }
 
+    // Bei manuellem Eintrag nur Titel/Titel prüfen
+    if (isManualEntry) {
+      if (!guestName || !guestName.trim()) {
+        toast({
+          variant: "destructive",
+          title: "Fehler",
+          description: "Titel fehlt",
+        });
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const response = await fetch("/api/admin/calendar-bookings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            summary: guestName.trim(),
+            start: new Date(startDate).toISOString(),
+            end: new Date(endDate).toISOString(),
+            isInfo: false,
+          }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          toast({
+            title: "Erfolgreich",
+            description: "Manueller Eintrag erstellt",
+          });
+          onOpenChange(false);
+          router.refresh();
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Fehler",
+            description: data.error || "Fehler beim Erstellen des Eintrags",
+          });
+        }
+      } catch (error) {
+        console.error("Error creating manual entry:", error);
+        toast({
+          variant: "destructive",
+          title: "Fehler",
+          description: "Fehler aufgetreten",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // Normale Buchung validieren
     if (!guestEmail) {
       toast({
         variant: "destructive",
         title: "Fehler",
         description: "E-Mail-Adresse fehlt",
-      });
-      return;
-    }
-
-    if (!guestPhone || !guestPhone.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: "Telefonnummer fehlt",
       });
       return;
     }
@@ -149,8 +210,9 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
         numberOfChildren,
         guestEmail: guestEmail.trim(),
         guestName: guestName.trim() || undefined,
-        guestPhone: guestPhone.trim(),
+        guestPhone: guestPhone.trim() || undefined,
         message: message.trim() || undefined,
+        useFamilyPrice: useFamilyPrice,
       });
 
       if (result.success) {
@@ -185,11 +247,18 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
         <DialogHeader>
           <DialogTitle>Neue Buchung erstellen</DialogTitle>
           <DialogDescription>
-            Erstellen Sie eine neue Buchungsanfrage für einen Gast
+            Erstellen Sie eine neue Buchungsanfrage für einen Gast oder einen manuellen Kalendereintrag
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "booking" | "manual")} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="booking">Buchung</TabsTrigger>
+            <TabsTrigger value="manual">Manueller Eintrag</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={activeTab} className="mt-0">
+            <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="startDate" className="flex items-center gap-2">
@@ -227,82 +296,105 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
             <div className="space-y-2">
               <Label htmlFor="guestName" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
-                Name (optional)
+                {isManualEntry ? "Titel *" : "Name (optional)"}
               </Label>
               <Input
                 id="guestName"
                 type="text"
                 value={guestName}
                 onChange={(e) => setGuestName(e.target.value)}
-                placeholder="Max Mustermann"
+                placeholder={isManualEntry ? "z.B. Wartung" : "Max Mustermann"}
+                required={isManualEntry}
                 disabled={isSubmitting}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="guestEmail" className="flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                E-Mail *
-              </Label>
-              <Input
-                id="guestEmail"
-                type="email"
-                value={guestEmail}
-                onChange={(e) => setGuestEmail(e.target.value)}
-                placeholder="gast@example.com"
-                required
-                disabled={isSubmitting}
-              />
-            </div>
+            {!isManualEntry && (
+              <div className="space-y-2">
+                <Label htmlFor="guestEmail" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  E-Mail *
+                </Label>
+                <Input
+                  id="guestEmail"
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="gast@example.com"
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="guestPhone" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Telefonnummer *
-            </Label>
-            <Input
-              id="guestPhone"
-              type="tel"
-              value={guestPhone}
-              onChange={(e) => setGuestPhone(e.target.value)}
-              placeholder="+49 123 456789"
-              required
-              disabled={isSubmitting}
-            />
-          </div>
+          {!isManualEntry && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="guestPhone" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Telefonnummer (optional)
+                </Label>
+                <Input
+                  id="guestPhone"
+                  type="tel"
+                  value={guestPhone}
+                  onChange={(e) => setGuestPhone(e.target.value)}
+                  placeholder="+49 123 456789"
+                  disabled={isSubmitting}
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="numberOfAdults" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Anzahl Erwachsene
-            </Label>
-            <Input
-              id="numberOfAdults"
-              type="number"
-              min="1"
-              max="20"
-              value={numberOfAdults}
-              onChange={(e) => setNumberOfAdults(parseInt(e.target.value) || 1)}
-              required
-              disabled={isSubmitting}
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="numberOfAdults" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Anzahl Erwachsene
+                </Label>
+                <Input
+                  id="numberOfAdults"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={numberOfAdults}
+                  onChange={(e) => setNumberOfAdults(parseInt(e.target.value) || 1)}
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="numberOfChildren">
-              Anzahl Kinder
-            </Label>
-            <Input
-              id="numberOfChildren"
-              type="number"
-              min="0"
-              max="20"
-              value={numberOfChildren}
-              onChange={(e) => setNumberOfChildren(parseInt(e.target.value) || 0)}
-              disabled={isSubmitting}
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="numberOfChildren">
+                  Anzahl Kinder
+                </Label>
+                <Input
+                  id="numberOfChildren"
+                  type="number"
+                  min="0"
+                  max="20"
+                  value={numberOfChildren}
+                  onChange={(e) => setNumberOfChildren(parseInt(e.target.value) || 0)}
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 border rounded-lg p-4 bg-muted/50">
+                <Switch
+                  id="useFamilyPrice"
+                  checked={useFamilyPrice}
+                  onCheckedChange={setUseFamilyPrice}
+                  disabled={isSubmitting}
+                />
+                <div className="flex-1">
+                  <Label htmlFor="useFamilyPrice" className="cursor-pointer font-semibold">
+                    Familienrabatt aktivieren
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Ermäßigter Preis (120€ statt 180€ pro Nacht)
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="message">Nachricht (optional)</Label>
@@ -316,7 +408,7 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
             />
           </div>
 
-          {pricing && (
+          {!isManualEntry && pricing && (
             <div className="p-4 bg-muted rounded-lg space-y-2">
               <div className="flex items-center gap-2 font-medium">
                 <Euro className="h-4 w-4" />
@@ -341,7 +433,7 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
             </div>
           )}
 
-          {isLoadingPrice && (
+          {!isManualEntry && isLoadingPrice && (
             <div className="text-sm text-muted-foreground flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               Preis wird berechnet...
@@ -357,18 +449,20 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
             >
               Abbrechen
             </Button>
-            <Button type="submit" disabled={isSubmitting || isLoadingPrice}>
+            <Button type="submit" disabled={isSubmitting || (isLoadingPrice && !isManualEntry)}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Wird erstellt...
                 </>
               ) : (
-                "Buchung erstellen"
+                isManualEntry ? "Eintrag erstellen" : "Buchung erstellen"
               )}
             </Button>
           </div>
         </form>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

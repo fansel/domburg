@@ -18,18 +18,25 @@ export async function shouldNotifyAdmin(
       return false;
     }
 
+    // Standardwerte (wie im Schema definiert)
+    const defaults: Record<typeof notificationType, boolean> = {
+      newBooking: true,
+      bookingApproved: false,
+      bookingRejected: false,
+      bookingConflict: false, // Standard: deaktiviert - Admin muss aktivieren
+    };
+
     // Wenn keine Präferenzen gesetzt sind, verwende Standardwerte
     if (!admin.notificationPreferences) {
-      const defaults: Record<typeof notificationType, boolean> = {
-        newBooking: true,
-        bookingApproved: false,
-        bookingRejected: false,
-        bookingConflict: false, // Standard: deaktiviert - Admin muss aktivieren
-      };
       return defaults[notificationType];
     }
 
-    return admin.notificationPreferences[notificationType];
+    // Wenn Präferenzen vorhanden, verwende den Wert (falls undefined/null, dann Standardwert)
+    const preferenceValue = admin.notificationPreferences[notificationType];
+    // Stelle sicher, dass der Wert explizit als Boolean behandelt wird
+    return preferenceValue !== undefined && preferenceValue !== null 
+      ? Boolean(preferenceValue)
+      : defaults[notificationType];
   } catch (error) {
     console.error("Error checking notification preferences:", error);
     // Bei Fehler Standard: Benachrichtigungen aktivieren
@@ -59,20 +66,27 @@ export async function getAdminsToNotify(
 
     const emails: string[] = [];
 
+    // Standardwerte (wie im Schema definiert)
+    const defaults: Record<typeof notificationType, boolean> = {
+      newBooking: true,
+      bookingApproved: false,
+      bookingRejected: false,
+      bookingConflict: false, // Standard: deaktiviert - Admin muss aktivieren
+    };
+
     for (const admin of admins) {
       let shouldNotify = false;
 
       if (!admin.notificationPreferences) {
-        // Standardwerte (wie im Schema definiert)
-        const defaults: Record<typeof notificationType, boolean> = {
-          newBooking: true,
-          bookingApproved: false,
-          bookingRejected: false,
-          bookingConflict: false, // Standard: deaktiviert - Admin muss aktivieren
-        };
+        // Wenn keine Präferenzen vorhanden, verwende Standardwerte
         shouldNotify = defaults[notificationType];
       } else {
-        shouldNotify = admin.notificationPreferences[notificationType];
+        // Wenn Präferenzen vorhanden, verwende den Wert (falls undefined/null, dann Standardwert)
+        const preferenceValue = admin.notificationPreferences[notificationType];
+        // Stelle sicher, dass der Wert explizit als Boolean behandelt wird
+        shouldNotify = preferenceValue !== undefined && preferenceValue !== null 
+          ? Boolean(preferenceValue)
+          : defaults[notificationType];
       }
 
       if (shouldNotify) {

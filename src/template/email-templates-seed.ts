@@ -236,7 +236,7 @@ Familie Waubke`,
     name: "Anfrage genehmigt",
     subject: "Zusage für deine Anfrage",
     description: "Bestätigung wenn Admin die Anfrage genehmigt",
-    variables: ["guestName", "bookingCode", "startDate", "endDate", "numberOfGuests", "totalPrice", "adminNotes", "guestCode"],
+    variables: ["guestName", "bookingCode", "startDate", "endDate", "numberOfGuests", "totalPrice", "guestCode"],
     bodyHtml: `
 <!DOCTYPE html>
 <html>
@@ -281,9 +281,6 @@ Familie Waubke`,
         <p><strong>Zeitraum:</strong> {{startDate}} bis {{endDate}}</p>
         <p><strong>Gäste:</strong> {{numberOfGuests}}</p>
         <p><strong>Gesamtpreis:</strong> €{{totalPrice}}</p>
-        {{#if adminNotes}}
-        <p><strong>Nachricht von uns:</strong><br>{{adminNotes}}</p>
-        {{/if}}
       </div>
       
       <p>Falls du noch Fragen hast, schreib uns einfach zurück - wir helfen gerne!</p>
@@ -309,11 +306,6 @@ Verwendeter Zugangscode: {{guestCode}}
 Zeitraum: {{startDate}} bis {{endDate}}
 Gäste: {{numberOfGuests}}
 Gesamtpreis: €{{totalPrice}}
-
-{{#if adminNotes}}
-NACHRICHT VON UNS:
-{{adminNotes}}
-{{/if}}
 
 Falls du noch Fragen hast, schreib uns einfach zurück - wir helfen gerne!
 
@@ -611,7 +603,7 @@ Anfrage prüfen: {{adminUrl}}`,
     name: "Buchung genehmigt (an Admin)",
     subject: "Buchung #{{bookingCode}} wurde genehmigt",
     description: "Benachrichtigung an Admins wenn eine Buchung von einem anderen Admin genehmigt wurde",
-    variables: ["bookingCode", "guestName", "guestEmail", "startDate", "endDate", "approvedByName", "adminUrl"],
+    variables: ["bookingCode", "guestName", "guestEmail", "startDate", "endDate", "approvedByName", "adminNotes", "adminUrl"],
     bodyHtml: `
 <!DOCTYPE html>
 <html>
@@ -649,6 +641,9 @@ Anfrage prüfen: {{adminUrl}}`,
         <p><strong>Gast:</strong> {{guestName}} ({{guestEmail}})</p>
         <p><strong>Zeitraum:</strong> {{startDate}} bis {{endDate}}</p>
         <p><strong>Genehmigt von:</strong> {{approvedByName}}</p>
+        {{#if adminNotes}}
+        <p><strong>Admin-Notizen:</strong><br>{{adminNotes}}</p>
+        {{/if}}
       </div>
       
       <a href="{{adminUrl}}" class="button">Buchung anzeigen</a>
@@ -668,6 +663,11 @@ Gast: {{guestName}} ({{guestEmail}})
 Zeitraum: {{startDate}} bis {{endDate}}
 Genehmigt von: {{approvedByName}}
 
+{{#if adminNotes}}
+ADMIN-NOTIZEN:
+{{adminNotes}}
+{{/if}}
+
 Buchung anzeigen: {{adminUrl}}
 
 Viele Grüße
@@ -678,7 +678,7 @@ Hollandhaus Buchungssystem`,
     name: "Buchung abgelehnt (an Admin)",
     subject: "Buchung #{{bookingCode}} wurde abgelehnt",
     description: "Benachrichtigung an Admins wenn eine Buchung von einem anderen Admin abgelehnt wurde",
-    variables: ["bookingCode", "guestName", "guestEmail", "startDate", "endDate", "rejectedByName", "rejectionReason", "adminUrl"],
+    variables: ["bookingCode", "guestName", "guestEmail", "startDate", "endDate", "rejectedByName", "rejectionReason", "adminNotes", "adminUrl"],
     bodyHtml: `
 <!DOCTYPE html>
 <html>
@@ -719,6 +719,9 @@ Hollandhaus Buchungssystem`,
         {{#if rejectionReason}}
         <p><strong>Grund:</strong><br>{{rejectionReason}}</p>
         {{/if}}
+        {{#if adminNotes}}
+        <p><strong>Admin-Notizen:</strong><br>{{adminNotes}}</p>
+        {{/if}}
       </div>
       
       <a href="{{adminUrl}}" class="button">Buchung anzeigen</a>
@@ -741,6 +744,11 @@ Abgelehnt von: {{rejectedByName}}
 {{#if rejectionReason}}
 GRUND:
 {{rejectionReason}}
+{{/if}}
+
+{{#if adminNotes}}
+ADMIN-NOTIZEN:
+{{adminNotes}}
 {{/if}}
 
 Buchung anzeigen: {{adminUrl}}

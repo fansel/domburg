@@ -512,10 +512,12 @@ export async function filterIgnoredConflicts(
 
 /**
  * Prüft ob ein Konflikt bereits benachrichtigt wurde
+ * @param allowReNotificationAfterDays - Wenn gesetzt, erlaubt erneute Benachrichtigung nach X Tagen (Standard: 7)
  */
 export async function isConflictNotified(
   conflictKey: string,
-  conflictType: string
+  conflictType: string,
+  allowReNotificationAfterDays: number = 7
 ): Promise<boolean> {
   // Dynamischer Import um sicherzustellen dass prisma verfügbar ist
   const prismaClient = prisma || (await import('./prisma')).default;
@@ -529,7 +531,23 @@ export async function isConflictNotified(
         },
       },
     });
-    return !!notified;
+    
+    if (!notified) {
+      return false;
+    }
+    
+    // Wenn der Konflikt bereits benachrichtigt wurde, prüfe ob erneut benachrichtigt werden kann
+    // (nach X Tagen erlaubt erneute Benachrichtigung bei weiterhin bestehenden Konflikten)
+    const daysSinceNotification = Math.floor(
+      (Date.now() - notified.notifiedAt.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    
+    if (daysSinceNotification >= allowReNotificationAfterDays) {
+      console.log(`[Conflict] Conflict ${conflictKey} was notified ${daysSinceNotification} days ago - allowing re-notification`);
+      return false; // Erlaube erneute Benachrichtigung
+    }
+    
+    return true; // Zu kürzlich benachrichtigt
   } catch (error: any) {
     // Wenn das Model noch nicht existiert (Migration nicht ausgeführt)
     if (error?.code === 'P2001' || error?.message?.includes('does not exist')) {
@@ -537,6 +555,70 @@ export async function isConflictNotified(
       return false;
     }
     throw error;
+  }
+}
+
+/**
+ * Setzt die Benachrichtigung für einen Konflikt zurück (z.B. wenn Events entlinkt werden)
+ * Erlaubt erneute Benachrichtigung bei weiterhin bestehenden Konflikten
+ */
+export async function resetConflictNotification(
+  conflictKey: string,
+  conflictType: string
+): Promise<void> {
+  const prismaClient = prisma || (await import('./prisma')).default;
+  
+  try {
+    await prismaClient.notifiedConflict.deleteMany({
+      where: {
+        conflictKey,
+        conflictType,
+      },
+    });
+    console.log(`[Conflict] Reset notification for ${conflictType} conflict: ${conflictKey}`);
+  } catch (error: any) {
+    console.error(`[Conflict] Error resetting notification for ${conflictKey}:`, error);
+    // Nicht kritisch - fehlschlagen ist ok
+  }
+}
+
+/**
+ * Setzt Benachrichtigungen für Konflikte zurück, die bestimmte Event-IDs betreffen
+ * Wird verwendet wenn Events entlinkt werden
+ */
+export async function resetConflictNotificationsForEvents(
+  eventIds: string[]
+): Promise<void> {
+  const prismaClient = prisma || (await import('./prisma')).default;
+  
+  try {
+    // Finde alle benachrichtigten Konflikte, die diese Events betreffen
+    const notifiedConflicts = await prismaClient.notifiedConflict.findMany({
+      where: {
+        conflictType: 'OVERLAPPING_CALENDAR_EVENTS',
+      },
+    });
+    
+    // Prüfe welche Konflikte diese Events betreffen
+    for (const notified of notifiedConflicts) {
+      const conflictEventIds = notified.conflictKey.split('-');
+      const hasAnyEvent = conflictEventIds.some((id: string) => eventIds.includes(id));
+      
+      if (hasAnyEvent) {
+        await prismaClient.notifiedConflict.delete({
+          where: {
+            conflictKey_conflictType: {
+              conflictKey: notified.conflictKey,
+              conflictType: notified.conflictType,
+            },
+          },
+        });
+        console.log(`[Conflict] Reset notification for conflict involving events: ${notified.conflictKey}`);
+      }
+    }
+  } catch (error: any) {
+    console.error(`[Conflict] Error resetting notifications for events:`, error);
+    // Nicht kritisch - fehlschlagen ist ok
   }
 }
 

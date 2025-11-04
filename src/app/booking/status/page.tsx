@@ -329,15 +329,7 @@ function BookingStatusPageContent() {
                 </div>
               )}
 
-              {/* Admin Notes */}
-              {booking.adminNotes && (
-                <div className="rounded-lg bg-blue-50 p-4">
-                  <p className="font-semibold text-sm mb-1">{t("bookingStatus.noteFromUs")}</p>
-                  <p className="text-sm text-muted-foreground">{booking.adminNotes}</p>
-                </div>
-              )}
-
-              {/* Ablehnung */}
+              {/* Ablehnung - Nur Ablehnungsgrund wird angezeigt, Admin-Notizen bleiben intern */}
               {booking.status === "REJECTED" && booking.rejectionReason && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-4">
                   <p className="font-semibold text-sm text-red-900 mb-1">{t("bookingStatus.rejectionReason")}</p>

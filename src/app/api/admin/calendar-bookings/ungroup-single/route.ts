@@ -3,6 +3,7 @@ import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import { updateCalendarEvent, getCalendarEvents } from "@/lib/google-calendar";
 import { getBookingColorId } from "@/lib/utils";
 import prisma from "@/lib/prisma";
+import { resetConflictNotificationsForEvents } from "@/lib/booking-conflicts";
 
 export async function POST(request: NextRequest) {
   try {
@@ -109,6 +110,10 @@ export async function POST(request: NextRequest) {
         ],
       },
     });
+
+    // Setze Benachrichtigungen für Konflikte zurück, die diese Events betreffen
+    // (damit der Konflikt erneut benachrichtigt werden kann, wenn er weiterhin besteht)
+    await resetConflictNotificationsForEvents([eventId, ...allConnectedEventIds]);
 
     // JETZT: Finde alle isolierten Events (Events die keine Verlinkungen mehr haben)
     // und trenne sie von der Gruppe

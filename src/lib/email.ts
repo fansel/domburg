@@ -373,7 +373,6 @@ export async function sendBookingApprovalToGuest({
   numberOfAdults,
   numberOfChildren,
   totalPrice,
-  adminNotes,
   guestCode,
 }: {
   guestEmail: string;
@@ -384,7 +383,6 @@ export async function sendBookingApprovalToGuest({
   numberOfAdults: number;
   numberOfChildren?: number;
   totalPrice: number;
-  adminNotes?: string;
   guestCode?: string;
 }) {
   const replyTo = await getReplyToEmail();
@@ -398,7 +396,7 @@ export async function sendBookingApprovalToGuest({
     numberOfChildren: (numberOfChildren || 0).toString(),
     numberOfGuests: (numberOfAdults + (numberOfChildren || 0)).toString(), // Für Rückwärtskompatibilität mit Templates
     totalPrice: formatEmailPrice(totalPrice),
-    adminNotes: adminNotes || '',
+    // adminNotes wird NICHT an Gäste gesendet - nur für interne Admin-Notizen
   };
   
   if (guestCode) {
@@ -580,6 +578,7 @@ export async function sendBookingApprovedNotificationToAdmin({
   startDate,
   endDate,
   approvedByName,
+  adminNotes,
 }: {
   adminEmail: string;
   bookingCode: string;
@@ -588,17 +587,21 @@ export async function sendBookingApprovedNotificationToAdmin({
   startDate: Date;
   endDate: Date;
   approvedByName: string;
+  adminNotes?: string;
 }) {
   const appUrl = await getPublicUrl();
   // Finde Buchung über bookingCode um die ID zu bekommen
   const booking = await prisma.booking.findUnique({ 
     where: { bookingCode },
-    select: { id: true },
+    select: { id: true, adminNotes: true },
   });
   const adminUrl = booking 
     ? `${appUrl}/admin/bookings/${booking.id}`
     : `${appUrl}/admin/bookings`;
   const replyTo = await getReplyToEmail();
+  
+  // Verwende adminNotes aus Parameter oder aus Datenbank
+  const notes = adminNotes || booking?.adminNotes || '';
   
   return sendTemplatedEmail('admin_booking_approved', adminEmail, {
     bookingCode,
@@ -607,6 +610,7 @@ export async function sendBookingApprovedNotificationToAdmin({
     startDate: formatEmailDate(startDate),
     endDate: formatEmailDate(endDate),
     approvedByName,
+    adminNotes: notes,
     adminUrl,
   }, replyTo, undefined, 'admin_booking_approved');
 }
@@ -621,6 +625,7 @@ export async function sendBookingRejectedNotificationToAdmin({
   endDate,
   rejectedByName,
   rejectionReason,
+  adminNotes,
 }: {
   adminEmail: string;
   bookingCode: string;
@@ -630,17 +635,21 @@ export async function sendBookingRejectedNotificationToAdmin({
   endDate: Date;
   rejectedByName: string;
   rejectionReason?: string;
+  adminNotes?: string;
 }) {
   const appUrl = await getPublicUrl();
   // Finde Buchung über bookingCode um die ID zu bekommen
   const booking = await prisma.booking.findUnique({ 
     where: { bookingCode },
-    select: { id: true },
+    select: { id: true, adminNotes: true },
   });
   const adminUrl = booking 
     ? `${appUrl}/admin/bookings/${booking.id}`
     : `${appUrl}/admin/bookings`;
   const replyTo = await getReplyToEmail();
+  
+  // Verwende adminNotes aus Parameter oder aus Datenbank
+  const notes = adminNotes || booking?.adminNotes || '';
   
   return sendTemplatedEmail('admin_booking_rejected', adminEmail, {
     bookingCode,
@@ -650,6 +659,7 @@ export async function sendBookingRejectedNotificationToAdmin({
     endDate: formatEmailDate(endDate),
     rejectedByName,
     rejectionReason: rejectionReason || '',
+    adminNotes: notes,
     adminUrl,
   }, replyTo, undefined, 'admin_booking_rejected');
 }

@@ -3,6 +3,7 @@ import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import { updateCalendarEvent } from "@/lib/google-calendar";
 import { getBookingColorId } from "@/lib/utils";
 import prisma from "@/lib/prisma";
+import { resetConflictNotificationsForEvents } from "@/lib/booking-conflicts";
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,6 +70,10 @@ export async function POST(request: NextRequest) {
         ],
       },
     });
+
+    // Setze Benachrichtigungen für Konflikte zurück, die diese Events betreffen
+    // (damit der Konflikt erneut benachrichtigt werden kann, wenn er weiterhin besteht)
+    await resetConflictNotificationsForEvents(eventIds);
 
     // Prüfe auf Konflikte nach dem Trennen (Farbe ändern kann Konflikte beeinflussen)
     const { checkAndNotifyConflictsForCalendarEvent } = await import("@/lib/booking-conflicts");

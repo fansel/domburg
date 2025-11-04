@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
-    const { startDate, endDate, guestCode } = await request.json();
+    const { startDate, endDate, guestCode, useFamilyPrice: explicitUseFamilyPrice } = await request.json();
 
     if (!startDate || !endDate) {
       return NextResponse.json(
@@ -13,9 +13,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prüfe ob Guest Code Family-Preis hat
-    let useFamilyPrice = false;
-    if (guestCode) {
+    // Prüfe ob Family-Preis explizit gesetzt oder über Guest Code aktiviert ist
+    let useFamilyPrice = explicitUseFamilyPrice || false;
+    if (!useFamilyPrice && guestCode) {
       const token = await prisma.guestAccessToken.findUnique({
         where: { token: guestCode, isActive: true },
       });

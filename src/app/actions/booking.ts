@@ -27,9 +27,10 @@ export async function createBooking(formData: {
   numberOfChildren?: number;
   guestEmail: string;
   guestName?: string;
-  guestPhone: string;
+  guestPhone?: string;
   message?: string;
   guestCode?: string;
+  useFamilyPrice?: boolean;
 }) {
   try {
     // Optional: User holen wenn eingeloggt (für Admin-Buchungen)
@@ -44,15 +45,8 @@ export async function createBooking(formData: {
       return { success: false, error: "Ungültige E-Mail-Adresse" };
     }
 
-    // Name validieren (Pflichtfeld)
-    if (!formData.guestName || !formData.guestName.trim()) {
-      return { success: false, error: "Name ist erforderlich" };
-    }
-
-    // Telefonnummer validieren (Pflichtfeld)
-    if (!formData.guestPhone || !formData.guestPhone.trim()) {
-      return { success: false, error: "Telefonnummer ist erforderlich" };
-    }
+    // Name validieren (optional für Admin-Buchungen)
+    // Telefonnummer ist optional für Admin-Buchungen
 
     // Daten validieren
     const validation = await validateBookingDates(startDate, endDate);
@@ -60,9 +54,15 @@ export async function createBooking(formData: {
       return { success: false, error: validation.error };
     }
 
-    // Prüfe ob Family-Preis verwendet wird (über Guest Code)
-    let useFamilyPrice = false;
-    // TODO: Family-Preis Prüfung hier implementieren wenn nötig
+    // Prüfe ob Family-Preis verwendet wird (explizit gesetzt oder über Guest Code)
+    let useFamilyPrice = formData.useFamilyPrice || false;
+    if (!useFamilyPrice && formData.guestCode) {
+      // Prüfe ob Guest Code Family-Preis hat
+      const token = await prisma.guestAccessToken.findUnique({
+        where: { token: formData.guestCode, isActive: true },
+      });
+      useFamilyPrice = token?.useFamilyPrice || false;
+    }
     
     // Preis berechnen (Strandbude wird automatisch aktiviert wenn in aktiver Session)
     const pricing = await calculateBookingPrice(startDate, endDate, useFamilyPrice);
@@ -106,8 +106,8 @@ export async function createBooking(formData: {
       data: {
         bookingCode,
         guestEmail: formData.guestEmail,
-        guestName: formData.guestName,
-        guestPhone: formData.guestPhone,
+        guestName: formData.guestName || null,
+        guestPhone: formData.guestPhone || null,
         guestCode: formData.guestCode || null, // Speichere den verwendeten Zugangscode
         userId: user?.id, // Optional: nur wenn eingeloggt
         startDate,
@@ -370,6 +370,7 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
         false
       );
       
+      // Admin-Notizen werden NICHT an Gäste gesendet - nur für interne Admin-Notizen
       await sendBookingApprovalToGuest({
         guestEmail: booking.guestEmail,
         bookingCode: booking.bookingCode,
@@ -379,7 +380,6 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
         numberOfAdults: (booking as any).numberOfAdults ?? (booking as any).numberOfGuests ?? 1,
         numberOfChildren: (booking as any).numberOfChildren ?? 0,
         totalPrice: parseFloat((booking.totalPrice || 0).toString()),
-        adminNotes: booking.adminNotes || undefined,
         guestCode: booking.guestCode || undefined,
       });
 
@@ -398,6 +398,7 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
               startDate: booking.startDate,
               endDate: booking.endDate,
               approvedByName: user.name || user.email,
+              adminNotes: booking.adminNotes || undefined, // Admin-Notizen an andere Admins senden
             });
             console.log(`[Booking] Restoration notification sent to ${adminEmail}:`, result.success ? "success" : "failed", result.error || "");
           } catch (error: any) {
@@ -561,6 +562,7 @@ export async function approveBooking(bookingId: string, adminNotes?: string) {
             startDate: booking.startDate,
             endDate: booking.endDate,
             approvedByName: user.name || user.email,
+            adminNotes: adminNotes, // Admin-Notizen an andere Admins senden
           });
           console.log(`[Booking] Approval notification sent to ${adminEmail}:`, result.success ? "success" : "failed", result.error || "");
         } catch (error: any) {
@@ -664,6 +666,7 @@ export async function rejectBooking(
             endDate: booking.endDate,
             rejectedByName: user.name || user.email,
             rejectionReason: reason,
+            adminNotes: adminNotes, // Admin-Notizen an andere Admins senden
           });
           console.log(`[Booking] Rejection notification sent to ${adminEmail}:`, result.success ? "success" : "failed", result.error || "");
         } catch (error: any) {

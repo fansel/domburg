@@ -642,7 +642,10 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
   };
 
   const handleDayClick = (day: number) => {
+    // Erstelle Datum mit lokaler Zeit, Stunden auf 0 setzen um Zeitverschiebungsprobleme zu vermeiden
     const clickedDate = new Date(year, month, day);
+    clickedDate.setHours(0, 0, 0, 0);
+    
     const dayBookings = getBookingsForDay(day);
     const dayEvents = getEventsForDay(day);
     const isCheckOutDay = isCheckOutOnlyDay(day);
@@ -666,22 +669,26 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
 
     // Wenn Startdatum gesetzt ist
     if (selectedStartDate) {
+      // Normalisiere Startdatum für Vergleich
+      const normalizedStartDate = new Date(selectedStartDate);
+      normalizedStartDate.setHours(0, 0, 0, 0);
+      
       // Wenn auf dasselbe Datum geklickt wird, öffne Formular mit einem Tag
-      if (clickedDate.getTime() === selectedStartDate.getTime()) {
+      if (clickedDate.getTime() === normalizedStartDate.getTime()) {
         setSelectedEndDate(clickedDate);
         setIsFormOpen(true);
         return;
       }
 
       // Wenn auf ein früheres Datum geklickt wird, setze es als neues Startdatum
-      if (clickedDate < selectedStartDate) {
+      if (clickedDate < normalizedStartDate) {
         setSelectedStartDate(clickedDate);
         setSelectedEndDate(null);
         return;
       }
 
       // Wenn auf ein späteres Datum geklickt wird, setze es als Enddatum und öffne Formular
-      if (clickedDate > selectedStartDate) {
+      if (clickedDate > normalizedStartDate) {
         setSelectedEndDate(clickedDate);
         setIsFormOpen(true);
         return;
@@ -992,21 +999,21 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                           <div className={`font-semibold ${isPending ? 'font-bold' : ''} text-sm sm:text-base flex items-center gap-2 mb-1 ${textColorClass} ${isPending ? 'text-yellow-700 dark:text-yellow-300' : ''}`}>
                             <User className="h-4 w-4 flex-shrink-0" />
                             <span className="break-words">{booking.guestName || booking.guestEmail}</span>
-                            {isPending && <Badge variant="secondary" className="ml-2 text-xs bg-yellow-500 text-yellow-950 border border-yellow-600 dark:border-yellow-400 flex-shrink-0">Ausstehend</Badge>}
                           </div>
-                          <div className="text-xs sm:text-sm text-muted-foreground space-y-0.5 sm:space-y-1">
+                          <div className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-2">
                               <Calendar className="h-3 w-3 flex-shrink-0" />
                               <span>{formatDate(new Date(booking.startDate))} - {formatDate(new Date(booking.endDate))}</span>
                             </div>
-                            <div>
+                            <span className="hidden sm:inline">•</span>
+                            <span>
                               {(() => {
                                 const adults = booking.numberOfAdults ?? (booking as any).numberOfGuests ?? 1;
                                 const children = booking.numberOfChildren ?? 0;
                                 const total = adults + children;
                                 return `${total} ${total === 1 ? "Gast" : "Gäste"}${children > 0 ? ` (${children} ${children === 1 ? "Kind" : "Kinder"})` : ""}`;
                               })()}
-                            </div>
+                            </span>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -1070,9 +1077,9 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
       {/* Detail-Dialog für Tag mit Buchungen */}
       {selectedDayForDetails !== null && (
         <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
+          <DialogContent className="max-w-2xl max-h-[95vh] sm:max-h-[80vh] overflow-y-auto w-[100vw] sm:w-full mx-0 sm:mx-0 p-2.5 sm:p-6">
+            <DialogHeader className="pb-2 sm:pb-0">
+              <DialogTitle className="text-sm sm:text-lg leading-tight">
                 {new Date(year, month, selectedDayForDetails).toLocaleDateString("de-DE", { 
                   weekday: "long", 
                   day: "numeric", 
@@ -1080,11 +1087,11 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                   year: "numeric" 
                 })}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-[10px] sm:text-sm mt-0.5 sm:mt-1">
                 Alle Buchungen und Termine für diesen Tag
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3 mt-4">
+            <div className="space-y-1.5 sm:space-y-3 mt-1 sm:mt-4">
               {(() => {
                 const dayBookings = getBookingsForDay(selectedDayForDetails);
                 const dayEvents = getEventsForDay(selectedDayForDetails);
@@ -1092,7 +1099,7 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                 
                 if (dayBookings.length === 0 && dayEvents.length === 0) {
                   return (
-                    <div className="text-center py-8 text-muted-foreground">
+                    <div className="text-center py-4 sm:py-8 text-muted-foreground text-xs sm:text-base">
                       Keine Buchungen oder Termine an diesem Tag
                     </div>
                   );
@@ -1113,18 +1120,18 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
 
                           if (allSameColor) {
                             return (
-                              <div key={idx} className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex items-start gap-2 flex-1">
-                                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                                    <div className="flex-1">
-                                      <h4 className="font-semibold text-green-900 dark:text-green-100 mb-1">
+                              <div key={idx} className="p-2 sm:p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md sm:rounded-lg">
+                                <div className="flex flex-col sm:flex-row items-start justify-between gap-2 sm:gap-4">
+                                  <div className="flex items-start gap-1.5 sm:gap-2 flex-1 min-w-0">
+                                    <CheckCircle2 className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="font-semibold text-xs sm:text-base text-green-900 dark:text-green-100 mb-0.5 sm:mb-1 leading-tight">
                                         Bereits zusammengelegt ({group.length} Events)
                                       </h4>
-                                      <p className="text-sm text-green-700 dark:text-green-300 mb-2">
+                                      <p className="text-[10px] sm:text-sm text-green-700 dark:text-green-300 mb-1 sm:mb-2 leading-tight">
                                         Diese Events haben die gleiche Farbe und werden als zusammengehörig erkannt:
                                       </p>
-                                      <ul className="text-xs sm:text-sm text-green-700 dark:text-green-300 space-y-1 list-disc list-inside">
+                                      <ul className="text-[10px] sm:text-sm text-green-700 dark:text-green-300 space-y-0.5 sm:space-y-1 list-disc list-inside leading-tight">
                                         {group.map((e) => (
                                           <li key={e.id} className="truncate">
                                             {e.summary} ({formatDate(e.start)} - {formatDate(e.end)})
@@ -1138,9 +1145,9 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                                     size="sm"
                                     onClick={() => handleUngroupEvents(group.map(e => e.id))}
                                     disabled={isUngrouping}
-                                    className="flex-shrink-0 border-green-300 dark:border-green-700"
+                                    className="w-full sm:w-auto flex-shrink-0 border-green-300 dark:border-green-700 h-8 sm:h-8 text-[10px] sm:text-sm mt-1 sm:mt-0"
                                   >
-                                    <Unlink className="h-4 w-4 mr-2" />
+                                    <Unlink className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                                     {isUngrouping ? "Trennen..." : "Trennen"}
                                   </Button>
                                 </div>
@@ -1149,16 +1156,16 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                           }
 
                           return (
-                            <div key={idx} className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                              <div className="flex items-start justify-between gap-4 mb-3">
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-1">
+                            <div key={idx} className="p-2 sm:p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md sm:rounded-lg">
+                              <div className="mb-1.5 sm:mb-3">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-semibold text-xs sm:text-base text-yellow-900 dark:text-yellow-100 mb-0.5 sm:mb-1 leading-tight">
                                     Überlappende Events gefunden ({group.length} Events)
                                   </h4>
-                                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
+                                  <p className="text-[10px] sm:text-sm text-yellow-700 dark:text-yellow-300 mb-1 sm:mb-2 leading-tight">
                                     Diese Events überlappen sich. Du kannst sie zusammenlegen, damit sie als zusammengehörig erkannt werden:
                                   </p>
-                                  <ul className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300 space-y-1 list-disc list-inside mb-3">
+                                  <ul className="text-[10px] sm:text-sm text-yellow-700 dark:text-yellow-300 space-y-0.5 sm:space-y-1 list-disc list-inside mb-1.5 sm:mb-3 leading-tight">
                                     {group.map((e) => (
                                       <li key={e.id} className="truncate">
                                         {e.summary} ({formatDate(e.start)} - {formatDate(e.end)})
@@ -1172,9 +1179,9 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                                 size="sm"
                                 onClick={() => handleGroupEvents(group.map(e => e.id))}
                                 disabled={isGrouping}
-                                className="w-full sm:w-auto border-yellow-300 dark:border-yellow-700"
+                                className="w-full sm:w-auto border-yellow-300 dark:border-yellow-700 h-8 sm:h-8 text-[10px] sm:text-sm"
                               >
-                                <LinkIcon className="h-4 w-4 mr-2" />
+                                <LinkIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                                 {isGrouping ? "Zusammenlegen..." : `${group.length} Events zusammenlegen`}
                               </Button>
                             </div>
@@ -1195,7 +1202,7 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                           className="block"
                         >
                           <div className={`
-                            p-4 border-2 rounded-lg hover:opacity-90 transition-all cursor-pointer
+                            p-2 sm:p-4 border-2 rounded-md sm:rounded-lg hover:opacity-90 transition-all cursor-pointer
                             ${isPending ? 'border-dashed border-yellow-500 dark:border-yellow-400 opacity-100 shadow-md bg-yellow-50/50 dark:bg-yellow-900/20' : ''}
                           `}
                           style={isPending ? {
@@ -1223,26 +1230,30 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                                            bgColorClass === 'bg-red-500' ? 'rgb(239 68 68 / 0.1)' : 'transparent'
                           }}
                           >
-                            <div className={`font-medium ${isPending ? 'font-bold' : ''} text-base flex items-center gap-2 mb-2 ${textColorClass} ${isPending ? 'text-yellow-700 dark:text-yellow-300' : ''}`}>
-                              <User className="h-4 w-4" />
-                              {booking.guestName || booking.guestEmail}
-                              {isPending && <Badge variant="secondary" className="ml-2 text-xs bg-yellow-500 text-yellow-950 border border-yellow-600 dark:border-yellow-400">Ausstehend</Badge>}
-                            </div>
-                            <div className="text-sm text-muted-foreground space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(new Date(booking.startDate))} - {formatDate(new Date(booking.endDate))}
+                            <div className="flex items-start justify-between gap-2 sm:gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className={`font-medium ${isPending ? 'font-bold' : ''} text-xs sm:text-base flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2 ${textColorClass} ${isPending ? 'text-yellow-700 dark:text-yellow-300' : ''} leading-tight`}>
+                                  <User className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                  <span className="break-words leading-tight">{booking.guestName || booking.guestEmail}</span>
+                                </div>
+                                <div className="text-[10px] sm:text-sm text-muted-foreground flex items-center gap-1.5 sm:gap-2 flex-wrap leading-tight">
+                                  <div className="flex items-center gap-1.5 sm:gap-2">
+                                    <Calendar className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                                    <span className="break-words leading-tight">{formatDate(new Date(booking.startDate))} - {formatDate(new Date(booking.endDate))}</span>
+                                  </div>
+                                  <span className="hidden sm:inline">•</span>
+                                  <span className="leading-tight">
+                                    {(() => {
+                                      const adults = booking.numberOfAdults ?? (booking as any).numberOfGuests ?? 1;
+                                      const children = booking.numberOfChildren ?? 0;
+                                      const total = adults + children;
+                                      return `${total} ${total === 1 ? "Gast" : "Gäste"}${children > 0 ? ` (${children} ${children === 1 ? "Kind" : "Kinder"})` : ""}`;
+                                    })()}
+                                  </span>
+                                </div>
                               </div>
-                              <div>
-                                {(() => {
-                                  const adults = booking.numberOfAdults ?? (booking as any).numberOfGuests ?? 1;
-                                  const children = booking.numberOfChildren ?? 0;
-                                  const total = adults + children;
-                                  return `${total} ${total === 1 ? "Gast" : "Gäste"}${children > 0 ? ` (davon ${children} ${children === 1 ? "Kind" : "Kinder"})` : ""}`;
-                                })()}
-                              </div>
-                              <div>
-                                <Badge variant={getStatusBadgeVariant(booking.status)}>
+                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                <Badge variant={getStatusBadgeVariant(booking.status)} className="text-[10px] sm:text-xs">
                                   {getStatusLabel(booking.status)}
                                 </Badge>
                               </div>
@@ -1260,26 +1271,26 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                       return (
                         <div
                           key={event.id}
-                          className="p-4 border rounded-lg"
+                          className="p-2 sm:p-4 border rounded-md sm:rounded-lg"
                           style={dialogColorStyle}
                         >
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="font-medium flex items-center gap-2 flex-1">
+                          <div className="flex items-start justify-between gap-1.5 sm:gap-2 mb-1 sm:mb-2">
+                            <div className="font-medium flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
                               {isInfo ? (
-                                <Info className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                <Info className="h-3 w-3 sm:h-4 sm:w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                               ) : (
-                              <svg className="h-4 w-4 text-orange-600 dark:text-orange-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                              <svg className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600 dark:text-orange-400 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                               </svg>
                               )}
-                              <span className="flex items-center gap-2">
-                                {event.summary}
+                              <span className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                                <span className="truncate text-xs sm:text-base leading-tight">{event.summary}</span>
                                 {isInfo && (
-                                  <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700">
-                                    <Info className="h-3 w-3 mr-1" />
+                                  <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700 text-[10px] sm:text-xs flex-shrink-0">
+                                    <Info className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
                                     Info
                                   </Badge>
                                 )}
@@ -1290,21 +1301,21 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
                               size="sm"
                               onClick={() => isInfo ? handleUnmarkAsInfo(event.id) : handleMarkAsInfo(event.id)}
                               disabled={markingEventId === event.id}
-                              className="flex-shrink-0"
+                              className="flex-shrink-0 h-7 w-7 sm:h-9 sm:w-9 p-0"
                               title={isInfo ? "Info-Markierung entfernen (wird wieder blockierend)" : "Als Info markieren (nicht blockierend)"}
                             >
                               {markingEventId === event.id ? (
-                                <RefreshCw className="h-4 w-4 animate-spin" />
+                                <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
                               ) : isInfo ? (
-                                <X className="h-4 w-4" />
+                                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                               ) : (
-                                <Info className="h-4 w-4" />
+                                <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                               )}
                             </Button>
                           </div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-2">
-                            <Calendar className="h-3 w-3" />
-                            {formatDate(event.start)} - {formatDate(event.end)}
+                          <div className="text-[10px] sm:text-sm text-muted-foreground flex items-center gap-1.5 sm:gap-2 leading-tight">
+                            <Calendar className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                            <span className="break-words leading-tight">{formatDate(event.start)} - {formatDate(event.end)}</span>
                           </div>
                         </div>
                       );
