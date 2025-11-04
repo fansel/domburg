@@ -130,30 +130,27 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
       );
       const targetColorId = firstWithColor?.colorId || '1'; // Fallback auf Farbe 1
 
-      // Update alle Events mit der gleichen Farbe
-      const updatePromises = eventIds.map(id => 
-        fetch("/api/admin/calendar-bookings/group", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            eventId: id,
-            colorId: targetColorId,
-          }),
-        })
-      );
+      // Sende alle Event-IDs in einem Request (wie die API es erwartet)
+      const response = await fetch("/api/admin/calendar-bookings/group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventIds: eventIds, // Array von Event-IDs
+          colorId: targetColorId,
+        }),
+      });
 
-      const results = await Promise.all(updatePromises);
-      const allSuccess = results.every(res => res.ok);
+      const result = await response.json();
 
-      if (allSuccess) {
+      if (result.success) {
         toast({
           title: "Erfolgreich",
-          description: `${eventIds.length} Events wurden zusammengelegt (gleiche Farbe)`,
+          description: `${eventIds.length} Events wurden zusammengelegt`,
         });
         loadConflicts(); // Neu laden um aktualisierte Konflikte zu sehen
         checkGroupedEvents(); // Aktualisiere Gruppierungen
       } else {
-        throw new Error("Einige Updates sind fehlgeschlagen");
+        throw new Error(result.error || "Fehler beim Zusammenlegen");
       }
     } catch (error: any) {
       toast({
