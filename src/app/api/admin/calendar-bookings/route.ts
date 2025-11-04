@@ -233,7 +233,104 @@ export async function POST(request: NextRequest) {
     // Setze colorId automatisch basierend auf Event-ID (wie bei normalen Buchungen)
     if (eventId) {
       const { getBookingColorId } = await import("@/lib/utils");
-      const autoColorId = isInfo ? '10' : getBookingColorId(eventId); // Info = Farbe 10, sonst automatisch basierend auf Event-ID
+      
+      let autoColorId: string;
+      if (isInfo) {
+        autoColorId = '10'; // Info = Farbe 10
+      } else {
+        // Prüfe ob im gleichen Zeitraum bereits Events existieren
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        
+        // Hole alle Events im erweiterten Zeitraum (etwas vor/nach dem Zeitraum für Überlappungsprüfung)
+        const checkStartDate = new Date(startDate);
+        checkStartDate.setDate(checkStartDate.getDate() - 1);
+        const checkEndDate = new Date(endDate);
+        checkEndDate.setDate(checkEndDate.getDate() + 1);
+        
+        const existingEvents = await getCalendarEvents(checkStartDate, checkEndDate);
+        
+        // Filtere nur manuelle Blockierungen (keine App-Buchungen, keine Info-Events)
+        const bookingsWithEventId = await prisma.booking.findMany({
+          where: {
+            googleEventId: { not: null },
+          },
+          select: {
+            googleEventId: true,
+          },
+        });
+        const appBookingEventIds = new Set(
+          bookingsWithEventId
+            .map((b) => b.googleEventId)
+            .filter((id): id is string => id !== null)
+        );
+        
+        const manualBlockings = existingEvents.filter((event) => {
+          // Überspringe das gerade erstellte Event
+          if (event.id === eventId) return false;
+          
+          // Prüfe ob Event-ID in der Datenbank verlinkt ist
+          if (event.id && appBookingEventIds.has(event.id)) {
+            return false;
+          }
+          
+          // Prüfe Titel-Format (App-Buchungen beginnen immer mit "Buchung:")
+          const isAppBooking = event.summary?.startsWith("Buchung:") || 
+                               event.summary?.includes("🏠") ||
+                               event.summary?.match(/\d+€\/\d+€/);
+          
+          if (isAppBooking) return false;
+          if (event.colorId === '10') return false; // Info-Events überspringen
+          
+          return true;
+        });
+        
+        // Prüfe welche Events mit dem neuen Event überlappen
+        const normalizeDate = (date: Date) => {
+          const d = new Date(date);
+          d.setHours(0, 0, 0, 0);
+          return d;
+        };
+        
+        const newEventStart = normalizeDate(startDate);
+        const newEventEnd = normalizeDate(endDate);
+        
+        const overlappingEvents = manualBlockings.filter((existingEvent) => {
+          const existingStart = normalizeDate(existingEvent.start);
+          const existingEnd = normalizeDate(existingEvent.end);
+          
+          // Prüfe ob Events sich überlappen
+          return newEventStart <= existingEnd && existingStart <= newEventEnd;
+        });
+        
+        // Sammle alle verwendeten Farben der überlappenden Events
+        const usedColors = new Set<string>();
+        overlappingEvents.forEach((event) => {
+          if (event.colorId && event.colorId !== '10') {
+            usedColors.add(event.colorId);
+          }
+        });
+        
+        // Verfügbare Farben
+        const availableColors = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '11'];
+        
+        // Wähle eine Farbe, die nicht verwendet wird
+        let selectedColor = getBookingColorId(eventId); // Standard-Farbe basierend auf Event-ID
+        
+        // Wenn die Standard-Farbe bereits verwendet wird, wähle eine andere
+        if (usedColors.has(selectedColor) && usedColors.size < availableColors.length) {
+          // Finde erste verfügbare Farbe
+          for (const color of availableColors) {
+            if (!usedColors.has(color)) {
+              selectedColor = color;
+              break;
+            }
+          }
+        }
+        
+        autoColorId = selectedColor;
+      }
+      
       await updateCalendarEvent(eventId, {
         colorId: autoColorId,
       });
