@@ -466,6 +466,25 @@ export async function DELETE(request: NextRequest) {
         },
       });
 
+      // Lösche alle Konflikteinträge die dieses Event enthalten
+      await prisma.ignoredConflict.deleteMany({
+        where: {
+          OR: [
+            { conflictKey: { contains: id } }, // Event-ID ist Teil des conflictKey
+          ],
+          conflictType: { in: ["OVERLAPPING_CALENDAR_EVENTS", "CALENDAR_CONFLICT"] },
+        },
+      });
+
+      await prisma.notifiedConflict.deleteMany({
+        where: {
+          OR: [
+            { conflictKey: { contains: id } }, // Event-ID ist Teil des conflictKey
+          ],
+          conflictType: { in: ["OVERLAPPING_CALENDAR_EVENTS", "CALENDAR_CONFLICT"] },
+        },
+      });
+
       return NextResponse.json({
         success: true,
         message: "Buchung wurde storniert",
@@ -473,13 +492,32 @@ export async function DELETE(request: NextRequest) {
       });
     } else {
       // Es ist ein externes Event - nur aus Google Calendar löschen
-    await deleteCalendarEvent(id);
+      await deleteCalendarEvent(id);
 
-    return NextResponse.json({
-      success: true,
-      message: "Kalendereintrag wurde gelöscht",
+      // Lösche alle Konflikteinträge die dieses Event enthalten
+      await prisma.ignoredConflict.deleteMany({
+        where: {
+          OR: [
+            { conflictKey: { contains: id } }, // Event-ID ist Teil des conflictKey
+          ],
+          conflictType: { in: ["OVERLAPPING_CALENDAR_EVENTS", "CALENDAR_CONFLICT"] },
+        },
+      });
+
+      await prisma.notifiedConflict.deleteMany({
+        where: {
+          OR: [
+            { conflictKey: { contains: id } }, // Event-ID ist Teil des conflictKey
+          ],
+          conflictType: { in: ["OVERLAPPING_CALENDAR_EVENTS", "CALENDAR_CONFLICT"] },
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Kalendereintrag wurde gelöscht",
         bookingCancelled: false,
-    });
+      });
     }
   } catch (error: any) {
     console.error("Error deleting calendar booking:", error);
