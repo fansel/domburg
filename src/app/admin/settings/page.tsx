@@ -128,7 +128,7 @@ export default async function AdminSettingsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={userWithCorrectRole} />
-      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-6xl">
+      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-6xl lg:max-w-[85%] xl:max-w-[1200px]">
         <BackButton href="/admin/bookings" />
 
         <PageHeader

@@ -179,7 +179,7 @@ export default async function AdminBookingsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
-      <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6 lg:py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6 lg:py-8 max-w-6xl lg:max-w-[85%] xl:max-w-[1200px]">
         <BookingsHeader />
 
         <div className="grid gap-3 sm:gap-4 lg:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-4 sm:mb-6 lg:mb-8">
@@ -237,10 +237,10 @@ export default async function AdminBookingsPage() {
                 <CardContent className="py-8 sm:py-12 text-center">
                   <CheckCircle className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3 sm:mb-4" />
                   <h3 className="text-base sm:text-lg font-semibold mb-2">
-                    Keine genehmigten Buchungen
+                    Keine bestätigten Buchungen
                   </h3>
                   <p className="text-sm sm:text-base text-muted-foreground">
-                    Noch keine Buchungen genehmigt
+                    Noch keine Buchungen bestätigt
                   </p>
                 </CardContent>
               </Card>

@@ -68,7 +68,7 @@ export default async function AdminPricingPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
-      <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6 lg:py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6 lg:py-8 max-w-6xl lg:max-w-[85%] xl:max-w-[1200px]">
         <BackButton href="/admin/bookings" />
 
         <PageHeader
