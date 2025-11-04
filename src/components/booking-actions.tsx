@@ -232,7 +232,7 @@ export function BookingActions({ bookingId, canApprove = true, initialAdminNotes
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog 
+          <AlertDialog 
           open={showApproveDialog} 
           onOpenChange={(open) => {
             if (!isApproving) {

@@ -275,12 +275,12 @@ export function CalendarBookingsManager() {
       // Update alle ausgewählten Events mit der gleichen Farbe und speichere Verlinkungen
       const selectedIdsArray = Array.from(selectedBookings);
       const response = await fetch("/api/admin/calendar-bookings/group", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
           eventIds: selectedIdsArray,
-          colorId: targetColorId,
-        }),
+            colorId: targetColorId,
+          }),
       });
 
       const result = await response.json();

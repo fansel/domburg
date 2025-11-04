@@ -22,7 +22,7 @@ export default async function EmailTemplatesPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
-      <div className="container mx-auto px-4 py-8 max-w-6xl lg:max-w-[85%] xl:max-w-[1200px]">
+      <div className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <Link href="/admin/settings">
             <Button variant="ghost" size="sm">

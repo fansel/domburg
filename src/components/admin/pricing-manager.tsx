@@ -626,9 +626,9 @@ const PhaseDialog = ({
         endDate: new Date(),
         priority: 1,
         isActive: true,
-      minNights: null,
-      saturdayToSaturday: false,
-    });
+        minNights: null,
+        saturdayToSaturday: false,
+      });
     }
   }, [phase]);
 
