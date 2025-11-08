@@ -73,9 +73,19 @@ export async function updateBooking(
         return { success: false, error: validation.error };
       }
 
+      // Prüfe ob Family-Preis verwendet wird (aus bestehender Buchung über guestCode)
+      let useFamilyPrice = false;
+      if (booking.guestCode) {
+        const token = await prisma.guestAccessToken.findUnique({
+          where: { token: booking.guestCode, isActive: true },
+        });
+        useFamilyPrice = token?.useFamilyPrice || false;
+      }
+
       const { totalPrice, ...pricingDetails } = await calculateBookingPrice(
         startDate,
-        endDate
+        endDate,
+        useFamilyPrice
       );
 
       updateData.totalPrice = totalPrice;
