@@ -96,7 +96,10 @@ export function PricingManager({
           minNights: (result.phase as any).minNights ?? null,
           saturdayToSaturday: (result.phase as any).saturdayToSaturday ?? false,
         };
-        setPhases(phases.map((p) => (p.id === editingPhase.id ? convertedPhase : p)));
+        const updatedPhases = phases.map((p) => (p.id === editingPhase.id ? convertedPhase : p));
+        // Sortiere nach Startdatum
+        updatedPhases.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+        setPhases(updatedPhases);
         setIsPhaseDialogOpen(false);
         setEditingPhase(null);
         toast({
@@ -121,7 +124,10 @@ export function PricingManager({
           minNights: (result.phase as any).minNights ?? null,
           saturdayToSaturday: (result.phase as any).saturdayToSaturday ?? false,
         };
-        setPhases([...phases, convertedPhase]);
+        const updatedPhases = [...phases, convertedPhase];
+        // Sortiere nach Startdatum
+        updatedPhases.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+        setPhases(updatedPhases);
         setIsPhaseDialogOpen(false);
         toast({
           title: "Erstellt",
@@ -686,16 +692,19 @@ const PhaseDialog = ({
                 id="startDate"
                 type="date"
                 value={
-                  formData.startDate
+                  formData.startDate && !isNaN(new Date(formData.startDate).getTime())
                     ? new Date(formData.startDate).toISOString().split("T")[0]
                     : ""
                 }
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    startDate: new Date(e.target.value),
-                  })
-                }
+                onChange={(e) => {
+                  const date = e.target.value ? new Date(e.target.value) : null;
+                  if (date && !isNaN(date.getTime())) {
+                    setFormData({
+                      ...formData,
+                      startDate: date,
+                    });
+                  }
+                }}
                 className="text-sm sm:text-base"
               />
             </div>
@@ -705,13 +714,16 @@ const PhaseDialog = ({
                 id="endDate"
                 type="date"
                 value={
-                  formData.endDate
+                  formData.endDate && !isNaN(new Date(formData.endDate).getTime())
                     ? new Date(formData.endDate).toISOString().split("T")[0]
                     : ""
                 }
-                onChange={(e) =>
-                  setFormData({ ...formData, endDate: new Date(e.target.value) })
-                }
+                onChange={(e) => {
+                  const date = e.target.value ? new Date(e.target.value) : null;
+                  if (date && !isNaN(date.getTime())) {
+                    setFormData({ ...formData, endDate: date });
+                  }
+                }}
                 className="text-sm sm:text-base"
               />
             </div>
@@ -916,16 +928,19 @@ const BeachHutSessionDialog = ({
                 id="sessionStartDate"
                 type="date"
                 value={
-                  formData.startDate
+                  formData.startDate && !isNaN(new Date(formData.startDate).getTime())
                     ? new Date(formData.startDate).toISOString().split("T")[0]
                     : ""
                 }
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    startDate: new Date(e.target.value),
-                  })
-                }
+                onChange={(e) => {
+                  const date = e.target.value ? new Date(e.target.value) : null;
+                  if (date && !isNaN(date.getTime())) {
+                    setFormData({
+                      ...formData,
+                      startDate: date,
+                    });
+                  }
+                }}
                 className="text-sm sm:text-base"
               />
             </div>
@@ -935,13 +950,16 @@ const BeachHutSessionDialog = ({
                 id="sessionEndDate"
                 type="date"
                 value={
-                  formData.endDate
+                  formData.endDate && !isNaN(new Date(formData.endDate).getTime())
                     ? new Date(formData.endDate).toISOString().split("T")[0]
                     : ""
                 }
-                onChange={(e) =>
-                  setFormData({ ...formData, endDate: new Date(e.target.value) })
-                }
+                onChange={(e) => {
+                  const date = e.target.value ? new Date(e.target.value) : null;
+                  if (date && !isNaN(date.getTime())) {
+                    setFormData({ ...formData, endDate: date });
+                  }
+                }}
                 className="text-sm sm:text-base"
               />
             </div>

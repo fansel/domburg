@@ -14,6 +14,14 @@ export interface PriceCalculation {
     price: number;
     phase?: string;
   }>;
+  nightBreakdown?: Array<{
+    phase: string;
+    nights: number;
+    pricePerNight: number;
+    totalPrice: number;
+    startDate?: string;
+    endDate?: string;
+  }>;
   warnings?: string[]; // Warnungen zu Saison-Regeln (blockieren nicht die Buchung)
 }
 
@@ -49,12 +57,10 @@ export async function calculateBookingPrice(
     orderBy: { priority: 'desc' },
   });
 
-  // Tagespreise berechnen
-  const breakdown: Array<{ date: string; price: number; phase?: string }> = [];
-  let totalNightlyPrice = 0;
-
   // Normalisiere Datums-Objekte für Tag-zu-Tag-Vergleiche (setze Zeit auf 00:00:00 UTC)
   // Verwende UTC um Zeitzonen-Probleme zu vermeiden
+  // WICHTIG: Diese Normalisierung entspricht der Art, wie Daten in der Datenbank gespeichert werden
+  // und wie formatDate() sie interpretiert (in Europe/Amsterdam Zeitzone)
   const normalizeDate = (date: Date): Date => {
     const normalized = new Date(date);
     // Verwende UTC für konsistente Berechnung
@@ -66,43 +72,182 @@ export async function calculateBookingPrice(
   const normalizedEndDate = normalizeDate(endDate);
 
   // Normalisiere auch die Preisphasen-Daten
+  // WICHTIG: Preisphasen werden in der Datenbank als DateTime gespeichert
+  // formatDate() interpretiert sie in Europe/Amsterdam Zeitzone
+  // Um konsistent zu sein, müssen wir die lokalen Komponenten extrahieren
+  // (wie formatDate() sie sehen würde) und dann ein UTC-Datum erstellen
+  const normalizePhaseDate = (date: Date): Date => {
+    // formatDate() verwendet Europe/Amsterdam Zeitzone
+    // Extrahiere das Datum, wie es in Europe/Amsterdam erscheinen würde
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Amsterdam',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const localDateStr = formatter.format(date);
+    const [year, month, day] = localDateStr.split('-').map(Number);
+    // Erstelle ein UTC-Datum mit diesen Komponenten
+    // Dies entspricht der Art, wie Daten in der Datenbank gespeichert werden
+    // und wie formatDate() sie interpretiert
+    const utcDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    // Normalisiere auf UTC-Mitternacht (redundant, aber für Konsistenz)
+    return normalizeDate(utcDate);
+  };
+
   const normalizedPhases = pricingPhases.map(phase => ({
     ...phase,
-    startDate: normalizeDate(phase.startDate),
-    endDate: normalizeDate(phase.endDate),
+    startDate: normalizePhaseDate(phase.startDate),
+    endDate: normalizePhaseDate(phase.endDate),
   }));
 
-  let currentDate = new Date(normalizedStartDate);
-  while (currentDate < normalizedEndDate) {
-    let priceForDay = defaultPricePerNight;
+  // Berechne Preise pro NACHT (nicht pro Tag)
+  // Eine Nacht wird durch den Tag bestimmt, an dem sie BEGINNT (Check-in-Tag)
+  // Beispiel: Buchung 26.-29. = 3 Nächte:
+  //   - Nacht 1: beginnt am 26. (26.→27.)
+  //   - Nacht 2: beginnt am 27. (27.→28.)
+  //   - Nacht 3: beginnt am 28. (28.→29.)
+  // 
+  // Wenn eine Preisphase am 27. beginnt:
+  //   - Nacht 1 (26.→27.): beginnt am 26., also Standard-Preis
+  //   - Nacht 2 (27.→28.): beginnt am 27., also teurer Preis (Phase beginnt am 27.)
+  //   - Nacht 3 (28.→29.): beginnt am 28., also teurer Preis (Phase ist noch aktiv)
+  //
+  // Eine Buchung kann über mehrere Preisphasen gehen - jede Nacht wird einzeln zugeordnet
+  const breakdown: Array<{ date: string; price: number; phase?: string }> = [];
+  const nightBreakdown: Array<{
+    phase: string;
+    nights: number;
+    pricePerNight: number;
+    totalPrice: number;
+    startDate?: string;
+    endDate?: string;
+  }> = [];
+  
+  let totalNightlyPrice = 0;
+  // WICHTIG: Verwende UTC-Datum für konsistente Berechnung
+  let currentCheckInDate = new Date(normalizedStartDate);
+  
+  while (currentCheckInDate < normalizedEndDate) {
+    // Für jede Nacht: Prüfe welche Preisphase am Tag aktiv ist, an dem die Nacht BEGINNT
+    // Der Preis der Nacht wird durch die Phase bestimmt, die am Check-in-Tag aktiv ist
+    let priceForNight = defaultPricePerNight;
     let appliedPhase: string | undefined;
-
-    // Höchste Priorität der passenden Preisphasen finden
+    
+    // Finde Phase für den Check-in-Tag (Tag, an dem die Nacht beginnt)
+    // Bei überlappenden Phasen: Nimm die mit der höchsten Priorität
     // Phasen sind bereits nach priority: 'desc' sortiert
     for (const phase of normalizedPhases) {
-      // Prüfe ob currentDate innerhalb der Phase liegt
-      // endDate ist inklusiv (der Tag gehört noch zur Phase)
-      if (currentDate >= phase.startDate && currentDate <= phase.endDate) {
+      // Prüfe ob der Check-in-Tag (Tag, an dem die Nacht beginnt) in der Phase liegt
+      // WICHTIG: 
+      // - startDate ist inklusive (>=)
+      // - endDate ist EXKLUSIVE (<) - eine Phase die am 6. endet, umfasst nur Nächte bis 5→6
+      //   Eine Phase die am 6. beginnt, umfasst Nächte ab 6→7
+      const checkInTime = currentCheckInDate.getTime();
+      const phaseStartTime = phase.startDate.getTime();
+      const phaseEndTime = phase.endDate.getTime();
+      
+      if (checkInTime >= phaseStartTime && checkInTime < phaseEndTime) {
+        appliedPhase = phase.name;
         // Family-Preis oder Standard-Preis verwenden
         if (useFamilyPrice && phase.familyPricePerNight) {
-          priceForDay = parseFloat(phase.familyPricePerNight.toString());
+          priceForNight = parseFloat(phase.familyPricePerNight.toString());
         } else {
-          priceForDay = parseFloat(phase.pricePerNight.toString());
+          priceForNight = parseFloat(phase.pricePerNight.toString());
         }
-        appliedPhase = phase.name;
         break; // Höchste Priorität gefunden (da bereits sortiert)
       }
     }
 
+    // Speichere das Datum als ISO-String (YYYY-MM-DD) für konsistente Verarbeitung
+    // WICHTIG: Verwende UTC-Datum um Zeitzonen-Verschiebungen zu vermeiden
+    const dateString = `${currentCheckInDate.getUTCFullYear()}-${String(currentCheckInDate.getUTCMonth() + 1).padStart(2, '0')}-${String(currentCheckInDate.getUTCDate()).padStart(2, '0')}`;
+    
     breakdown.push({
-      date: currentDate.toISOString().split('T')[0],
-      price: priceForDay,
+      date: dateString,
+      price: priceForNight,
       phase: appliedPhase,
     });
 
-    totalNightlyPrice += priceForDay;
-    currentDate.setDate(currentDate.getDate() + 1);
+    totalNightlyPrice += priceForNight;
+    // WICHTIG: Verwende setUTCDate statt setDate um Zeitzonen-Verschiebungen zu vermeiden
+    currentCheckInDate.setUTCDate(currentCheckInDate.getUTCDate() + 1);
   }
+  
+  // Gruppiere Nächte nach Preisphasen für die Aufschlüsselung
+  // Speichere auch das erste und letzte Datum der gebuchten Nächte für jede Phase
+  const phaseGroups = new Map<string, { 
+    nights: number; 
+    pricePerNight: number;
+    firstNightDate?: string;
+    lastNightDate?: string;
+  }>();
+  
+  for (const night of breakdown) {
+    // Verwende den Phasennamen, wenn vorhanden, sonst "Standard"
+    // WICHTIG: Verwende den exakten Phasennamen, nicht "Standard" wenn eine Phase gefunden wurde
+    const phaseKey = night.phase || 'Standard';
+    
+    if (!phaseGroups.has(phaseKey)) {
+      phaseGroups.set(phaseKey, { 
+        nights: 0, 
+        pricePerNight: night.price,
+        firstNightDate: night.date,
+        lastNightDate: night.date,
+      });
+    }
+    const group = phaseGroups.get(phaseKey)!;
+    group.nights += 1;
+    // Aktualisiere das letzte Datum
+    if (night.date > (group.lastNightDate || '')) {
+      group.lastNightDate = night.date;
+    }
+    // Aktualisiere das erste Datum
+    if (night.date < (group.firstNightDate || '9999-12-31')) {
+      group.firstNightDate = night.date;
+    }
+    // Stelle sicher, dass der Preis pro Nacht konsistent ist
+    // Wenn unterschiedliche Preise in derselben Phase, nimm den höheren
+    if (group.pricePerNight !== night.price) {
+      group.pricePerNight = Math.max(group.pricePerNight, night.price);
+    }
+  }
+  
+  // Erstelle die Nacht-Aufschlüsselung
+  for (const [phaseName, group] of phaseGroups.entries()) {
+    // Berechne das Enddatum der letzten Nacht (Check-out-Tag = Tag nach der letzten Nacht)
+    // WICHTIG: Parse das Datum als UTC um Zeitzonen-Verschiebungen zu vermeiden
+    let endDate: string | undefined;
+    if (group.lastNightDate) {
+      // Parse das Datum als UTC (YYYY-MM-DD Format)
+      const [year, month, day] = group.lastNightDate.split('-').map(Number);
+      const lastNightDateObj = new Date(Date.UTC(year, month - 1, day));
+      lastNightDateObj.setUTCDate(lastNightDateObj.getUTCDate() + 1);
+      // Formatiere wieder als YYYY-MM-DD
+      endDate = `${lastNightDateObj.getUTCFullYear()}-${String(lastNightDateObj.getUTCMonth() + 1).padStart(2, '0')}-${String(lastNightDateObj.getUTCDate()).padStart(2, '0')}`;
+    }
+    
+    nightBreakdown.push({
+      phase: phaseName,
+      nights: group.nights,
+      pricePerNight: group.pricePerNight,
+      totalPrice: group.nights * group.pricePerNight,
+      // Zeige das tatsächliche Datum der gebuchten Nächte, nicht das Datum der Phase
+      startDate: group.firstNightDate,
+      endDate: endDate,
+    });
+  }
+  
+  // Sortiere nach dem tatsächlichen Startdatum der gebuchten Nächte (nicht nach Phase-Startdatum)
+  nightBreakdown.sort((a, b) => {
+    // Sortiere nach dem Startdatum der gebuchten Nächte
+    const dateA = a.startDate || '';
+    const dateB = b.startDate || '';
+    
+    if (dateA < dateB) return -1;
+    if (dateA > dateB) return 1;
+    return 0;
+  });
 
   // Strandbuden-Preis automatisch berechnen, wenn innerhalb einer aktiven Session
   // Bei Family-Preis ist Strandbude kostenlos inklusive (useBeachHut = true, aber beachHutPrice = 0)
@@ -303,6 +448,7 @@ export async function calculateBookingPrice(
     totalPrice,
     pricePerNight: totalNightlyPrice / nights,
     breakdown,
+    nightBreakdown: nightBreakdown.length > 0 ? nightBreakdown : undefined,
     warnings: warnings.length > 0 ? warnings : undefined,
   };
 }

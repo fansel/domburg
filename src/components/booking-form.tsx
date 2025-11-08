@@ -57,6 +57,14 @@ interface PriceCalculation {
   beachHutPrice?: number;
   totalPrice: number;
   pricePerNight: number;
+  nightBreakdown?: Array<{
+    phase: string;
+    nights: number;
+    pricePerNight: number;
+    totalPrice: number;
+    startDate?: string;
+    endDate?: string;
+  }>;
   warnings?: string[];
   minNights?: number;
 }
@@ -424,29 +432,76 @@ export function BookingForm() {
                   <BookingCalendar selectedStartDate={startDate} selectedEndDate={endDate} onDateSelect={handleDateSelect} />
                 </div>
               {startDate && endDate && (
-                  <div className="mt-4 lg:mt-6 px-4 lg:px-8 w-full max-w-2xl lg:max-w-4xl flex gap-3 lg:gap-4 z-10">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setStartDate(null);
-                        setEndDate(null);
-                      }}
-                    className="flex-1 h-11 lg:h-14 text-sm lg:text-lg"
-                    >
-                      {t("bookingForm.reset")}
-                    </Button>
-                  <Button 
-                    onClick={() => {
-                      nextStep();
-                    }} 
-                    disabled={!startDate || !endDate} 
-                      className="flex-1 h-11 lg:h-14 text-sm lg:text-lg"
-                    type="button"
-                  >
-                      {t("bookingForm.continue")}
-                    <ChevronRight className="ml-1.5 h-4 w-4 lg:h-6 lg:w-6" />
-                    </Button>
-                  </div>
+                  <>
+                    {/* Preisaufschlüsselung im Kalender-Schritt */}
+                    {pricing && (
+                      <div className="mt-4 lg:mt-6 px-4 lg:px-8 w-full max-w-2xl lg:max-w-4xl">
+                        <div className="bg-gray-50 rounded-lg p-4 lg:p-5 space-y-3 lg:space-y-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Euro className="h-4 w-4 lg:h-5 lg:w-5 text-primary" />
+                            <h3 className="text-sm lg:text-base font-semibold text-gray-900">Preisübersicht</h3>
+                          </div>
+                          {isLoadingPrice ? (
+                            <div className="flex items-center justify-center gap-2 py-4 text-gray-500">
+                              <Loader2 className="h-4 w-4 lg:h-5 lg:w-5 animate-spin" />
+                              <span className="text-xs lg:text-sm">{t("bookingForm.calculatingPrice")}</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 lg:space-y-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs lg:text-sm text-gray-600">{pricing.nights} {pricing.nights === 1 ? t("bookingForm.night") : t("bookingForm.nights")}</span>
+                                <span className="font-medium text-xs lg:text-sm">{formatCurrency(pricing.basePrice)}</span>
+                              </div>
+                              {pricing.nightBreakdown && pricing.nightBreakdown.length > 0 && (
+                                <div className="text-xs lg:text-sm space-y-1 pt-2 border-t border-gray-200">
+                                  <div className="text-gray-500 mb-1 text-xs">Aufgeteilt in Nächte:</div>
+                                  {pricing.nightBreakdown.map((night, index) => (
+                                    <div key={index} className="flex justify-between items-center">
+                                      <span className="text-gray-600">
+                                        {night.phase}
+                                        {night.startDate && night.endDate && (
+                                          <span className="text-gray-500"> ({formatDate(night.startDate)} - {formatDate(night.endDate)})</span>
+                                        )}
+                                        : {night.nights} {night.nights === 1 ? "Nacht" : "Nächte"} à {formatCurrency(night.pricePerNight)}
+                                      </span>
+                                      <span className="font-medium">{formatCurrency(night.totalPrice)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                                <span className="text-xs lg:text-sm font-semibold text-gray-900">{t("bookingForm.totalPrice")}</span>
+                                <span className="text-base lg:text-lg font-bold text-primary">{formatCurrency(pricing.totalPrice)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-4 lg:mt-6 px-4 lg:px-8 w-full max-w-2xl lg:max-w-4xl flex gap-3 lg:gap-4 z-10">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setStartDate(null);
+                          setEndDate(null);
+                        }}
+                        className="flex-1 h-11 lg:h-14 text-sm lg:text-lg"
+                      >
+                        {t("bookingForm.reset")}
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          nextStep();
+                        }} 
+                        disabled={!startDate || !endDate} 
+                        className="flex-1 h-11 lg:h-14 text-sm lg:text-lg"
+                        type="button"
+                      >
+                        {t("bookingForm.continue")}
+                        <ChevronRight className="ml-1.5 h-4 w-4 lg:h-6 lg:w-6" />
+                      </Button>
+                    </div>
+                  </>
               )}
               </div>
             </div>
@@ -713,6 +768,23 @@ export function BookingForm() {
                           <span className="text-sm lg:text-base text-gray-600">{pricing.nights} {pricing.nights === 1 ? t("bookingForm.night") : t("bookingForm.nights")}</span>
                           <span className="font-medium text-sm lg:text-base">{formatCurrency(pricing.basePrice)}</span>
                         </div>
+                        {pricing.nightBreakdown && pricing.nightBreakdown.length > 0 && (
+                          <div className="text-xs lg:text-sm space-y-1 pt-2 border-t border-gray-200">
+                            <div className="text-gray-500 mb-1">Aufgeteilt in Nächte:</div>
+                            {pricing.nightBreakdown.map((night, index) => (
+                              <div key={index} className="flex justify-between items-center">
+                                <span className="text-gray-600">
+                                  {night.phase}
+                                  {night.startDate && night.endDate && (
+                                    <span className="text-gray-500"> ({formatDate(night.startDate)} - {formatDate(night.endDate)})</span>
+                                  )}
+                                  : {night.nights} {night.nights === 1 ? "Nacht" : "Nächte"} à {formatCurrency(night.pricePerNight)}
+                                </span>
+                                <span className="font-medium">{formatCurrency(night.totalPrice)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex justify-between items-center py-1 text-xs lg:text-sm">
                           <span className="text-gray-600">{t("bookingForm.pricePerNightShort")} {formatCurrency(pricing.pricePerNight)}</span>
                           <span className="text-gray-500">{t("bookingForm.pricePerNightLabel")}</span>

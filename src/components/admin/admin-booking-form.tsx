@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { createBooking } from "@/app/actions/booking";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { Loader2, CalendarDays, Users, Mail, User, Euro } from "lucide-react";
 import {
   Dialog,
@@ -419,6 +419,23 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
                   <span>{pricing.nights} {pricing.nights === 1 ? "Nacht" : "Nächte"}</span>
                   <span>{formatCurrency(pricing.basePrice)}</span>
                 </div>
+                {pricing.nightBreakdown && pricing.nightBreakdown.length > 0 && (
+                  <div className="text-xs space-y-1 pt-2 border-t border-gray-300">
+                    <div className="text-gray-500 mb-1">Aufgeteilt in Nächte:</div>
+                    {pricing.nightBreakdown.map((night, index) => (
+                      <div key={index} className="flex justify-between">
+                        <span className="text-gray-600">
+                          {night.phase}
+                          {night.startDate && night.endDate && (
+                            <span className="text-gray-500"> ({formatDate(night.startDate)} - {formatDate(night.endDate)})</span>
+                          )}
+                          : {night.nights} {night.nights === 1 ? "Nacht" : "Nächte"} à {formatCurrency(night.pricePerNight)}
+                        </span>
+                        <span className="font-medium">{formatCurrency(night.totalPrice)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {pricing.cleaningFee > 0 && (
                   <div className="flex justify-between">
                     <span>Reinigungsgebühr</span>

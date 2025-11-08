@@ -13,7 +13,20 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatDate(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date
+  let d: Date;
+  if (typeof date === 'string') {
+    // Wenn das Datum im Format YYYY-MM-DD ist, interpretiere es als lokales Datum in Amsterdam
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      // Parse als lokales Datum in Amsterdam (nicht UTC)
+      const [year, month, day] = date.split('-').map(Number);
+      // Erstelle ein Datum in der lokalen Zeitzone (wird dann von formatDate in Amsterdam konvertiert)
+      d = new Date(year, month - 1, day);
+    } else {
+      d = new Date(date);
+    }
+  } else {
+    d = date;
+  }
   // Verwende lokale Zeitzone (Europe/Amsterdam) für konsistente Anzeige
   // Damit werden UTC-gespeicherte Daten korrekt in der lokalen Zeitzone interpretiert
   return new Intl.DateTimeFormat('de-DE', {

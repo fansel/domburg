@@ -22,10 +22,38 @@ export async function POST(request: NextRequest) {
       useFamilyPrice = token?.useFamilyPrice || false;
     }
 
+    // Konvertiere Datumsstrings zu Date-Objekten
+    // WICHTIG: Frontend sendet toISOString(), was das Datum zu UTC konvertiert
+    // Beispiel: Wenn Benutzer 4. Januar 2026 00:00:00 in Europe/Amsterdam wählt,
+    // wird toISOString() zu "2026-01-03T23:00:00.000Z" (UTC-1) oder "2026-01-03T22:00:00.000Z" (UTC-2)
+    // 
+    // formatDate() interpretiert das Datum in Europe/Amsterdam Zeitzone.
+    // Um konsistent zu sein, müssen wir das Datum so interpretieren, dass es nach
+    // der UTC-Normalisierung in normalizeDate() das gleiche Datum ergibt wie formatDate() anzeigt.
+    //
+    // Lösung: Verwende die lokalen Komponenten des geparsten Datums und erstelle ein UTC-Datum
+    // Das entspricht der Art, wie Daten in der Datenbank gespeichert werden
+    const parseDateFromISO = (dateStr: string): Date => {
+      const date = new Date(dateStr);
+      // new Date(dateStr) konvertiert UTC zurück zu lokaler Zeit
+      // Extrahiere die lokalen Komponenten (das ist das Datum, das der Benutzer sieht)
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      // Erstelle ein UTC-Datum mit diesen Komponenten
+      // Dies entspricht der Art, wie Daten in der Datenbank gespeichert werden
+      // und wie formatDate() sie interpretiert
+      return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    };
+
+    const startDateObj = parseDateFromISO(startDate);
+    const endDateObj = parseDateFromISO(endDate);
+
     // Preisberechnung (Strandbude wird automatisch aktiviert wenn in aktiver Session)
+    // calculateBookingPrice normalisiert die Daten intern auf UTC für konsistente Berechnung
     const pricing = await calculateBookingPrice(
-      new Date(startDate),
-      new Date(endDate),
+      startDateObj,
+      endDateObj,
       useFamilyPrice
     );
 
