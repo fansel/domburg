@@ -50,11 +50,13 @@ export async function calculateBookingPrice(
 
   // Preisphasen holen - hole ALLE aktiven Phasen, da wir später filtern
   // Dies ermöglicht auch jahresübergreifende Phasen zu finden
+  // WICHTIG: Sortiere nach Priorität aufsteigend (asc) - niedrigere Zahl = höhere Priorität
+  // Beispiel: Priorität 1 (Weihnachten) überschreibt Priorität 2 (Winter-Saison)
   const pricingPhases = await prisma.pricingPhase.findMany({
     where: {
       isActive: true,
     },
-    orderBy: { priority: 'desc' },
+    orderBy: { priority: 'asc' },
   });
 
   // Normalisiere Datums-Objekte für Tag-zu-Tag-Vergleiche (setze Zeit auf 00:00:00 UTC)
@@ -135,8 +137,8 @@ export async function calculateBookingPrice(
     let appliedPhase: string | undefined;
     
     // Finde Phase für den Check-in-Tag (Tag, an dem die Nacht beginnt)
-    // Bei überlappenden Phasen: Nimm die mit der höchsten Priorität
-    // Phasen sind bereits nach priority: 'desc' sortiert
+    // Bei überlappenden Phasen: Nimm die mit der höchsten Priorität (niedrigste Zahl)
+    // Phasen sind bereits nach priority: 'asc' sortiert (niedrigere Zahl = höhere Priorität)
     for (const phase of normalizedPhases) {
       // Prüfe ob der Check-in-Tag (Tag, an dem die Nacht beginnt) in der Phase liegt
       // WICHTIG: 
@@ -344,7 +346,7 @@ export async function calculateBookingPrice(
       
       return false;
     })
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    .sort((a, b) => (a.priority || 0) - (b.priority || 0)); // Aufsteigend: niedrigere Zahl = höhere Priorität
   
   if (matchingPhases.length > 0) {
     const phase = matchingPhases[0] as any;

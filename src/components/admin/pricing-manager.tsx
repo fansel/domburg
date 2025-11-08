@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Calendar, Euro } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, Euro, BarChart3, Home } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { PricingStatistics } from "@/components/admin/pricing-statistics";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +32,6 @@ import {
   deleteBeachHutSession,
 } from "@/app/actions/pricing";
 import type { PricingPhase, PricingSetting, BeachHutSession } from "@prisma/client";
-import { Home } from "lucide-react";
 
 // Type für konvertierte PricingPhase (Decimal -> number)
 type PricingPhaseWithNumbers = Omit<PricingPhase, 'pricePerNight' | 'familyPricePerNight'> & {
@@ -224,9 +225,25 @@ export function PricingManager({
     }).format(new Date(date));
   };
 
+  const currentYear = new Date().getFullYear();
+
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Grundeinstellungen */}
+    <Tabs defaultValue="prices" className="space-y-4 sm:space-y-6">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="prices" className="flex items-center gap-2">
+          <Euro className="h-4 w-4" />
+          <span className="hidden sm:inline">Preise</span>
+          <span className="sm:hidden">Preise</span>
+        </TabsTrigger>
+        <TabsTrigger value="statistics" className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4" />
+          <span className="hidden sm:inline">Statistiken</span>
+          <span className="sm:hidden">Stats</span>
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="prices" className="space-y-4 sm:space-y-6 mt-6">
+        {/* Grundeinstellungen */}
       <Card>
         <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-3 sm:pb-6">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -451,7 +468,12 @@ export function PricingManager({
           )}
         </CardContent>
       </Card>
-    </div>
+      </TabsContent>
+
+      <TabsContent value="statistics" className="space-y-4 sm:space-y-6 mt-6">
+        <PricingStatistics currentYear={currentYear} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
