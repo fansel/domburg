@@ -23,6 +23,12 @@ interface BookingItem {
   defaultUseFamilyPrice: boolean; // Buchungen: false, Manuelle: true
 }
 
+interface PricingData {
+  totalPrice: number;
+  cleaningFee: number;
+  useFamilyPrice: boolean;
+}
+
 interface PricingStatisticsProps {
   currentYear: number;
 }
@@ -30,7 +36,7 @@ interface PricingStatisticsProps {
 export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
-  const [pricingData, setPricingData] = useState<Map<string, { totalPrice: number; useFamilyPrice: boolean }>>(new Map());
+  const [pricingData, setPricingData] = useState<Map<string, PricingData>>(new Map());
   const [enabledBookings, setEnabledBookings] = useState<Set<string>>(new Set()); // Welche Buchungen sind aktiviert
   const [isLoading, setIsLoading] = useState(true);
 
@@ -50,11 +56,12 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
           }));
           setBookings(bookingsWithDates);
           // Initialisiere pricingData mit Standardwerten
-          const initialPricing = new Map<string, { totalPrice: number; useFamilyPrice: boolean }>();
+          const initialPricing = new Map<string, PricingData>();
           const initialEnabled = new Set<string>();
           bookingsWithDates.forEach((booking: BookingItem) => {
             initialPricing.set(booking.id, {
               totalPrice: 0,
+              cleaningFee: 0,
               useFamilyPrice: booking.defaultUseFamilyPrice,
             });
             // Alle Buchungen sind standardmäßig aktiviert
@@ -78,7 +85,7 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
     const calculatePrices = async () => {
       if (bookings.length === 0) return;
       
-      const newPricingData = new Map<string, { totalPrice: number; useFamilyPrice: boolean }>();
+      const newPricingData = new Map<string, PricingData>();
       
       for (const booking of bookings) {
         const useFamilyPrice = booking.defaultUseFamilyPrice;
@@ -98,12 +105,14 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
           if (data.success && data.pricing) {
             newPricingData.set(booking.id, {
               totalPrice: data.pricing.totalPrice,
+              cleaningFee: data.pricing.cleaningFee || 0,
               useFamilyPrice: useFamilyPrice,
             });
           } else {
             // Fallback: Setze Standardwerte
             newPricingData.set(booking.id, {
               totalPrice: 0,
+              cleaningFee: 0,
               useFamilyPrice: useFamilyPrice,
             });
           }
@@ -112,6 +121,7 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
           // Fallback: Setze Standardwerte
           newPricingData.set(booking.id, {
             totalPrice: 0,
+            cleaningFee: 0,
             useFamilyPrice: useFamilyPrice,
           });
         }
@@ -139,6 +149,7 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
       const newMap = new Map(prev);
       newMap.set(bookingId, {
         totalPrice: currentData?.totalPrice ?? 0,
+        cleaningFee: currentData?.cleaningFee ?? 0,
         useFamilyPrice: newUseFamilyPrice,
       });
       return newMap;
@@ -163,6 +174,7 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
           const newMap = new Map(prev);
           newMap.set(bookingId, {
             totalPrice: data.pricing.totalPrice,
+            cleaningFee: data.pricing.cleaningFee || 0,
             useFamilyPrice: newUseFamilyPrice,
           });
           return newMap;
@@ -180,12 +192,13 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
     });
   }, [bookings]);
 
-  // Berechne Gesamtsumme (nur für aktivierte Buchungen)
+  // Berechne Gesamtsumme (nur für aktivierte Buchungen, ohne Endreinigung)
   const totalRevenue = useMemo(() => {
     let total = 0;
     pricingData.forEach((data, bookingId) => {
       if (enabledBookings.has(bookingId)) {
-        total += data.totalPrice;
+        // Ziehe Endreinigung vom Gesamtpreis ab
+        total += data.totalPrice - data.cleaningFee;
       }
     });
     return total;
@@ -355,7 +368,7 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
                       <div className="text-right min-w-[100px] sm:min-w-[120px]">
                         <div className="text-xs sm:text-sm text-muted-foreground">Preis</div>
                         <div className="text-base sm:text-lg font-bold">
-                          {pricing?.totalPrice ? formatCurrency(pricing.totalPrice) : "..."}
+                          {pricing?.totalPrice ? formatCurrency(pricing.totalPrice - (pricing.cleaningFee || 0)) : "..."}
                         </div>
                       </div>
                     </div>
