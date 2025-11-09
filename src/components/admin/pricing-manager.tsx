@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Calendar, Euro, BarChart3, Home } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, Euro, BarChart3, Home, HousePlus } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { PricingStatistics } from "@/components/admin/pricing-statistics";
 import {
@@ -1022,7 +1022,7 @@ const BeachHutSessionDialog = ({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
-          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+          <HousePlus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
           <span className="hidden sm:inline">Neue Strandbudensaison</span>
           <span className="sm:hidden">Neue Saison</span>
         </Button>
