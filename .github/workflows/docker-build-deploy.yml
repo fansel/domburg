@@ -21,6 +21,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Clean PATH to avoid fnm conflicts
+        run: |
+          # Remove fnm paths from PATH to avoid conflicts with Docker actions
+          CLEAN_PATH=$(echo "$PATH" | tr ':' '\n' | grep -v fnm | grep -v '.local/state/fnm' | tr '\n' ':' | sed 's/:$//')
+          
+          # Ensure /usr/local/bin is in PATH (where Docker is installed)
+          if [[ ":$CLEAN_PATH:" != *":/usr/local/bin:"* ]]; then
+            CLEAN_PATH="/usr/local/bin:$CLEAN_PATH"
+          fi
+          
+          echo "PATH=$CLEAN_PATH" >> $GITHUB_ENV
+          echo "Cleaned PATH (Docker should be at /usr/local/bin/docker)"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
