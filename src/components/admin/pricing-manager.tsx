@@ -263,7 +263,8 @@ export function PricingManager({
   };
 
   const availableYears = getYearsFromPhases();
-  const defaultYear = availableYears.includes(currentYear) ? currentYear : availableYears[0] || currentYear;
+  // Priorisiere immer das aktuelle Jahr, wenn es verfügbar ist
+  const defaultYear = availableYears.includes(currentYear) ? currentYear : (availableYears.find(y => y >= currentYear) || availableYears[availableYears.length - 1] || currentYear);
 
   // Gruppiere Phasen nach Jahren
   // Eine Phase kann in mehreren Jahren erscheinen, wenn sie über Jahresgrenzen geht
@@ -387,15 +388,19 @@ export function PricingManager({
           ) : (
             <Tabs defaultValue={`year-${defaultYear}`} className="space-y-4">
               <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-                <TabsList className={`inline-flex w-full sm:grid gap-1 sm:gap-2 ${
+                <TabsList className={`flex sm:grid gap-1 sm:gap-2 ${
                   availableYears.length === 1 ? 'sm:grid-cols-1' :
                   availableYears.length === 2 ? 'sm:grid-cols-2' :
                   availableYears.length === 3 ? 'sm:grid-cols-3' :
                   availableYears.length === 4 ? 'sm:grid-cols-4' :
                   'sm:grid-cols-4 lg:grid-cols-6'
-                }`}>
+                }`} style={{ minWidth: 'max-content' }}>
                   {availableYears.map((year) => (
-                    <TabsTrigger key={year} value={`year-${year}`} className="flex-shrink-0 min-w-[60px] sm:min-w-0">
+                    <TabsTrigger 
+                      key={year} 
+                      value={`year-${year}`} 
+                      className="flex-shrink-0 w-[calc((100vw-0.5rem)/3)] min-w-[calc((100vw-0.5rem)/3)] sm:w-auto sm:min-w-0"
+                    >
                       {year}
                     </TabsTrigger>
                   ))}
