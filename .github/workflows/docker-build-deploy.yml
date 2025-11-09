@@ -16,71 +16,20 @@ env:
 jobs:
   build-and-push:
     runs-on: self-hosted
-
+    # Falls du mehrere Runner hast, kannst du Labels verwenden:
+    # runs-on: [self-hosted, macbook]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Clean PATH to avoid fnm conflicts
-        run: |
-          # Remove fnm paths from PATH to avoid conflicts with Docker actions
-          CLEAN_PATH=$(echo "$PATH" | tr ':' '\n' | grep -v fnm | grep -v '.local/state/fnm' | tr '\n' ':' | sed 's/:$//')
-          
-          # Ensure /usr/local/bin is in PATH (where Docker is installed)
-          if [[ ":$CLEAN_PATH:" != *":/usr/local/bin:"* ]]; then
-            CLEAN_PATH="/usr/local/bin:$CLEAN_PATH"
-          fi
-          
-          # Docker CLI looks for plugins in ~/.docker/cli-plugins, but we need to ensure Docker itself is in PATH
-          # The docker command will automatically find plugins in ~/.docker/cli-plugins/
-          
-          echo "PATH=$CLEAN_PATH" >> $GITHUB_ENV
-          echo "Cleaned PATH (Docker should be at /usr/local/bin/docker)"
-          echo "Docker will look for plugins in ~/.docker/cli-plugins/"
-
-      - name: Install or verify Docker Buildx
-        run: |
-          # Check if buildx already works (Docker Desktop includes it)
-          if docker buildx version >/dev/null 2>&1; then
-            echo "✅ Buildx already available"
-            docker buildx version
-          else
-            echo "📦 Installing Buildx manually..."
-            
-            # Create directories
-            mkdir -p ~/.docker/cli-plugins
-            mkdir -p ~/.docker/buildx
-            
-            # Download and install buildx directly
-            BUILDX_VERSION="v0.29.1"
-            ARCH="darwin-arm64"
-            BUILDX_URL="https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.${ARCH}"
-            
-            # Download to temp location first, then move
-            TEMP_FILE=$(mktemp)
-            curl -L -o "$TEMP_FILE" "$BUILDX_URL"
-            chmod +x "$TEMP_FILE"
-            mv "$TEMP_FILE" ~/.docker/cli-plugins/docker-buildx
-            
-            # Verify installation
-            docker buildx version || (echo "❌ Buildx installation failed" && exit 1)
-            echo "✅ Buildx installed successfully"
-          fi
-          
-          # Show buildx info
-          docker buildx version
-          docker buildx ls
-
-      - name: Set up Docker Buildx (configure builder)
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: |
             image=moby/buildkit:master
             network=host
-          install: false
 
-      # 🧹 Ensure a clean temporary Docker config
-      - name: Prepare temporary Docker config
+      - name: Use temporary Docker config
         run: |
           mkdir -p /tmp/docker-config
           echo '{}' > /tmp/docker-config/config.json
@@ -95,29 +44,19 @@ jobs:
         env:
           DOCKER_CONFIG: /tmp/docker-config
 
-      # 🚀 Build & Push ARM64 image with caching
       - name: Build and push web app
         uses: docker/build-push-action@v5
-        env:
-          DOCKER_CONFIG: /tmp/docker-config
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/arm64
           push: true
-
-          # Optional manual override (from workflow_dispatch input)
           no-cache: ${{ github.event.inputs.no_cache == 'true' }}
-
-          # 🔥 Optimized caching configuration
           cache-from: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/domburg-booking:buildcache,ignore-error=true
-          cache-to: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/domburg-booking:buildcache,mode=max,compression=zstd
-
-          # 🔧 Pass build arguments to Dockerfile
+          cache-to: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/domburg-booking:buildcache,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
-
-          # 🏷️ Image tags
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/domburg-booking:latest
             ${{ env.DOCKERHUB_USERNAME }}/domburg-booking:${{ github.sha }}
+
