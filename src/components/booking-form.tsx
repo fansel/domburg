@@ -55,6 +55,7 @@ interface PriceCalculation {
   basePrice: number;
   cleaningFee: number;
   beachHutPrice?: number;
+  useFamilyPrice?: boolean; // Für Anzeige "0€ (Family)"
   totalPrice: number;
   pricePerNight: number;
   nightBreakdown?: Array<{
@@ -469,6 +470,16 @@ export function BookingForm() {
                                   ))}
                                 </div>
                               )}
+                              {pricing.beachHutPrice !== undefined && (
+                                <div className="flex justify-between items-center py-1 text-xs lg:text-sm pt-2 border-t border-gray-200">
+                                  <span className="text-gray-600">{t("bookingForm.beachHut")}</span>
+                                  <span className="font-medium">
+                                    {pricing.beachHutPrice === 0 && pricing.useFamilyPrice 
+                                      ? "0€ (Family)" 
+                                      : formatCurrency(pricing.beachHutPrice)}
+                                  </span>
+                                </div>
+                              )}
                               <div className="space-y-1 pt-2 border-t border-gray-200">
                               <div className="flex justify-between items-center">
                                 <span className="text-xs lg:text-sm font-semibold text-gray-900">{t("bookingForm.totalPrice")}</span>
@@ -798,10 +809,14 @@ export function BookingForm() {
                           <span className="text-gray-600">{t("bookingForm.finalCleaning")}</span>
                           <span className="font-medium">{formatCurrency(pricing.cleaningFee)}</span>
                         </div>
-                        {pricing.beachHutPrice && (
+                        {pricing.beachHutPrice !== undefined && (
                           <div className="flex justify-between items-center py-1 text-sm lg:text-base">
                             <span className="text-gray-600">{t("bookingForm.beachHut")}</span>
-                            <span className="font-medium">{formatCurrency(pricing.beachHutPrice)}</span>
+                            <span className="font-medium">
+                              {pricing.beachHutPrice === 0 && pricing.useFamilyPrice 
+                                ? "0€ (Family)" 
+                                : formatCurrency(pricing.beachHutPrice)}
+                            </span>
                           </div>
                         )}
                         <div className="space-y-2 pt-3 lg:pt-4 border-t-2 border-primary/20">

@@ -442,6 +442,16 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
                     <span>{formatCurrency(pricing.cleaningFee)}</span>
                   </div>
                 )}
+                {pricing.beachHutPrice !== undefined && (
+                  <div className="flex justify-between">
+                    <span>Strandbude</span>
+                    <span>
+                      {pricing.beachHutPrice === 0 && pricing.useFamilyPrice 
+                        ? "0€ (Family)" 
+                        : formatCurrency(pricing.beachHutPrice)}
+                    </span>
+                  </div>
+                )}
                 <div className="space-y-1 border-t pt-1 mt-1">
                   <div className="flex justify-between font-medium">
                     <span>Gesamt</span>

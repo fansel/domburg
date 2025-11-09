@@ -307,15 +307,29 @@ function BookingStatusPageContent() {
               {booking.totalPrice && (() => {
                 const pricingDetails = booking.pricingDetails as any;
                 const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
-                const basePrice = parseFloat(booking.totalPrice); // booking.totalPrice ist bereits OHNE cleaningFee
+                const beachHutPrice = pricingDetails?.beachHutPrice;
+                const useFamilyPrice = pricingDetails?.useFamilyPrice || false;
+                const basePrice = parseFloat(booking.totalPrice); // booking.totalPrice enthält bereits alles inkl. Strandbude
                 const endPrice = basePrice + cleaningFee;
                 
                 return (
                   <div className="flex items-start gap-3">
                     <Euro className="h-5 w-5 text-primary mt-0.5" />
-                    <div>
+                    <div className="flex-1">
                       <p className="font-semibold">{t("bookingForm.totalPrice")}</p>
-                      <p className="text-sm font-medium">
+                      {pricingDetails?.basePrice && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Übernachtungen: {formatCurrency(pricingDetails.basePrice)}
+                        </p>
+                      )}
+                      {beachHutPrice !== undefined && (
+                        <p className="text-xs text-muted-foreground">
+                          Strandbude: {beachHutPrice === 0 && useFamilyPrice 
+                            ? "0€ (Family)" 
+                            : formatCurrency(beachHutPrice)}
+                        </p>
+                      )}
+                      <p className="text-sm font-medium mt-1">
                         {formatCurrency(basePrice)}
                       </p>
                       <p className="text-xs text-muted-foreground">

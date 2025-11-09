@@ -470,11 +470,29 @@ export function BookingDetailView({
             {booking.totalPrice && (() => {
               const pricingDetails = booking.pricingDetails as any;
               const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
-              const basePrice = parseFloat(booking.totalPrice.toString()); // booking.totalPrice ist bereits OHNE cleaningFee
+              const beachHutPrice = pricingDetails?.beachHutPrice;
+              const useFamilyPrice = pricingDetails?.useFamilyPrice || false;
+              const basePrice = parseFloat(booking.totalPrice.toString()); // booking.totalPrice enthält bereits alles inkl. Strandbude
               const endPrice = basePrice + cleaningFee;
               
               return (
                 <div className="mt-4 p-4 bg-muted rounded-lg space-y-3">
+                  {pricingDetails?.basePrice && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Übernachtungen:</span>
+                      <span className="font-medium">{formatCurrency(pricingDetails.basePrice)}</span>
+                    </div>
+                  )}
+                  {beachHutPrice !== undefined && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Strandbude:</span>
+                      <span className="font-medium">
+                        {beachHutPrice === 0 && useFamilyPrice 
+                          ? "0€ (Family)" 
+                          : formatCurrency(beachHutPrice)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Gesamtpreis:</span>
                     <span className="text-2xl font-bold">

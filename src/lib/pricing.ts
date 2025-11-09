@@ -7,6 +7,7 @@ export interface PriceCalculation {
   basePrice: number;
   cleaningFee: number;
   beachHutPrice?: number;
+  useFamilyPrice?: boolean; // Für Anzeige "0€ (Family)" bei Strandbude
   totalPrice: number;
   pricePerNight: number;
   breakdown: Array<{
@@ -257,19 +258,35 @@ export async function calculateBookingPrice(
   let useBeachHut = false;
   
   // Prüfe ob Strandbude in aktiver Session verfügbar ist
-  const allSessions = await (prisma as any).beachHutSession.findMany();
+  // WICHTIG: Normalisiere Session-Daten wie PricingPhases für konsistente Datumsvergleiche
+  const allSessions = await (prisma as any).beachHutSession.findMany({
+    where: {
+      isActive: true,
+    },
+  });
   
   if (allSessions.length > 0) {
-    // Wenn Sessions definiert sind, prüfe ob Buchungszeitraum innerhalb einer aktiven Session liegt
-    const activeSessions = await (prisma as any).beachHutSession.findMany({
-      where: {
-        isActive: true,
-        AND: [
-          { startDate: { lte: normalizedEndDate } },
-          { endDate: { gte: normalizedStartDate } },
-        ],
-      },
+    // Normalisiere Session-Daten für konsistente Datumsvergleiche
+    const normalizedSessions = allSessions.map((session: any) => ({
+      ...session,
+      startDate: normalizePhaseDate(session.startDate),
+      endDate: normalizePhaseDate(session.endDate),
+    }));
+    
+    // Prüfe ob Buchungszeitraum innerhalb einer aktiven Session liegt
+    // Eine Session überlappt, wenn: session.startDate <= normalizedEndDate && session.endDate >= normalizedStartDate
+    const activeSessions = normalizedSessions.filter((session: any) => {
+      const sessionStartTime = session.startDate.getTime();
+      const sessionEndTime = session.endDate.getTime();
+      const bookingStartTime = normalizedStartDate.getTime();
+      const bookingEndTime = normalizedEndDate.getTime();
+      
+      // Session überlappt mit Buchung wenn:
+      // - Session startet vor oder am Buchungsende UND
+      // - Session endet nach oder am Buchungsstart
+      return sessionStartTime <= bookingEndTime && sessionEndTime >= bookingStartTime;
     });
+    
     useBeachHut = activeSessions.length > 0;
   } else {
     // Wenn keine Sessions definiert sind, ist Strandbude ganzjährig verfügbar
@@ -440,19 +457,24 @@ export async function calculateBookingPrice(
     }
   }
 
-  return {
+  const result = {
     nights,
     basePrice: totalNightlyPrice,
     cleaningFee,
     // Strandbude-Preis anzeigen wenn automatisch aktiviert
     // Bei Family-Preis ist useBeachHut = true, aber beachHutPrice = 0 (kostenlos)
-    beachHutPrice: useBeachHut && beachHutPrice > 0 ? beachHutPrice : undefined,
+    // WICHTIG: Gib beachHutPrice zurück wenn es > 0 ist ODER wenn useBeachHut true ist (für Family-Preis Anzeige)
+    // Bei Family-Preis zeigen wir "0€ (Family)" an
+    beachHutPrice: useBeachHut ? (beachHutPrice > 0 ? beachHutPrice : 0) : undefined,
+    useFamilyPrice, // Speichere useFamilyPrice für Anzeige-Logik
     totalPrice,
     pricePerNight: totalNightlyPrice / nights,
     breakdown,
     nightBreakdown: nightBreakdown.length > 0 ? nightBreakdown : undefined,
     warnings: warnings.length > 0 ? warnings : undefined,
   };
+  
+  return result;
 }
 
 export async function getMinStayNights(): Promise<number> {
