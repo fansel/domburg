@@ -38,12 +38,22 @@ jobs:
           echo "Cleaned PATH (Docker should be at /usr/local/bin/docker)"
           echo "Docker will look for plugins in ~/.docker/cli-plugins/"
 
+      - name: Prepare Buildx directories
+        run: |
+          # Ensure directories exist with proper permissions
+          mkdir -p ~/.docker/cli-plugins
+          mkdir -p ~/.docker/buildx
+          # Make sure we have write permissions
+          chmod -R u+w ~/.docker 2>/dev/null || true
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
+          version: latest
           driver-opts: |
             image=moby/buildkit:master
             network=host
+          install: true
 
       - name: Verify Buildx is available
         run: |
