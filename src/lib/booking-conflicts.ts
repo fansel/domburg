@@ -316,19 +316,111 @@ export async function findOverlappingCalendarEvents(): Promise<BookingConflict[]
           .join("-");
 
         if (!processed.has(conflictKey)) {
-          // Prüfe ob alle Events die gleiche colorId haben
-          const firstEvent = allEvents.find(e => e.id === overlappingEvents[0].id);
-          const firstColorId = firstEvent?.colorId;
-          const allSameColor = firstColorId !== undefined && 
-            overlappingEvents.every(oe => {
-              const event = allEvents.find(e => e.id === oe.id);
-              return event?.colorId === firstColorId;
-            });
+          // Prüfe ob alle Events transitiv in der Datenbank verlinkt sind
+          // Hole alle Verlinkungen für diese Events UND alle transitiv verbundenen Events
+          const eventIds = overlappingEvents.map(e => e.id).filter((id): id is string => !!id);
           
-          // Wenn alle Events die gleiche Farbe haben = KEIN Konflikt (zusammengehörig)
-          // Verschiedene Farben = echter Konflikt (HIGH)
-          if (allSameColor) {
-            // Gleiche Farbe = kein Konflikt, einfach überspringen
+          // Iterativ alle transitiv verbundenen Events finden
+          const allRelatedEventIds = new Set<string>(eventIds);
+          let foundNewEvents = true;
+          
+          while (foundNewEvents) {
+            foundNewEvents = false;
+            const currentEventIds = Array.from(allRelatedEventIds);
+            
+            const linkedEvents = await prisma.linkedCalendarEvent.findMany({
+              where: {
+                OR: [
+                  { eventId1: { in: currentEventIds } },
+                  { eventId2: { in: currentEventIds } },
+                ],
+              },
+            });
+            
+            // Füge alle gefundenen Event-IDs hinzu
+            linkedEvents.forEach(link => {
+              if (!allRelatedEventIds.has(link.eventId1)) {
+                allRelatedEventIds.add(link.eventId1);
+                foundNewEvents = true;
+              }
+              if (!allRelatedEventIds.has(link.eventId2)) {
+                allRelatedEventIds.add(link.eventId2);
+                foundNewEvents = true;
+              }
+            });
+          }
+          
+          // Hole jetzt alle Verlinkungen für alle transitiv verbundenen Events
+          const allLinkedEvents = Array.from(allRelatedEventIds).length > 0 ? await prisma.linkedCalendarEvent.findMany({
+            where: {
+              OR: [
+                { eventId1: { in: Array.from(allRelatedEventIds) } },
+                { eventId2: { in: Array.from(allRelatedEventIds) } },
+              ],
+            },
+          }) : [];
+          
+          // Erstelle eine Map: eventId -> Array von verlinkten Event-IDs
+          const linkedEventMap = new Map<string, Set<string>>();
+          allLinkedEvents.forEach(link => {
+            if (!linkedEventMap.has(link.eventId1)) {
+              linkedEventMap.set(link.eventId1, new Set([link.eventId1]));
+            }
+            if (!linkedEventMap.has(link.eventId2)) {
+              linkedEventMap.set(link.eventId2, new Set([link.eventId2]));
+            }
+            linkedEventMap.get(link.eventId1)!.add(link.eventId2);
+            linkedEventMap.get(link.eventId2)!.add(link.eventId1);
+          });
+          
+          // Stelle sicher, dass alle Events in der Map sind (auch wenn sie keine Verlinkungen haben)
+          eventIds.forEach(eventId => {
+            if (!linkedEventMap.has(eventId)) {
+              linkedEventMap.set(eventId, new Set([eventId]));
+            }
+          });
+          
+          // Berechne transitive Closure für jedes Event
+          const getTransitiveLinkedEvents = (eventId: string): Set<string> => {
+            const connected = new Set<string>([eventId]);
+            const queue = [eventId];
+            const visited = new Set<string>([eventId]);
+            
+            while (queue.length > 0) {
+              const current = queue.shift()!;
+              const linkedIds = linkedEventMap.get(current) || new Set();
+              
+              linkedIds.forEach(linkedId => {
+                if (!visited.has(linkedId)) {
+                  visited.add(linkedId);
+                  connected.add(linkedId);
+                  queue.push(linkedId);
+                }
+              });
+            }
+            
+            return connected;
+          };
+          
+          // Prüfe ob alle Events transitiv miteinander verlinkt sind
+          // Das bedeutet: Für jedes Event-Paar muss geprüft werden, ob sie transitiv verbunden sind
+          let allTransitivelyLinked = true;
+          if (eventIds.length > 1) {
+            const firstEventTransitiveLinks = getTransitiveLinkedEvents(eventIds[0]);
+            
+            // Prüfe ob alle anderen Events in den transitiven Links des ersten Events sind
+            for (let i = 1; i < eventIds.length; i++) {
+              if (!firstEventTransitiveLinks.has(eventIds[i])) {
+                allTransitivelyLinked = false;
+                break;
+              }
+            }
+          }
+          
+          // Wenn alle Events transitiv verlinkt sind = KEIN Konflikt (zusammengehörig)
+          // Nicht transitiv verlinkt = echter Konflikt (HIGH)
+          if (allTransitivelyLinked && eventIds.length > 1) {
+            // Alle Events sind transitiv verlinkt = kein Konflikt, einfach überspringen
             processed.add(conflictKey);
             continue;
           }

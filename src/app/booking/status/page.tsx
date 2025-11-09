@@ -304,17 +304,27 @@ function BookingStatusPageContent() {
               </div>
 
               {/* Preis */}
-              {booking.totalPrice && (
-                <div className="flex items-start gap-3">
-                  <Euro className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-semibold">{t("bookingForm.totalPrice")}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatCurrency(parseFloat(booking.totalPrice))}
-                    </p>
+              {booking.totalPrice && (() => {
+                const pricingDetails = booking.pricingDetails as any;
+                const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
+                const basePrice = parseFloat(booking.totalPrice); // booking.totalPrice ist bereits OHNE cleaningFee
+                const endPrice = basePrice + cleaningFee;
+                
+                return (
+                  <div className="flex items-start gap-3">
+                    <Euro className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-semibold">{t("bookingForm.totalPrice")}</p>
+                      <p className="text-sm font-medium">
+                        {formatCurrency(basePrice)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        zuzüglich {formatCurrency(cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(endPrice)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Nachricht */}
               {booking.message && (

@@ -11,12 +11,14 @@ import * as bcrypt from "bcryptjs";
 
 export async function createGuestToken({
   description,
+  code,
   maxUsage,
   expiresInDays,
   useFamilyPrice = false,
   accessType = "GUEST",
 }: {
   description: string;
+  code?: string;
   maxUsage?: number;
   expiresInDays?: number;
   useFamilyPrice?: boolean;
@@ -28,7 +30,17 @@ export async function createGuestToken({
       return { success: false, error: "Keine Berechtigung" };
     }
 
-    const token = generateGuestCode();
+    // Verwende bereitgestellten Code oder generiere einen neuen
+    const token = code?.trim().toUpperCase() || generateGuestCode();
+    
+    // Prüfe ob Code bereits existiert
+    const existingToken = await prisma.guestAccessToken.findUnique({
+      where: { token },
+    });
+    
+    if (existingToken) {
+      return { success: false, error: "Dieser Code existiert bereits" };
+    }
     const expiresAt = expiresInDays
       ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
       : null;
@@ -70,6 +82,87 @@ export async function toggleGuestToken(id: string, isActive: boolean) {
     return { success: true, token };
   } catch (error) {
     console.error("Error toggling guest token:", error);
+    return { success: false, error: "Fehler beim Aktualisieren des Codes" };
+  }
+}
+
+export async function updateGuestToken({
+  id,
+  code,
+  description,
+  maxUsage,
+  expiresInDays,
+  useFamilyPrice,
+  accessType,
+}: {
+  id: string;
+  code?: string;
+  description?: string;
+  maxUsage?: number | null;
+  expiresInDays?: number | null;
+  useFamilyPrice?: boolean;
+  accessType?: "GUEST" | "CLEANING";
+}) {
+  try {
+    const user = await getCurrentUser();
+    if (!user || !hasAdminRights(user.role)) {
+      return { success: false, error: "Keine Berechtigung" };
+    }
+
+    // Wenn Code geändert wird, prüfe ob er bereits existiert
+    if (code !== undefined) {
+      const normalizedCode = code.trim().toUpperCase();
+      const existingToken = await prisma.guestAccessToken.findUnique({
+        where: { token: normalizedCode },
+      });
+      
+      // Prüfe ob ein anderer Token (nicht der aktuelle) diesen Code hat
+      if (existingToken && existingToken.id !== id) {
+        return { success: false, error: "Dieser Code existiert bereits" };
+      }
+    }
+
+    const updateData: any = {};
+    
+    if (code !== undefined) {
+      updateData.token = code.trim().toUpperCase();
+    }
+    
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+    
+    if (maxUsage !== undefined) {
+      updateData.maxUsage = maxUsage;
+    }
+    
+    if (expiresInDays !== undefined) {
+      updateData.expiresAt = expiresInDays
+        ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+        : null;
+    }
+    
+    if (useFamilyPrice !== undefined) {
+      updateData.useFamilyPrice = useFamilyPrice;
+    }
+    
+    if (accessType !== undefined) {
+      updateData.accessType = accessType;
+    }
+
+    const token = await prisma.guestAccessToken.update({
+      where: { id },
+      data: updateData,
+    });
+
+    revalidatePath("/admin/settings");
+    return { success: true, token };
+  } catch (error: any) {
+    console.error("Error updating guest token:", error);
+    // Prüfe ob es ein Unique-Constraint-Fehler ist
+    if (error?.code === 'P2002') {
+      return { success: false, error: "Dieser Code existiert bereits" };
+    }
     return { success: false, error: "Fehler beim Aktualisieren des Codes" };
   }
 }
@@ -406,7 +499,8 @@ export async function updateUserPermissions(
   userId: string, 
   canSeeBookings: boolean, 
   canApproveBookings: boolean,
-  canManagePricing?: boolean
+  canManagePricing?: boolean,
+  canManageBookingLimit?: boolean
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -442,15 +536,20 @@ export async function updateUserPermissions(
       updateData.canManagePricing = canManagePricing;
     }
 
+    // canManageBookingLimit nur aktualisieren, wenn explizit übergeben
+    if (canManageBookingLimit !== undefined) {
+      updateData.canManageBookingLimit = canManageBookingLimit;
+    }
+
     await prisma.user.update({
       where: { id: userId },
       data: updateData,
     });
 
-    // Lade aktuellen User, um aktuellen Wert von canManagePricing zu bekommen
+    // Lade aktuellen User, um aktuelle Werte zu bekommen
     const updatedUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { canManagePricing: true },
+      select: { canManagePricing: true, canManageBookingLimit: true } as any,
     });
 
     // Activity Log
@@ -464,6 +563,7 @@ export async function updateUserPermissions(
           canSeeBookings, 
           canApproveBookings, 
           canManagePricing: canManagePricing !== undefined ? canManagePricing : (updatedUser?.canManagePricing ?? false),
+          canManageBookingLimit: canManageBookingLimit !== undefined ? canManageBookingLimit : ((updatedUser as any)?.canManageBookingLimit ?? false),
           userEmail: user.email 
         },
       },

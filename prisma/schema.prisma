@@ -20,9 +20,10 @@ model User {
   mustChangePassword Boolean   @default(false) // Passwort muss bei nächstem Login geändert werden
   role               UserRole  @default(GUEST)
   isActive           Boolean   @default(true)
-  canSeeBookings     Boolean   @default(true) // Kann Buchungen sehen
-  canApproveBookings Boolean   @default(true) // Kann Buchungen genehmigen/ablehnen
-  canManagePricing   Boolean   @default(false) // Kann Preise verwalten
+  canSeeBookings        Boolean   @default(true) // Kann Buchungen sehen
+  canApproveBookings    Boolean   @default(true) // Kann Buchungen genehmigen/ablehnen
+  canManagePricing      Boolean   @default(false) // Kann Preise verwalten
+  canManageBookingLimit Boolean   @default(false) // Kann Buchungslimit verwalten
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   lastLoginAt        DateTime?

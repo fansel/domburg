@@ -252,6 +252,7 @@
     "admins": "Beheerders",
     "googleCalendar": "Google Calendar",
     "email": "E-mail",
+    "bookingLimit": "Boekingen toestaan tot",
     "addCode": "Code toevoegen",
     "addAdmin": "Beheerder toevoegen",
     "code": "Code",

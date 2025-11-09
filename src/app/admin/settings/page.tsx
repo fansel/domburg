@@ -17,8 +17,8 @@ import { SmtpManager } from "@/components/admin/smtp-manager";
 import { PublicUrlManager } from "@/components/admin/public-url-manager";
 import { ReplyToManager } from "@/components/admin/reply-to-manager";
 import { EmailLogManager } from "@/components/admin/email-log-manager";
-import { BookingAdvanceSettingManager } from "@/components/admin/booking-advance-setting-manager";
 import { BookingHistoryResetManager } from "@/components/admin/booking-history-reset-manager";
+import { BookingLimitSettingManager } from "@/components/admin/booking-limit-setting-manager";
 
 export default async function AdminSettingsPage() {
   const user = await getCurrentUser();
@@ -36,9 +36,20 @@ export default async function AdminSettingsPage() {
   
   const actualRole = dbUser?.role || user.role;
   const isSuperAdmin = actualRole === "SUPERADMIN";
+  
+  // Lade vollständige User-Daten für Berechtigungen
+  const fullUser = await prisma.user.findUnique({
+    where: { email: user.email },
+    select: { 
+      role: true,
+      canManageBookingLimit: true,
+    },
+  });
+  
+  const canManageBookingLimit = isSuperAdmin || (fullUser?.canManageBookingLimit === true);
 
   // Lade Daten
-  const [guestTokens, adminUsers, calendarSettings, emailTemplates, smtpSettings, publicUrlSetting, replyToSetting, emailLogs, bookingAdvanceSetting] = await Promise.all([
+  const [guestTokens, adminUsers, calendarSettings, emailTemplates, smtpSettings, publicUrlSetting, replyToSetting, emailLogs, bookingLimitSetting] = await Promise.all([
     prisma.guestAccessToken.findMany({
       orderBy: { createdAt: "desc" },
     }),
@@ -60,6 +71,7 @@ export default async function AdminSettingsPage() {
         canSeeBookings: true,
         canApproveBookings: true,
         canManagePricing: true,
+        canManageBookingLimit: true,
         mustChangePassword: true,
         createdAt: true,
         updatedAt: true,
@@ -95,7 +107,7 @@ export default async function AdminSettingsPage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.setting.findUnique({
-      where: { key: "BOOKING_ADVANCE_OCTOBER_TO_NEXT_YEAR" },
+      where: { key: "BOOKING_LIMIT_DATE" },
     }),
   ]);
 
@@ -174,7 +186,9 @@ export default async function AdminSettingsPage() {
             <TabsContent value="system">
               <div className="space-y-6">
                 <PublicUrlManager initialUrl={publicUrlSetting?.value || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"} />
-                <BookingAdvanceSettingManager initialEnabled={bookingAdvanceSetting?.value === "true"} />
+                {(isSuperAdmin || canManageBookingLimit) && (
+                  <BookingLimitSettingManager initialDate={bookingLimitSetting?.value || undefined} />
+                )}
                 <BookingHistoryResetManager />
               </div>
             </TabsContent>

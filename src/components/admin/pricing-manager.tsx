@@ -227,6 +227,73 @@ export function PricingManager({
 
   const currentYear = new Date().getFullYear();
 
+  // Finde alle Jahre, die in den Preisphasen und Strandbuden-Saisons vorkommen
+  const getYearsFromPhases = (): number[] => {
+    const yearsSet = new Set<number>();
+    
+    // Jahre aus Preisphasen
+    phases.forEach(phase => {
+      const startYear = new Date(phase.startDate).getFullYear();
+      const endYear = new Date(phase.endDate).getFullYear();
+      
+      // Füge alle Jahre zwischen Start und Ende hinzu
+      for (let year = startYear; year <= endYear; year++) {
+        yearsSet.add(year);
+      }
+    });
+    
+    // Jahre aus Strandbuden-Saisons
+    beachHutSessions.forEach(session => {
+      const startYear = new Date(session.startDate).getFullYear();
+      const endYear = new Date(session.endDate).getFullYear();
+      
+      // Füge alle Jahre zwischen Start und Ende hinzu
+      for (let year = startYear; year <= endYear; year++) {
+        yearsSet.add(year);
+      }
+    });
+    
+    // Füge immer mindestens das aktuelle Jahr und ±1 Jahr hinzu
+    yearsSet.add(currentYear - 1);
+    yearsSet.add(currentYear);
+    yearsSet.add(currentYear + 1);
+    
+    // Sortiere Jahre aufsteigend
+    return Array.from(yearsSet).sort((a, b) => a - b);
+  };
+
+  const availableYears = getYearsFromPhases();
+  const defaultYear = availableYears.includes(currentYear) ? currentYear : availableYears[0] || currentYear;
+
+  // Gruppiere Phasen nach Jahren
+  // Eine Phase kann in mehreren Jahren erscheinen, wenn sie über Jahresgrenzen geht
+  const getPhasesForYear = (year: number): PricingPhaseWithNumbers[] => {
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+    
+    return phases.filter(phase => {
+      const phaseStart = new Date(phase.startDate);
+      const phaseEnd = new Date(phase.endDate);
+      
+      // Phase wird angezeigt, wenn sie sich mit dem Jahr überschneidet
+      return phaseStart <= yearEnd && phaseEnd >= yearStart;
+    }).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  };
+
+  // Gruppiere Strandbuden-Saisons nach Jahren
+  const getSessionsForYear = (year: number): BeachHutSession[] => {
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+    
+    return beachHutSessions.filter(session => {
+      const sessionStart = new Date(session.startDate);
+      const sessionEnd = new Date(session.endDate);
+      
+      // Saison wird angezeigt, wenn sie sich mit dem Jahr überschneidet
+      return sessionStart <= yearEnd && sessionEnd >= yearStart;
+    }).sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  };
+
   return (
     <Tabs defaultValue="prices" className="space-y-4 sm:space-y-6">
       <TabsList className="grid w-full grid-cols-2">
@@ -271,200 +338,164 @@ export function PricingManager({
         </CardContent>
       </Card>
 
-      {/* Preisphasen */}
+      {/* Preisphasen und Strandbuden-Saisons */}
       <Card>
         <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-3 sm:pb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div className="flex-1">
               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                 <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
-                {t("pricing.phases")}
+                {t("pricing.phases")} & Strandbuden-Saisons
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
                 {t("pricing.phasesDescription")}
               </CardDescription>
             </div>
-            <PhaseDialog
-              isOpen={isPhaseDialogOpen}
-              onOpenChange={(open) => {
-                setIsPhaseDialogOpen(open);
-                if (!open) setEditingPhase(null);
-              }}
-              phase={editingPhase}
-              onSave={handleSavePhase}
-            />
+            <div className="flex gap-2">
+              <PhaseDialog
+                isOpen={isPhaseDialogOpen}
+                onOpenChange={(open) => {
+                  setIsPhaseDialogOpen(open);
+                  if (!open) setEditingPhase(null);
+                }}
+                phase={editingPhase}
+                onSave={handleSavePhase}
+              />
+              <BeachHutSessionDialog
+                isOpen={isSessionDialogOpen}
+                onOpenChange={(open) => {
+                  setIsSessionDialogOpen(open);
+                  if (!open) setEditingSession(null);
+                }}
+                session={editingSession}
+                onSave={handleSaveSession}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-          {phases.length === 0 ? (
+          {phases.length === 0 && beachHutSessions.length === 0 ? (
             <div className="text-center py-8 sm:py-12">
               <Calendar className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3 sm:mb-4" />
               <h3 className="text-base sm:text-lg font-semibold mb-2">
-                Keine Preisphasen definiert
+                Keine Preisphasen oder Strandbuden-Saisons definiert
               </h3>
               <p className="text-sm sm:text-base text-muted-foreground">
                 Der Basispreis wird für alle Zeiträume verwendet
               </p>
             </div>
           ) : (
-            <div className="space-y-2 sm:space-y-3">
-              {phases.map((phase) => (
-                <div
-                  key={phase.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="space-y-1 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                      <p className="font-medium text-sm sm:text-base">{phase.name}</p>
-                      {phase.isActive ? (
-                        <Badge variant="default" className="text-[10px] sm:text-xs">{t("pricing.active")}</Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[10px] sm:text-xs">{t("common.no")}</Badge>
-                      )}
-                      <Badge variant="outline" className="text-[10px] sm:text-xs">{t("pricing.priority")}: {phase.priority}</Badge>
-                    </div>
-                    {phase.description && (
-                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
-                        {phase.description}
-                      </p>
-                    )}
-                    <p className="text-[11px] sm:text-xs lg:text-sm text-muted-foreground">
-                      {formatDate(phase.startDate)} - {formatDate(phase.endDate)}
-                    </p>
-                  </div>
-                  <div className="flex items-start sm:items-center justify-between sm:justify-end gap-3 sm:gap-4">
-                    <div className="text-left sm:text-right space-y-1 flex-shrink-0">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <div>
-                          <div className="text-base sm:text-lg lg:text-xl font-bold">
-                            {formatCurrency(phase.pricePerNight)}
-                          </div>
-                          <p className="text-[10px] sm:text-xs text-muted-foreground">{t("settings.standard")}</p>
-                        </div>
-                        {phase.familyPricePerNight && (
-                          <div className="border-l pl-2 sm:pl-3">
-                            <div className="text-base sm:text-lg lg:text-xl font-bold text-green-700">
-                              {formatCurrency(phase.familyPricePerNight)}
-                            </div>
-                            <p className="text-[10px] sm:text-xs text-green-700">{t("settings.family")}</p>
+            <Tabs defaultValue={`year-${defaultYear}`} className="space-y-4">
+              <TabsList className={`grid w-full gap-1 sm:gap-2 overflow-x-auto ${
+                availableYears.length === 1 ? 'grid-cols-1' :
+                availableYears.length === 2 ? 'grid-cols-2' :
+                availableYears.length === 3 ? 'grid-cols-3' :
+                availableYears.length === 4 ? 'grid-cols-2 sm:grid-cols-4' :
+                'grid-cols-2 sm:grid-cols-4 lg:grid-cols-6'
+              }`}>
+                {availableYears.map((year) => (
+                  <TabsTrigger key={year} value={`year-${year}`} className="flex-shrink-0">
+                    {year}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              
+              {availableYears.map((year) => {
+                const yearPhases = getPhasesForYear(year);
+                const yearSessions = getSessionsForYear(year);
+                const hasContent = yearPhases.length > 0 || yearSessions.length > 0;
+                
+                return (
+                  <TabsContent key={year} value={`year-${year}`} className="space-y-4 sm:space-y-6 mt-4">
+                    {!hasContent ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Keine Preisphasen oder Strandbuden-Saisons für {year}
+                      </div>
+                    ) : (
+                      <>
+                        {/* Preisphasen für dieses Jahr */}
+                        {yearPhases.length > 0 && (
+                          <div className="space-y-2 sm:space-y-3">
+                            <h3 className="text-sm sm:text-base font-semibold text-muted-foreground mb-2">
+                              Preisphasen
+                            </h3>
+                            {yearPhases.map((phase) => (
+                              <PhaseCard
+                                key={phase.id}
+                                phase={phase}
+                                formatDate={formatDate}
+                                formatCurrency={formatCurrency}
+                                t={t}
+                                onEdit={() => {
+                                  setEditingPhase(phase);
+                                  setIsPhaseDialogOpen(true);
+                                }}
+                                onDelete={() => handleDeletePhase(phase.id)}
+                              />
+                            ))}
                           </div>
                         )}
-                      </div>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground">{t("pricing.perNight")}</p>
-                    </div>
-                    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => {
-                          setEditingPhase(phase);
-                          setIsPhaseDialogOpen(true);
-                        }}
-                      >
-                        <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleDeletePhase(phase.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Strandbuden-Saisons */}
-      <Card>
-        <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-3 sm:pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <div className="flex-1">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <Home className="h-4 w-4 sm:h-5 sm:w-5" />
-                Strandbuden-Saisons
-              </CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Saisons definieren, in denen die Strandbude verfügbar ist
-              </CardDescription>
-            </div>
-            <BeachHutSessionDialog
-              isOpen={isSessionDialogOpen}
-              onOpenChange={(open) => {
-                setIsSessionDialogOpen(open);
-                if (!open) setEditingSession(null);
-              }}
-              session={editingSession}
-              onSave={handleSaveSession}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-          {beachHutSessions.length === 0 ? (
-            <div className="text-center py-8 sm:py-12">
-              <Home className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mb-3 sm:mb-4" />
-              <h3 className="text-base sm:text-lg font-semibold mb-2">
-                Keine Strandbuden-Saisons definiert
-              </h3>
-              <p className="text-sm sm:text-base text-muted-foreground">
-                Die Strandbude ist ganzjährig verfügbar
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2 sm:space-y-3">
-              {beachHutSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="space-y-1 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                      <p className="font-medium text-sm sm:text-base">{session.name}</p>
-                      {session.isActive ? (
-                        <Badge variant="default" className="text-[10px] sm:text-xs">Aktiv</Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[10px] sm:text-xs">Inaktiv</Badge>
-                      )}
-                    </div>
-                    {session.description && (
-                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
-                        {session.description}
-                      </p>
+                        
+                        {/* Strandbuden-Saisons für dieses Jahr */}
+                        {yearSessions.length > 0 && (
+                          <div className="space-y-2 sm:space-y-3">
+                            <h3 className="text-sm sm:text-base font-semibold text-muted-foreground mb-2">
+                              Strandbuden-Saisons
+                            </h3>
+                            {yearSessions.map((session) => (
+                              <div
+                                key={session.id}
+                                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                              >
+                                <div className="space-y-1 flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                    <p className="font-medium text-sm sm:text-base">{session.name}</p>
+                                    {session.isActive ? (
+                                      <Badge variant="default" className="text-[10px] sm:text-xs">Aktiv</Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="text-[10px] sm:text-xs">Inaktiv</Badge>
+                                    )}
+                                  </div>
+                                  {session.description && (
+                                    <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
+                                      {session.description}
+                                    </p>
+                                  )}
+                                  <p className="text-[11px] sm:text-xs lg:text-sm text-muted-foreground">
+                                    {formatDate(session.startDate)} - {formatDate(session.endDate)}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => {
+                                      setEditingSession(session);
+                                      setIsSessionDialogOpen(true);
+                                    }}
+                                  >
+                                    <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => handleDeleteSession(session.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
-                    <p className="text-[11px] sm:text-xs lg:text-sm text-muted-foreground">
-                      {formatDate(session.startDate)} - {formatDate(session.endDate)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => {
-                        setEditingSession(session);
-                        setIsSessionDialogOpen(true);
-                      }}
-                    >
-                      <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleDeleteSession(session.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
           )}
         </CardContent>
       </Card>
@@ -476,6 +507,86 @@ export function PricingManager({
     </Tabs>
   );
 }
+
+// Phase Card Component
+const PhaseCard = ({
+  phase,
+  formatDate,
+  formatCurrency,
+  t,
+  onEdit,
+  onDelete,
+}: {
+  phase: PricingPhaseWithNumbers;
+  formatDate: (date: Date) => string;
+  formatCurrency: (value: number) => string;
+  t: (key: string) => string;
+  onEdit: () => void;
+  onDelete: () => void;
+}) => {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+      <div className="space-y-1 flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <p className="font-medium text-sm sm:text-base">{phase.name}</p>
+          {phase.isActive ? (
+            <Badge variant="default" className="text-[10px] sm:text-xs">{t("pricing.active")}</Badge>
+          ) : (
+            <Badge variant="secondary" className="text-[10px] sm:text-xs">{t("common.no")}</Badge>
+          )}
+          <Badge variant="outline" className="text-[10px] sm:text-xs">{t("pricing.priority")}: {phase.priority}</Badge>
+        </div>
+        {phase.description && (
+          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
+            {phase.description}
+          </p>
+        )}
+        <p className="text-[11px] sm:text-xs lg:text-sm text-muted-foreground">
+          {formatDate(phase.startDate)} - {formatDate(phase.endDate)}
+        </p>
+      </div>
+      <div className="flex items-start sm:items-center justify-between sm:justify-end gap-3 sm:gap-4">
+        <div className="text-left sm:text-right space-y-1 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div>
+              <div className="text-base sm:text-lg lg:text-xl font-bold">
+                {formatCurrency(phase.pricePerNight)}
+              </div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">{t("settings.standard")}</p>
+            </div>
+            {phase.familyPricePerNight && (
+              <div className="border-l pl-2 sm:pl-3">
+                <div className="text-base sm:text-lg lg:text-xl font-bold text-green-700">
+                  {formatCurrency(phase.familyPricePerNight)}
+                </div>
+                <p className="text-[10px] sm:text-xs text-green-700">{t("settings.family")}</p>
+              </div>
+            )}
+          </div>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">{t("pricing.perNight")}</p>
+        </div>
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={onEdit}
+          >
+            <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={onDelete}
+          >
+            <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Setting Card Component  
 const SettingCard = ({
@@ -905,7 +1016,7 @@ const BeachHutSessionDialog = ({
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
           <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-          Neue Saison
+          Neue Strandbudensaison
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

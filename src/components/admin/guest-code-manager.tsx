@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Copy, Trash2, Check, X } from "lucide-react";
+import { Plus, Copy, Trash2, Check, X, RefreshCw, Edit } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -26,7 +26,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createGuestToken, toggleGuestToken, deleteGuestToken } from "@/app/actions/settings";
+import { createGuestToken, toggleGuestToken, deleteGuestToken, updateGuestToken } from "@/app/actions/settings";
+import { generateGuestCode } from "@/lib/guest-code";
 import type { GuestAccessToken } from "@prisma/client";
 import { useTranslation } from "@/contexts/LanguageContext";
 
@@ -39,6 +40,16 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
   const [tokens, setTokens] = useState(initialTokens);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [editingToken, setEditingToken] = useState<GuestAccessToken | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editToken, setEditToken] = useState({
+    code: "",
+    description: "",
+    maxUsage: "",
+    expiresInDays: "",
+    useFamilyPrice: false,
+    accessType: "GUEST" as "GUEST" | "CLEANING",
+  });
   const [newToken, setNewToken] = useState({
     description: "",
     code: "",
@@ -56,6 +67,11 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
     }
   }, [isCreateOpen]);
 
+  const handleAutoGenerate = () => {
+    const generatedCode = generateGuestCode();
+    setNewToken({ ...newToken, code: generatedCode });
+  };
+
   const handleCreate = async () => {
     if (!newToken.description) {
       toast({
@@ -66,9 +82,19 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
       return;
     }
 
+    if (!newToken.code.trim()) {
+      toast({
+        title: "Fehler",
+        description: "Code ist ein Pflichtfeld",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsCreating(true);
     const result = await createGuestToken({
       description: newToken.description,
+      code: newToken.code.trim(),
       maxUsage: newToken.maxUsage ? parseInt(newToken.maxUsage) : undefined,
       expiresInDays: newToken.expiresInDays ? parseInt(newToken.expiresInDays) : undefined,
       useFamilyPrice: newToken.useFamilyPrice,
@@ -148,6 +174,70 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
     }
   };
 
+  const handleEdit = (token: GuestAccessToken) => {
+    // Berechne expiresInDays aus expiresAt
+    let expiresInDays = "";
+    if (token.expiresAt) {
+      const now = new Date();
+      const expires = new Date(token.expiresAt);
+      const diffTime = expires.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        expiresInDays = diffDays.toString();
+      }
+    }
+    
+    setEditToken({
+      code: token.token,
+      description: token.description || "",
+      maxUsage: token.maxUsage?.toString() || "",
+      expiresInDays,
+      useFamilyPrice: (token as any).useFamilyPrice || false,
+      accessType: (token as any).accessType || "GUEST",
+    });
+    setEditingToken(token);
+  };
+
+  const handleUpdate = async () => {
+    if (!editingToken) return;
+
+    if (!editToken.code.trim()) {
+      toast({
+        title: "Fehler",
+        description: "Code ist ein Pflichtfeld",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsEditing(true);
+    const result = await updateGuestToken({
+      id: editingToken.id,
+      code: editToken.code.trim().toUpperCase(),
+      description: editToken.description || undefined,
+      maxUsage: editToken.maxUsage ? parseInt(editToken.maxUsage) : null,
+      expiresInDays: editToken.expiresInDays ? parseInt(editToken.expiresInDays) : null,
+      useFamilyPrice: editToken.useFamilyPrice,
+      accessType: editToken.accessType,
+    });
+
+    if (result.success && result.token) {
+      setTokens(tokens.map((t) => (t.id === editingToken.id ? result.token! : t)));
+      setEditingToken(null);
+      toast({
+        title: "Aktualisiert",
+        description: "Code wurde erfolgreich aktualisiert",
+      });
+    } else {
+      toast({
+        title: "Fehler",
+        description: result.error || "Code konnte nicht aktualisiert werden",
+        variant: "destructive",
+      });
+    }
+    setIsEditing(false);
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Möchten Sie diesen Code wirklich löschen?")) return;
 
@@ -209,20 +299,33 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="code">
-                      Code (optional - wird automatisch generiert wenn leer)
+                      Code <span className="text-destructive">*</span>
                     </Label>
-                    <Input
-                      id="code"
-                      placeholder="z.B. HOLLANDHAUS2024"
-                      value={newToken.code}
-                      onChange={(e) => {
-                        // Automatisch zu Großbuchstaben konvertieren
-                        const upperValue = e.target.value.toUpperCase();
-                        setNewToken({ ...newToken, code: upperValue });
-                      }}
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="code"
+                        placeholder="z.B. HOLLANDHAUS2024"
+                        value={newToken.code}
+                        onChange={(e) => {
+                          // Automatisch zu Großbuchstaben konvertieren
+                          const upperValue = e.target.value.toUpperCase();
+                          setNewToken({ ...newToken, code: upperValue });
+                        }}
+                        required
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleAutoGenerate}
+                        size="icon"
+                        title="Code autogenerieren"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Wenn leer gelassen, wird automatisch ein Code generiert
+                      Geben Sie einen Code ein oder klicken Sie auf das Generieren-Symbol
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -302,7 +405,7 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                   >
                     Abbrechen
                   </Button>
-                  <Button onClick={handleCreate} disabled={isCreating}>
+                  <Button onClick={handleCreate} disabled={isCreating || !newToken.code.trim()}>
                     {isCreating ? "Erstelle..." : "Erstellen"}
                   </Button>
                 </DialogFooter>
@@ -394,7 +497,16 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => handleEdit(token)}
+                            title="Bearbeiten"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDelete(token.id)}
+                            title="Löschen"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -485,15 +597,25 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
                                 {token.isActive ? "Aktiv" : "Inaktiv"}
                               </span>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleDelete(token.id)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Löschen
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEdit(token)}
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Bearbeiten
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDelete(token.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Löschen
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -505,6 +627,145 @@ export function GuestCodeManager({ initialTokens }: GuestCodeManagerProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Bearbeiten Dialog */}
+      <Dialog open={!!editingToken} onOpenChange={(open) => !open && setEditingToken(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Code bearbeiten</DialogTitle>
+            <DialogDescription>
+              Bearbeiten Sie die Einstellungen für diesen Code
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">{t("settings.label")}</Label>
+              <Input
+                id="edit-description"
+                placeholder="z.B. Hauptcode 2025"
+                value={editToken.description}
+                onChange={(e) =>
+                  setEditToken({ ...editToken, description: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-code">
+                Code <span className="text-destructive">*</span>
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="edit-code"
+                  placeholder="z.B. HOLLANDHAUS2024"
+                  value={editToken.code}
+                  onChange={(e) => {
+                    // Automatisch zu Großbuchstaben konvertieren
+                    const upperValue = e.target.value.toUpperCase();
+                    setEditToken({ ...editToken, code: upperValue });
+                  }}
+                  required
+                  className="font-mono flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const generatedCode = generateGuestCode();
+                    setEditToken({ ...editToken, code: generatedCode });
+                  }}
+                  size="icon"
+                  title="Code autogenerieren"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Geben Sie einen Code ein oder klicken Sie auf das Generieren-Symbol
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-maxUsage">
+                Maximale Verwendungen (optional)
+              </Label>
+              <Input
+                id="edit-maxUsage"
+                type="number"
+                placeholder="Unbegrenzt"
+                value={editToken.maxUsage}
+                onChange={(e) =>
+                  setEditToken({ ...editToken, maxUsage: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-expiresInDays">
+                Gültig für (Tage, optional)
+              </Label>
+              <Input
+                id="edit-expiresInDays"
+                type="number"
+                placeholder="Unbegrenzt"
+                value={editToken.expiresInDays}
+                onChange={(e) =>
+                  setEditToken({
+                    ...editToken,
+                    expiresInDays: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-accessType" className="text-sm font-medium">
+                Zugangstyp
+              </Label>
+              <select
+                id="edit-accessType"
+                value={editToken.accessType}
+                onChange={(e) =>
+                  setEditToken({ ...editToken, accessType: e.target.value as "GUEST" | "CLEANING" })
+                }
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="GUEST">Normal (Buchungen)</option>
+                <option value="CLEANING">Housekeeper (nur Kalender)</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                {editToken.accessType === "CLEANING"
+                  ? "Gibt Zugang zum Housekeeper-Kalender (ohne Namen, nur Ankunft/Abreise)"
+                  : "Standard-Zugang für Buchungen"}
+              </p>
+            </div>
+            <div className="flex items-center space-x-2 border rounded-lg p-4 bg-muted/50">
+              <Switch
+                id="edit-useFamilyPrice"
+                checked={editToken.useFamilyPrice}
+                onCheckedChange={(checked) =>
+                  setEditToken({ ...editToken, useFamilyPrice: checked })
+                }
+              />
+              <div className="flex-1">
+                <Label htmlFor="edit-useFamilyPrice" className="cursor-pointer font-semibold">
+                  Family-Preis aktivieren
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Dieser Code erhält den ermäßigten Family-Preis (120€ statt 180€ pro Nacht)
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingToken(null)}
+            >
+              Abbrechen
+            </Button>
+            <Button onClick={handleUpdate} disabled={isEditing || !editToken.code.trim()}>
+              {isEditing ? "Speichere..." : "Speichern"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

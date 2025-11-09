@@ -325,6 +325,7 @@ export async function sendBookingConfirmationToGuest({
   numberOfAdults,
   numberOfChildren,
   totalPrice,
+  cleaningFee,
   guestCode,
 }: {
   guestEmail: string;
@@ -334,7 +335,8 @@ export async function sendBookingConfirmationToGuest({
   endDate: Date;
   numberOfAdults: number;
   numberOfChildren?: number;
-  totalPrice: number;
+  totalPrice: number; // Preis OHNE Cleaning Fee
+  cleaningFee?: number;
   guestCode?: string;
 }) {
   const appUrl = await getPublicUrl();
@@ -349,9 +351,15 @@ export async function sendBookingConfirmationToGuest({
     numberOfAdults: numberOfAdults.toString(),
     numberOfChildren: (numberOfChildren || 0).toString(),
     numberOfGuests: (numberOfAdults + (numberOfChildren || 0)).toString(), // Für Rückwärtskompatibilität mit Templates
-    totalPrice: formatEmailPrice(totalPrice),
+    totalPrice: formatEmailPrice(totalPrice), // Preis OHNE Cleaning Fee
     statusUrl,
   };
+  
+  // Füge cleaningFee hinzu, falls vorhanden
+  if (cleaningFee !== undefined) {
+    variables.cleaningFee = formatEmailPrice(cleaningFee);
+    variables.endPrice = formatEmailPrice(totalPrice + cleaningFee); // Endpreis MIT Cleaning Fee
+  }
   
   // Füge guestCode hinzu, falls vorhanden
   if (guestCode) {
@@ -373,6 +381,7 @@ export async function sendBookingApprovalToGuest({
   numberOfAdults,
   numberOfChildren,
   totalPrice,
+  cleaningFee,
   guestCode,
 }: {
   guestEmail: string;
@@ -382,7 +391,8 @@ export async function sendBookingApprovalToGuest({
   endDate: Date;
   numberOfAdults: number;
   numberOfChildren?: number;
-  totalPrice: number;
+  totalPrice: number; // Preis OHNE Cleaning Fee
+  cleaningFee?: number;
   guestCode?: string;
 }) {
   const replyTo = await getReplyToEmail();
@@ -395,9 +405,15 @@ export async function sendBookingApprovalToGuest({
     numberOfAdults: numberOfAdults.toString(),
     numberOfChildren: (numberOfChildren || 0).toString(),
     numberOfGuests: (numberOfAdults + (numberOfChildren || 0)).toString(), // Für Rückwärtskompatibilität mit Templates
-    totalPrice: formatEmailPrice(totalPrice),
+    totalPrice: formatEmailPrice(totalPrice), // Preis OHNE Cleaning Fee
     // adminNotes wird NICHT an Gäste gesendet - nur für interne Admin-Notizen
   };
+  
+  // Füge cleaningFee hinzu, falls vorhanden
+  if (cleaningFee !== undefined) {
+    variables.cleaningFee = formatEmailPrice(cleaningFee);
+    variables.endPrice = formatEmailPrice(totalPrice + cleaningFee); // Endpreis MIT Cleaning Fee
+  }
   
   if (guestCode) {
     variables.guestCode = guestCode;
@@ -529,6 +545,7 @@ export async function sendBookingNotificationToAdmin({
   numberOfAdults,
   numberOfChildren,
   totalPrice,
+  cleaningFee,
   message,
   guestCode,
 }: {
@@ -540,7 +557,8 @@ export async function sendBookingNotificationToAdmin({
   endDate: Date;
   numberOfAdults: number;
   numberOfChildren?: number;
-  totalPrice: number;
+  totalPrice: number; // Preis OHNE Cleaning Fee
+  cleaningFee?: number;
   message?: string;
   guestCode?: string;
 }) {
@@ -557,10 +575,16 @@ export async function sendBookingNotificationToAdmin({
     numberOfAdults: numberOfAdults.toString(),
     numberOfChildren: (numberOfChildren || 0).toString(),
     numberOfGuests: (numberOfAdults + (numberOfChildren || 0)).toString(), // Für Rückwärtskompatibilität mit Templates
-    totalPrice: formatEmailPrice(totalPrice),
+    totalPrice: formatEmailPrice(totalPrice), // Preis OHNE Cleaning Fee
     message: message || '',
     adminUrl,
   };
+  
+  // Füge cleaningFee hinzu, falls vorhanden
+  if (cleaningFee !== undefined) {
+    variables.cleaningFee = formatEmailPrice(cleaningFee);
+    variables.endPrice = formatEmailPrice(totalPrice + cleaningFee); // Endpreis MIT Cleaning Fee
+  }
   
   if (guestCode) {
     variables.guestCode = guestCode;

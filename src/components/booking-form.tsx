@@ -469,9 +469,14 @@ export function BookingForm() {
                                   ))}
                                 </div>
                               )}
-                              <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                              <div className="space-y-1 pt-2 border-t border-gray-200">
+                              <div className="flex justify-between items-center">
                                 <span className="text-xs lg:text-sm font-semibold text-gray-900">{t("bookingForm.totalPrice")}</span>
-                                <span className="text-base lg:text-lg font-bold text-primary">{formatCurrency(pricing.totalPrice)}</span>
+                                <span className="text-base lg:text-lg font-bold text-primary">{formatCurrency(pricing.totalPrice - pricing.cleaningFee)}</span>
+                              </div>
+                              <div className="text-[10px] lg:text-xs text-muted-foreground text-right">
+                                zuzüglich {formatCurrency(pricing.cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(pricing.totalPrice)}
+                              </div>
                               </div>
                             </div>
                           )}
@@ -799,11 +804,16 @@ export function BookingForm() {
                             <span className="font-medium">{formatCurrency(pricing.beachHutPrice)}</span>
                           </div>
                         )}
-                        <div className="flex justify-between items-center pt-3 lg:pt-4 border-t-2 border-primary/20">
-                          <span className="text-lg lg:text-2xl font-bold text-gray-900">{t("bookingForm.totalPrice")}</span>
-                          <span className="text-2xl lg:text-3xl font-bold text-primary flex items-center gap-2">
-                            <Euro className="h-6 w-6 lg:h-7 lg:w-7" /> {formatCurrency(pricing.totalPrice)}
-                          </span>
+                        <div className="space-y-2 pt-3 lg:pt-4 border-t-2 border-primary/20">
+                          <div className="flex justify-between items-center">
+                            <span className="text-lg lg:text-2xl font-bold text-gray-900">{t("bookingForm.totalPrice")}</span>
+                            <span className="text-2xl lg:text-3xl font-bold text-primary flex items-center gap-2">
+                              <Euro className="h-6 w-6 lg:h-7 lg:w-7" /> {formatCurrency(pricing.totalPrice - pricing.cleaningFee)}
+                            </span>
+                          </div>
+                          <div className="text-xs lg:text-sm text-muted-foreground text-right">
+                            zuzüglich {formatCurrency(pricing.cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(pricing.totalPrice)}
+                          </div>
                         </div>
                       </div>
                     ) : null}

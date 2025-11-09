@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { BarChart3, Calendar, Euro, Users } from "lucide-react";
+import { BarChart3, Calendar, Euro, Users, Info } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface BookingItem {
@@ -39,6 +39,7 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
   const [pricingData, setPricingData] = useState<Map<string, PricingData>>(new Map());
   const [enabledBookings, setEnabledBookings] = useState<Set<string>>(new Set()); // Welche Buchungen sind aktiviert
   const [isLoading, setIsLoading] = useState(true);
+  const [hasPricingPhases, setHasPricingPhases] = useState<boolean>(true);
 
   // Lade Buchungen und manuelle Einträge für das ausgewählte Jahr
   useEffect(() => {
@@ -55,6 +56,7 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
             endDate: new Date(booking.endDate),
           }));
           setBookings(bookingsWithDates);
+          setHasPricingPhases(data.hasPricingPhases !== false); // Default zu true wenn nicht gesetzt
           // Initialisiere pricingData mit Standardwerten
           const initialPricing = new Map<string, PricingData>();
           const initialEnabled = new Set<string>();
@@ -239,6 +241,45 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Hinweistext */}
+      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="px-3 sm:px-6 pt-4 sm:pt-6 pb-4 sm:pb-6">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                Hinweis zur Einnahmen-Statistik
+              </p>
+              <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-200">
+                Diese Statistik dient vor allem zur Berechnung der potenziellen Einnahmen. 
+                Sie ist keine Stütze für genaue Preise pro Buchung, da zusammengelegte Buchungen 
+                aufgeteilt werden und nicht bekannt ist, wer tatsächlich was zahlt, wenn mehrere 
+                Personen für mehrere Tage zusammen gebucht haben.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Hinweis wenn keine Preisphasen für das Jahr existieren */}
+      {!hasPricingPhases && !isLoading && (
+        <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+          <CardContent className="px-3 sm:px-6 pt-4 sm:pt-6 pb-4 sm:pb-6">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                  Keine Preisphasen für {selectedYear} definiert
+                </p>
+                <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-200">
+                  Die Berechnungen basieren auf dem Basispreis, da für dieses Jahr keine Preisphasen festgelegt sind.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Jahr-Auswahl und Gesamtsumme */}
       <Card>
         <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-3 sm:pb-6">
@@ -355,15 +396,36 @@ export function PricingStatistics({ currentYear }: PricingStatisticsProps) {
                       </div>
                     </div>
                     <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto">
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor={`family-${booking.id}`} className="text-xs sm:text-sm whitespace-nowrap">
-                          {isFamilyPrice ? "Family" : "Normal"}
-                        </Label>
-                        <Switch
-                          id={`family-${booking.id}`}
-                          checked={isFamilyPrice}
-                          onCheckedChange={() => toggleFamilyPrice(booking.id)}
-                        />
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="text-[10px] sm:text-xs text-muted-foreground mb-1">
+                          Preis-Typ
+                        </div>
+                        <div className="flex items-center gap-1 border rounded-md p-0.5">
+                          <Button
+                            variant={!isFamilyPrice ? "default" : "ghost"}
+                            size="sm"
+                            onClick={() => {
+                              if (isFamilyPrice) {
+                                toggleFamilyPrice(booking.id);
+                              }
+                            }}
+                            className="h-7 px-2 sm:px-3 text-[10px] sm:text-xs rounded"
+                          >
+                            Normal
+                          </Button>
+                          <Button
+                            variant={isFamilyPrice ? "default" : "ghost"}
+                            size="sm"
+                            onClick={() => {
+                              if (!isFamilyPrice) {
+                                toggleFamilyPrice(booking.id);
+                              }
+                            }}
+                            className="h-7 px-2 sm:px-3 text-[10px] sm:text-xs rounded"
+                          >
+                            Family
+                          </Button>
+                        </div>
                       </div>
                       <div className="text-right min-w-[100px] sm:min-w-[120px]">
                         <div className="text-xs sm:text-sm text-muted-foreground">Preis</div>

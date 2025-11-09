@@ -467,16 +467,26 @@ export function BookingDetailView({
               </div>
             </div>
             
-            {booking.totalPrice && (
-              <div className="mt-4 p-4 bg-muted rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Gesamtpreis:</span>
-                  <span className="text-2xl font-bold">
-                    {formatCurrency(parseFloat(booking.totalPrice.toString()))}
-                  </span>
+            {booking.totalPrice && (() => {
+              const pricingDetails = booking.pricingDetails as any;
+              const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
+              const basePrice = parseFloat(booking.totalPrice.toString()); // booking.totalPrice ist bereits OHNE cleaningFee
+              const endPrice = basePrice + cleaningFee;
+              
+              return (
+                <div className="mt-4 p-4 bg-muted rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Gesamtpreis:</span>
+                    <span className="text-2xl font-bold">
+                      {formatCurrency(basePrice)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    zuzüglich {formatCurrency(cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(endPrice)}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Warnhinweise aus pricingDetails */}
             {(() => {

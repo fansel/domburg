@@ -111,12 +111,24 @@ export default async function AdminBookingsPage() {
                   return `${total}`;
                 })()}
               </div>
-              {booking.totalPrice && (
-                <div className="text-xs sm:text-sm">
-                  <span className="font-medium">Preis:</span>{" "}
-                  {formatCurrency(parseFloat(booking.totalPrice.toString()))}
-                </div>
-              )}
+              {booking.totalPrice && (() => {
+                const pricingDetails = booking.pricingDetails as any;
+                const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
+                const basePrice = parseFloat(booking.totalPrice.toString()); // booking.totalPrice ist bereits OHNE cleaningFee
+                const endPrice = basePrice + cleaningFee;
+                
+                return (
+                  <div className="text-xs sm:text-sm space-y-1">
+                    <div>
+                      <span className="font-medium">Preis:</span>{" "}
+                      {formatCurrency(basePrice)}
+                    </div>
+                    <div className="text-[10px] sm:text-xs text-muted-foreground pl-4">
+                      zuzüglich {formatCurrency(cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(endPrice)}
+                    </div>
+                  </div>
+                );
+              })()}
               {/* Warnhinweise aus pricingDetails */}
               {(() => {
                 const pricingDetails = booking.pricingDetails as any;

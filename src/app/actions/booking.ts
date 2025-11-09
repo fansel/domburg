@@ -144,7 +144,8 @@ export async function createBooking(formData: {
       endDate,
       numberOfAdults: formData.numberOfAdults,
       numberOfChildren: formData.numberOfChildren || 0,
-      totalPrice: parseFloat(pricing.totalPrice.toString()),
+      totalPrice: parseFloat((pricing.totalPrice - pricing.cleaningFee).toString()), // Preis OHNE Cleaning Fee
+      cleaningFee: pricing.cleaningFee,
       guestCode: formData.guestCode || undefined,
     });
 
@@ -163,7 +164,8 @@ export async function createBooking(formData: {
           endDate,
           numberOfAdults: formData.numberOfAdults,
           numberOfChildren: formData.numberOfChildren || 0,
-          totalPrice: parseFloat(pricing.totalPrice.toString()),
+          totalPrice: parseFloat((pricing.totalPrice - pricing.cleaningFee).toString()), // Preis OHNE Cleaning Fee
+          cleaningFee: pricing.cleaningFee,
           message: formData.message,
           guestCode: formData.guestCode || undefined,
         });
@@ -371,6 +373,10 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
       );
       
       // Admin-Notizen werden NICHT an Gäste gesendet - nur für interne Admin-Notizen
+      const pricingDetailsRestore = booking.pricingDetails as any;
+      const cleaningFeeRestore = pricingDetailsRestore?.cleaningFee || pricing.cleaningFee || 80;
+      const basePriceRestore = parseFloat((booking.totalPrice || 0).toString()) - cleaningFeeRestore;
+      
       await sendBookingApprovalToGuest({
         guestEmail: booking.guestEmail,
         bookingCode: booking.bookingCode,
@@ -379,7 +385,8 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
         endDate: booking.endDate,
         numberOfAdults: (booking as any).numberOfAdults ?? (booking as any).numberOfGuests ?? 1,
         numberOfChildren: (booking as any).numberOfChildren ?? 0,
-        totalPrice: parseFloat((booking.totalPrice || 0).toString()),
+        totalPrice: basePriceRestore, // Preis OHNE Cleaning Fee
+        cleaningFee: cleaningFeeRestore,
         guestCode: booking.guestCode || undefined,
       });
 
@@ -415,6 +422,10 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
         false
       );
       
+      const pricingDetailsPending = booking.pricingDetails as any;
+      const cleaningFeePending = pricingDetailsPending?.cleaningFee || pricing.cleaningFee || 80;
+      const basePricePending = parseFloat((booking.totalPrice || 0).toString()) - cleaningFeePending;
+      
       await sendBookingConfirmationToGuest({
         guestEmail: booking.guestEmail,
         bookingCode: booking.bookingCode,
@@ -423,7 +434,8 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
         endDate: booking.endDate,
         numberOfAdults: (booking as any).numberOfAdults ?? (booking as any).numberOfGuests ?? 1,
         numberOfChildren: (booking as any).numberOfChildren ?? 0,
-        totalPrice: parseFloat((booking.totalPrice || 0).toString()),
+        totalPrice: basePricePending, // Preis OHNE Cleaning Fee
+        cleaningFee: cleaningFeePending,
         guestCode: booking.guestCode || undefined,
       });
 
@@ -433,6 +445,10 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
       console.log(`[Booking] Sending restoration to pending notifications to ${adminEmails.length} admins:`, adminEmails);
       for (const adminEmail of adminEmails) {
         try {
+          const pricingDetailsPending2 = booking.pricingDetails as any;
+          const cleaningFeePending2 = pricingDetailsPending2?.cleaningFee || pricing.cleaningFee || 80;
+          const basePricePending2 = parseFloat((booking.totalPrice || 0).toString()) - cleaningFeePending2;
+          
           const result = await sendBookingNotificationToAdmin({
             adminEmail,
             guestEmail: booking.guestEmail,
@@ -442,7 +458,8 @@ export async function restoreBooking(bookingId: string, restoreToStatus: "PENDIN
             endDate: booking.endDate,
             numberOfAdults: (booking as any).numberOfAdults ?? (booking as any).numberOfGuests ?? 1,
             numberOfChildren: (booking as any).numberOfChildren ?? 0,
-            totalPrice: parseFloat((booking.totalPrice || 0).toString()),
+            totalPrice: basePricePending2, // Preis OHNE Cleaning Fee
+            cleaningFee: cleaningFeePending2,
             message: booking.message || undefined,
             guestCode: booking.guestCode || undefined,
           });
@@ -534,6 +551,10 @@ export async function approveBooking(bookingId: string, adminNotes?: string) {
     });
 
     // Email an Gast senden
+    const pricingDetails = booking.pricingDetails as any;
+    const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
+    const basePrice = parseFloat((booking.totalPrice || 0).toString()) - cleaningFee;
+    
     await sendBookingApprovalToGuest({
       guestEmail: booking.guestEmail,
       bookingCode: booking.bookingCode,
@@ -542,7 +563,8 @@ export async function approveBooking(bookingId: string, adminNotes?: string) {
       endDate: booking.endDate,
       numberOfAdults: booking.numberOfAdults,
       numberOfChildren: booking.numberOfChildren,
-      totalPrice: parseFloat((booking.totalPrice || 0).toString()),
+      totalPrice: basePrice, // Preis OHNE Cleaning Fee
+      cleaningFee: cleaningFee,
       guestCode: booking.guestCode || undefined,
     });
 

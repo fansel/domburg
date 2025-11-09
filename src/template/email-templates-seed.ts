@@ -142,7 +142,7 @@ Familie Waubke`,
     name: "Anfrage-Bestätigung (an Gast)",
     subject: "Deine Anfrage für unser Ferienhaus wurde empfangen",
     description: "Bestätigung für Gäste nach Anfrage-Einreichung",
-    variables: ["guestName", "bookingCode", "startDate", "endDate", "numberOfGuests", "totalPrice", "statusUrl", "guestCode"],
+    variables: ["guestName", "bookingCode", "startDate", "endDate", "numberOfGuests", "totalPrice", "cleaningFee", "statusUrl", "guestCode"],
     bodyHtml: `
 <!DOCTYPE html>
 <html>
@@ -193,7 +193,7 @@ Familie Waubke`,
         {{/if}}
         <p><strong>Zeitraum:</strong> {{startDate}} bis {{endDate}}</p>
         <p><strong>Gäste:</strong> {{numberOfGuests}}</p>
-        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}</p>
+        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}{{#if cleaningFee}}<br><span style="font-size: 0.9em; color: #666;">zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}</span>{{/if}}</p>
       </div>
       
       <p>Wir schauen uns deine Anfrage gleich an und melden uns schnellstmöglich zurück.</p>
@@ -220,7 +220,8 @@ Verwendeter Zugangscode: {{guestCode}}
 {{/if}}
 Zeitraum: {{startDate}} bis {{endDate}}
 Gäste: {{numberOfGuests}}
-Gesamtpreis: €{{totalPrice}}
+Gesamtpreis: €{{totalPrice}}{{#if cleaningFee}}
+zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}{{/if}}
 
 Wir schauen uns deine Anfrage gleich an und melden uns schnellstmöglich zurück.
 
@@ -236,7 +237,7 @@ Familie Waubke`,
     name: "Anfrage genehmigt",
     subject: "Zusage für deine Anfrage",
     description: "Bestätigung wenn Admin die Anfrage genehmigt",
-    variables: ["guestName", "bookingCode", "startDate", "endDate", "numberOfGuests", "totalPrice", "guestCode"],
+    variables: ["guestName", "bookingCode", "startDate", "endDate", "numberOfGuests", "totalPrice", "cleaningFee", "guestCode"],
     bodyHtml: `
 <!DOCTYPE html>
 <html>
@@ -280,7 +281,7 @@ Familie Waubke`,
         {{/if}}
         <p><strong>Zeitraum:</strong> {{startDate}} bis {{endDate}}</p>
         <p><strong>Gäste:</strong> {{numberOfGuests}}</p>
-        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}</p>
+        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}{{#if cleaningFee}}<br><span style="font-size: 0.9em; color: #666;">zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}</span>{{/if}}</p>
       </div>
       
       <p>Falls du noch Fragen hast, schreib uns einfach zurück - wir helfen gerne!</p>
@@ -305,7 +306,8 @@ Verwendeter Zugangscode: {{guestCode}}
 {{/if}}
 Zeitraum: {{startDate}} bis {{endDate}}
 Gäste: {{numberOfGuests}}
-Gesamtpreis: €{{totalPrice}}
+Gesamtpreis: €{{totalPrice}}{{#if cleaningFee}}
+zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}{{/if}}
 
 Falls du noch Fragen hast, schreib uns einfach zurück - wir helfen gerne!
 
@@ -519,7 +521,7 @@ Familie Waubke`,
     name: "Neue Anfrage (an Admin)",
     subject: "Neue Anfrage für unser Ferienhaus",
     description: "Benachrichtigung an Admins bei neuer Anfrage",
-    variables: ["guestName", "guestEmail", "bookingCode", "startDate", "endDate", "numberOfGuests", "totalPrice", "message", "adminUrl", "guestCode"],
+    variables: ["guestName", "guestEmail", "bookingCode", "startDate", "endDate", "numberOfGuests", "totalPrice", "cleaningFee", "message", "adminUrl", "guestCode"],
     bodyHtml: `
 <!DOCTYPE html>
 <html>
@@ -563,7 +565,7 @@ Familie Waubke`,
         <h3>Anfrage-Details:</h3>
         <p><strong>Zeitraum:</strong> {{startDate}} bis {{endDate}}</p>
         <p><strong>Gäste:</strong> {{numberOfGuests}}</p>
-        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}</p>
+        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}{{#if cleaningFee}}<br><span style="font-size: 0.9em; color: #666;">zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}</span>{{/if}}</p>
         
         {{#if message}}
         <p><strong>Nachricht:</strong><br>{{message}}</p>
@@ -589,7 +591,8 @@ ANFRAGE-DETAILS:
 ----------------
 Zeitraum: {{startDate}} bis {{endDate}}
 Gäste: {{numberOfGuests}}
-Gesamtpreis: €{{totalPrice}}
+Gesamtpreis: €{{totalPrice}}{{#if cleaningFee}}
+zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}{{/if}}
 
 {{#if message}}
 NACHRICHT:

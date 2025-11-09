@@ -442,9 +442,14 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
                     <span>{formatCurrency(pricing.cleaningFee)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-medium border-t pt-1 mt-1">
-                  <span>Gesamt</span>
-                  <span>{formatCurrency(pricing.totalPrice)}</span>
+                <div className="space-y-1 border-t pt-1 mt-1">
+                  <div className="flex justify-between font-medium">
+                    <span>Gesamt</span>
+                    <span>{formatCurrency(pricing.totalPrice - pricing.cleaningFee)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground text-right">
+                    zuzüglich {formatCurrency(pricing.cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(pricing.totalPrice)}
+                  </div>
                 </div>
               </div>
             </div>

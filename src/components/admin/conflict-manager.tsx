@@ -42,6 +42,7 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [groupingEventIds, setGroupingEventIds] = useState<string[]>([]);
   const [groupedEventSets, setGroupedEventSets] = useState<Set<string>>(new Set());
+  const [calendarEvents, setCalendarEvents] = useState<Array<{ id: string; linkedEventIds?: string[] }>>([]);
 
   const loadConflicts = async () => {
     setIsLoading(true);
@@ -77,6 +78,9 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
       const calendarData = await calendarResponse.json();
       const events = calendarData.bookings || [];
       
+      // Speichere Events für spätere Verwendung
+      setCalendarEvents(events);
+      
       // Erstelle Set aller Events die transitiv verlinkt sind
       // Verwende linkedEventIds aus der Datenbank, nicht nur Farbe
       const grouped = new Set<string>();
@@ -100,10 +104,49 @@ export function ConflictManager({ onConflictsChange }: ConflictManagerProps) {
   const areEventsGrouped = (eventIds: string[]): boolean => {
     if (eventIds.length < 2) return false;
     
-    // Prüfe ob alle Events transitiv verlinkt sind
-    // Da die API bereits transitiv geschlossene linkedEventIds zurückgibt,
-    // reicht es zu prüfen, ob alle Events im grouped Set sind
-    return groupedEventSets.size > 0 && eventIds.every(id => groupedEventSets.has(id));
+    // Prüfe ob alle Events transitiv miteinander verlinkt sind
+    // Das bedeutet: Für jedes Event-Paar muss geprüft werden, ob sie transitiv verbunden sind
+    
+    // Erstelle eine Map: eventId -> linkedEventIds (inkl. sich selbst)
+    const eventLinkMap = new Map<string, Set<string>>();
+    calendarEvents.forEach((e: any) => {
+      if (e.id && !e.isInfo) {
+        const linkedSet = new Set<string>([e.id]); // Event ist immer mit sich selbst verlinkt
+        if (e.linkedEventIds && Array.isArray(e.linkedEventIds)) {
+          e.linkedEventIds.forEach((linkedId: string) => {
+            linkedSet.add(linkedId);
+          });
+        }
+        eventLinkMap.set(e.id, linkedSet);
+      }
+    });
+    
+    // Prüfe ob alle Events transitiv miteinander verbunden sind
+    // Für jedes Event-Paar: Prüfe ob sie in derselben transitiven Gruppe sind
+    for (let i = 0; i < eventIds.length; i++) {
+      const eventId1 = eventIds[i];
+      const links1 = eventLinkMap.get(eventId1);
+      
+      // Wenn Event1 keine Verlinkungen hat, können sie nicht alle zusammengelegt sein
+      if (!links1 || links1.size === 1) {
+        return false;
+      }
+      
+      // Prüfe ob alle anderen Events in den linkedEventIds von eventId1 sind
+      for (let j = i + 1; j < eventIds.length; j++) {
+        const eventId2 = eventIds[j];
+        
+        // Prüfe ob eventId2 in den linkedEventIds von eventId1 ist
+        // Da linkedEventIds bereits transitiv geschlossen sind, reicht diese Prüfung
+        if (!links1.has(eventId2)) {
+          // Event2 ist nicht transitiv mit Event1 verlinkt
+          return false;
+        }
+      }
+    }
+    
+    // Alle Event-Paare sind transitiv verlinkt
+    return true;
   };
 
   const getSeverityColor = (severity: "HIGH" | "MEDIUM") => {

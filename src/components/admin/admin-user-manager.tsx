@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Mail, Trash2, ShieldCheck, Eye, CheckCircle, Settings, MoreHorizontal, Euro } from "lucide-react";
+import { Plus, Mail, Trash2, ShieldCheck, Eye, CheckCircle, Settings, MoreHorizontal, Euro, CalendarCheck } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -371,7 +371,8 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                           user.id,
                           checked,
                           (user as any).canApproveBookings !== false,
-                          (user as any).canManagePricing
+                          (user as any).canManagePricing,
+                          (user as any).canManageBookingLimit
                         );
                         if (result.success) {
                           setUsers(users.map(u => 
@@ -414,7 +415,8 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                           user.id,
                           (user as any).canSeeBookings !== false,
                           checked,
-                          (user as any).canManagePricing
+                          (user as any).canManagePricing,
+                          (user as any).canManageBookingLimit
                         );
                         if (result.success) {
                           setUsers(users.map(u => 
@@ -457,12 +459,57 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                           user.id,
                           (user as any).canSeeBookings !== false,
                           (user as any).canApproveBookings !== false,
-                          checked
+                          checked,
+                          (user as any).canManageBookingLimit
                         );
                         if (result.success) {
                           setUsers(users.map(u => 
                             u.id === user.id 
                               ? { ...u, canManagePricing: checked } as any
+                              : u
+                          ));
+                          toast({
+                            title: "Berechtigung aktualisiert",
+                            description: "Die Berechtigung wurde erfolgreich geändert",
+                          });
+                        } else {
+                          toast({
+                            title: "Fehler",
+                            description: result.error || "Berechtigung konnte nicht geändert werden",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <CalendarCheck className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <Label htmlFor={`canManageBookingLimit-${user.id}`} className="text-sm font-medium">
+                          Buchungslimit verwalten
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Kann das Datum festlegen, bis zu dem Buchungen erlaubt sind
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      id={`canManageBookingLimit-${user.id}`}
+                      checked={(user as any).canManageBookingLimit === true}
+                      disabled={(user.role as string) === "SUPERADMIN" && user.id === currentUser?.id}
+                      onCheckedChange={async (checked) => {
+                        const result = await updateUserPermissions(
+                          user.id,
+                          (user as any).canSeeBookings !== false,
+                          (user as any).canApproveBookings !== false,
+                          (user as any).canManagePricing,
+                          checked
+                        );
+                        if (result.success) {
+                          setUsers(users.map(u => 
+                            u.id === user.id 
+                              ? { ...u, canManageBookingLimit: checked } as any
                               : u
                           ));
                           toast({

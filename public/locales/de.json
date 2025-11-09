@@ -252,6 +252,7 @@
     "admins": "Administratoren",
     "googleCalendar": "Google Calendar",
     "email": "Email",
+    "bookingLimit": "Buchungen erlauben bis",
     "addCode": "Code hinzufügen",
     "addAdmin": "Admin hinzufügen",
     "code": "Code",
