@@ -57,6 +57,7 @@
     COPY --chown=node:node --from=builder /app/public ./public
     COPY --chown=node:node --from=builder /app/prisma ./prisma
     COPY --chown=node:node --from=builder /app/src/template ./src/template
+    COPY --chown=node:node --from=builder /app/scripts ./scripts
     COPY --chown=node:node --from=builder /app/node_modules ./node_modules
     COPY --chown=node:node --from=builder /app/package.json ./package.json
     COPY --chown=node:node --from=builder /app/tsconfig.json ./tsconfig.json
