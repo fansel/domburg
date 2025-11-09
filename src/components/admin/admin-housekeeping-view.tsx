@@ -173,23 +173,23 @@ export function AdminHousekeepingView({
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <Button
+                <Button
                     onClick={() => handleSendNotification(undefined)}
-                    disabled={isSending}
-                    className="w-full sm:w-auto"
-                  >
-                    {isSending ? (
-                      <>
-                        <Mail className="h-4 w-4 mr-2 animate-spin" />
-                        Wird versendet...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
+                  disabled={isSending}
+                  className="w-full sm:w-auto"
+                >
+                  {isSending ? (
+                    <>
+                      <Mail className="h-4 w-4 mr-2 animate-spin" />
+                      Wird versendet...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
                         Alle benachrichtigen
-                      </>
-                    )}
-                  </Button>
+                    </>
+                  )}
+                </Button>
                   <Button
                     onClick={handleOpenDialog}
                     disabled={isSending}

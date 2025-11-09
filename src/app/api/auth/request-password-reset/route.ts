@@ -31,16 +31,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Benutzer suchen (nach Email oder Username)
+    // Akzeptiere sowohl ADMIN als auch SUPERADMIN
+    // Suche case-insensitive wie in der Login-Route
+    const emailTrimmed = email.trim();
+    const emailLower = emailTrimmed.toLowerCase();
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: email.toLowerCase().trim() },
-          { username: email.toLowerCase().trim() },
+          { email: emailTrimmed }, // Original (case-sensitive)
+          { email: emailLower },   // Lowercase
+          { username: emailTrimmed },
+          { username: emailLower },
         ],
-        role: 'ADMIN',
+        role: {
+          in: ['ADMIN', 'SUPERADMIN']
+        },
         isActive: true,
       },
     });
+
+    console.log(`Password reset search for: "${emailTrimmed}" (lowercase: "${emailLower}"), found user:`, user ? { id: user.id, email: user.email, username: user.username, role: user.role } : 'none');
 
     // Aus Sicherheitsgründen immer Erfolg melden, auch wenn User nicht gefunden
     // Dies verhindert, dass Angreifer herausfinden können, welche Emails existieren
@@ -69,12 +79,19 @@ export async function POST(request: NextRequest) {
 
     if (!emailResult.success) {
       console.error("Failed to send password reset email:", emailResult.error);
+      console.error("Error details:", {
+        email: user.email,
+        error: emailResult.error,
+        sentVia: (emailResult as any).sentVia,
+      });
       // Auch hier Erfolg melden aus Sicherheitsgründen
       return NextResponse.json({
         success: true,
         message: "Falls ein Benutzer mit dieser E-Mail-Adresse existiert, wurde eine E-Mail zum Zurücksetzen des Passworts gesendet.",
       });
     }
+
+    console.log(`Password reset email sent successfully to ${user.email} via ${(emailResult as any).sentVia || 'unknown'}`);
 
     // Activity Log (ohne currentUser, da es eine öffentliche Anfrage ist)
     await prisma.activityLog.create({

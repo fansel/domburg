@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, hasAdminRights } from "@/lib/auth";
 import { AdminHousekeepingView } from "@/components/admin/admin-housekeeping-view";
+import { Navbar } from "@/components/navbar";
 import prisma from "@/lib/prisma";
 
 export default async function AdminHousekeepingPage() {
@@ -16,9 +17,12 @@ export default async function AdminHousekeepingPage() {
   });
 
   return (
-    <AdminHousekeepingView
-      lastSentAt={housekeeperLastSentSetting?.value || null}
-    />
+    <div className="min-h-screen bg-background">
+      <Navbar user={user} />
+      <AdminHousekeepingView
+        lastSentAt={housekeeperLastSentSetting?.value || null}
+      />
+    </div>
   );
 }
 

@@ -546,6 +546,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                     <TableRow>
                       <TableHead>{t("settings.name")}</TableHead>
                       <TableHead>{t("auth.email")}</TableHead>
+                      <TableHead>Username</TableHead>
                       <TableHead>Rolle</TableHead>
                       <TableHead>{t("settings.status")}</TableHead>
                       <TableHead>{t("settings.createdAt")}</TableHead>
@@ -560,6 +561,7 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                           {user.name}
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
+                        <TableCell className="text-muted-foreground">{user.username || "-"}</TableCell>
                         <TableCell>
                           {isSuperAdmin ? (
                             <Select
@@ -690,6 +692,9 @@ export function AdminUserManager({ initialUsers, currentUser }: AdminUserManager
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-base mb-1 break-words">{user.name}</p>
                               <p className="text-sm text-muted-foreground break-all">{user.email}</p>
+                              {user.username && (
+                                <p className="text-xs text-muted-foreground mt-0.5">@{user.username}</p>
+                              )}
                               <div className="flex flex-wrap items-center gap-2 mt-1.5">
                                 {isSuperAdmin ? (
                                   <Select
