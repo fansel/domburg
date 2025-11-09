@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, CalendarDays, User, Calendar, ShieldCheck, Euro, Menu, X, Key, Bell, Crown, BookOpen } from "lucide-react";
+import { LogOut, Settings, CalendarDays, User, Calendar, ShieldCheck, Euro, Menu, X, Key, Bell, Crown, BookOpen, Sparkles } from "lucide-react";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -66,6 +66,7 @@ export function Navbar({ user }: NavbarProps) {
   const allNavItems = [
     { href: "/admin/bookings", icon: CalendarDays, label: t("nav.requests"), pathMatch: "/admin/bookings", requiresBookingView: true, requiresPricing: false },
     { href: "/admin/calendar", icon: Calendar, label: t("nav.calendar"), pathMatch: "/admin/calendar", requiresBookingView: true, requiresPricing: false },
+    { href: "/admin/housekeeping", icon: Sparkles, label: "Housekeeping", pathMatch: "/admin/housekeeping", requiresBookingView: false, requiresPricing: false },
     { href: "/admin/pricing", icon: Euro, label: t("nav.pricing"), pathMatch: "/admin/pricing", requiresBookingView: false, requiresPricing: true },
     { href: "/admin/settings", icon: ShieldCheck, label: t("nav.settings"), pathMatch: "/admin/settings", requiresBookingView: false, requiresPricing: false },
     { href: "/admin/wiki", icon: BookOpen, label: "Wiki", pathMatch: "/admin/wiki", requiresBookingView: false, requiresPricing: false },
@@ -88,6 +89,9 @@ export function Navbar({ user }: NavbarProps) {
     }
     if (item.pathMatch === "/admin/wiki") {
       return pathname?.startsWith("/admin/wiki");
+    }
+    if (item.pathMatch === "/admin/housekeeping") {
+      return pathname === "/admin/housekeeping";
     }
     return pathname === item.pathMatch;
   };

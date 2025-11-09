@@ -434,7 +434,10 @@
       "sameDay": "Check-in & Check-out am selben Tag",
       "betweenCheckin": "Zwischen Check-out und Check-in (wenig Zeit)",
       "betweenCheckinLong": "{{days}} Tag(e) bis nächster Check-in",
-      "betweenCheckinManyHours": "{{hours}} Stunden bis nächster Check-in"
+      "betweenCheckinManyHours": "{{hours}} Stunden bis nächster Check-in",
+      "cleanFromDay": "ab {{weekday}} reinigen",
+      "fromPrefix": "bis zum",
+      "fromDatePrefix": "ab"
     },
     "bookingCount": {
       "one": "{{count}} Buchung",

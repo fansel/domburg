@@ -25,19 +25,28 @@ export async function GET(request: NextRequest) {
     const calendarEndDate = new Date(year, month + 24, 0);
 
     // Alle genehmigten Buchungen laden (auch aus der Vergangenheit)
-    // Lade alle APPROVED Buchungen, nicht nur die im Zeitraum
-    // Aber filtere für die Anzeige nur die, die mit dem angefragten Monat überschneiden
+    // Lade alle APPROVED Buchungen, die mit dem angefragten Monat überschneiden
+    // ODER die nach dem Monat beginnen (für Reinigungstage-Berechnung)
     const requestedMonthEnd = new Date(year, month + 1, 0);
+    const extendedEndDate = new Date(year, month + 24, 0); // Erweitert für nächste Checkins
     
     let allBookings = await prisma.booking.findMany({
       where: {
         status: 'APPROVED',
         OR: [
           {
+            // Buchungen die mit dem angefragten Monat überschneiden
             AND: [
               { startDate: { lte: requestedMonthEnd } },
               { endDate: { gte: requestedMonthStart } },
             ],
+          },
+          {
+            // Buchungen die nach dem Monat beginnen (für nächste Checkins nach Checkouts im Monat)
+            startDate: { 
+              gte: requestedMonthStart,
+              lte: extendedEndDate
+            },
           },
         ],
       },
@@ -601,7 +610,55 @@ export async function GET(request: NextRequest) {
     // Sortiere Perioden nach Startdatum
     periods.sort((a, b) => a.start.localeCompare(b.start));
 
-    // Filtere Perioden: Nur die, die mit dem angefragten Monat überschneiden
+    // Filtere Perioden: 
+    // 1. Die, die mit dem angefragten Monat überschneiden
+    // 2. Die, die nach einem Checkout-Tag im aktuellen Monat kommen (für Reinigungstage-Berechnung)
+    const monthStart = new Date(year, month, 1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthEnd = new Date(year, month + 1, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+    
+    // Finde alle Checkout-Tage im aktuellen Monat ODER Perioden die im aktuellen Monat starten
+    const checkoutDaysInMonth = new Set<string>();
+    periods.forEach((period) => {
+      const [startY, startM, startD] = period.start.split('-').map(Number);
+      const [endY, endM, endD] = period.end.split('-').map(Number);
+      const periodStart = new Date(startY, startM - 1, startD);
+      const periodEnd = new Date(endY, endM - 1, endD);
+      periodStart.setHours(0, 0, 0, 0);
+      periodEnd.setHours(0, 0, 0, 0);
+      
+      // Wenn Checkout im aktuellen Monat ist ODER Periode im aktuellen Monat startet
+      if ((periodEnd >= monthStart && periodEnd <= monthEnd) || 
+          (periodStart >= monthStart && periodStart <= monthEnd)) {
+        checkoutDaysInMonth.add(period.end);
+      }
+    });
+    
+    // Finde für jeden Checkout-Tag im Monat das nächste Checkin (auch außerhalb des Monats)
+    const nextCheckinPeriodIds = new Set<string>();
+    for (const checkoutDay of checkoutDaysInMonth) {
+      const checkoutDate = new Date(checkoutDay + 'T00:00:00');
+      let nextCheckinPeriod = null;
+      let minDaysDiff = Infinity;
+      
+      // Suche nach dem nächsten Checkin nach diesem Checkout
+      for (const period of periods) {
+        const checkinDate = new Date(period.start + 'T00:00:00');
+        if (checkinDate > checkoutDate) {
+          const daysDiff = (checkinDate.getTime() - checkoutDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysDiff < minDaysDiff) {
+            minDaysDiff = daysDiff;
+            nextCheckinPeriod = period;
+          }
+        }
+      }
+      
+      if (nextCheckinPeriod) {
+        nextCheckinPeriodIds.add(nextCheckinPeriod.id);
+      }
+    }
+    
     const filteredPeriods = periods.filter((period) => {
       // Parse period dates as local dates (YYYY-MM-DD format)
       const [startY, startM, startD] = period.start.split('-').map(Number);
@@ -612,22 +669,19 @@ export async function GET(request: NextRequest) {
       const periodEnd = new Date(endY, endM - 1, endD);
       periodEnd.setHours(23, 59, 59, 999);
       
-      const monthStart = new Date(year, month, 1);
-      monthStart.setHours(0, 0, 0, 0);
-      const monthEnd = new Date(year, month + 1, 0);
-      monthEnd.setHours(23, 59, 59, 999);
+      // 1. Überschneidung prüfen: Periode überschneidet Monat wenn periodEnd >= monthStart && periodStart <= monthEnd
+      const overlapsMonth = periodStart <= monthEnd && periodEnd >= monthStart;
       
-      // Überschneidung prüfen: Periode überschneidet Monat wenn periodEnd >= monthStart && periodStart <= monthEnd
-      return periodStart <= monthEnd && periodEnd >= monthStart;
+      // 2. Prüfe ob diese Periode das nächste Checkin nach einem Checkout im Monat ist
+      const isNextCheckin = nextCheckinPeriodIds.has(period.id);
+      
+      return overlapsMonth || isNextCheckin;
     });
 
     // Filtere auch calendarData: Nur Tage des angefragten Monats
     // UND sortiere periodIds für "both" Tage: Check-in Perioden zuerst (links oben/grün), dann Check-out Perioden (rechts unten/rot)
     const filteredCalendarData: typeof calendarData = {};
-    const monthStart = new Date(year, month, 1);
-    monthStart.setHours(0, 0, 0, 0);
-    const monthEnd = new Date(year, month + 1, 0);
-    monthEnd.setHours(23, 59, 59, 999);
+    // monthStart und monthEnd sind bereits oben definiert
     
     Object.keys(calendarData).forEach((dateKey) => {
       // Parse dateKey direkt als lokales Datum (YYYY-MM-DD Format)

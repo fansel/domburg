@@ -428,7 +428,10 @@
       "sameDay": "Check-in & Check-out on same day",
       "betweenCheckin": "Between check-out and check-in (limited time)",
       "betweenCheckinLong": "{{days}} day(s) until next check-in",
-      "betweenCheckinManyHours": "{{hours}} hours until next check-in"
+      "betweenCheckinManyHours": "{{hours}} hours until next check-in",
+      "cleanFromDay": "clean from {{weekday}}",
+      "fromPrefix": "until",
+      "fromDatePrefix": "from"
     },
     "occupiedPeriods": {
       "title": "Occupied periods",

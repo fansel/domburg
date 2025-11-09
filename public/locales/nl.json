@@ -428,7 +428,10 @@
       "sameDay": "Check-in & Check-out op dezelfde dag",
       "betweenCheckin": "Tussen check-out en check-in (weinig tijd)",
       "betweenCheckinLong": "{{days}} dag(en) tot volgende check-in",
-      "betweenCheckinManyHours": "{{hours}} uur tot volgende check-in"
+      "betweenCheckinManyHours": "{{hours}} uur tot volgende check-in",
+      "cleanFromDay": "schoonmaken vanaf {{weekday}}",
+      "fromPrefix": "tot",
+      "fromDatePrefix": "vanaf"
     },
     "occupiedPeriods": {
       "title": "Bezette periodes",

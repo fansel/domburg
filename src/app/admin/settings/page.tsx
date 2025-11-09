@@ -19,6 +19,7 @@ import { ReplyToManager } from "@/components/admin/reply-to-manager";
 import { EmailLogManager } from "@/components/admin/email-log-manager";
 import { BookingHistoryResetManager } from "@/components/admin/booking-history-reset-manager";
 import { BookingLimitSettingManager } from "@/components/admin/booking-limit-setting-manager";
+import { HousekeeperEmailManager } from "@/components/admin/housekeeper-email-manager";
 
 export default async function AdminSettingsPage() {
   const user = await getCurrentUser();
@@ -49,7 +50,7 @@ export default async function AdminSettingsPage() {
   const canManageBookingLimit = isSuperAdmin || (fullUser?.canManageBookingLimit === true);
 
   // Lade Daten
-  const [guestTokens, adminUsers, calendarSettings, emailTemplates, smtpSettings, publicUrlSetting, replyToSetting, emailLogs, bookingLimitSetting] = await Promise.all([
+  const [guestTokens, adminUsers, calendarSettings, emailTemplates, smtpSettings, publicUrlSetting, replyToSetting, emailLogs, bookingLimitSetting, housekeeperEmailsSetting, housekeeperLastSentSetting] = await Promise.all([
     prisma.guestAccessToken.findMany({
       orderBy: { createdAt: "desc" },
     }),
@@ -108,6 +109,12 @@ export default async function AdminSettingsPage() {
     }),
     prisma.setting.findUnique({
       where: { key: "BOOKING_LIMIT_DATE" },
+    }),
+    prisma.setting.findUnique({
+      where: { key: "HOUSEKEEPER_EMAILS" },
+    }),
+    prisma.setting.findUnique({
+      where: { key: "HOUSEKEEPER_LAST_SENT" },
     }),
   ]);
 

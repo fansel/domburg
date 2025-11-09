@@ -369,3 +369,17 @@ model LinkedCalendarEvent {
   @@index([eventId2])
   @@index([createdAt])
 }
+
+// Housekeeper Profile
+model Housekeeper {
+  id        String   @id @default(cuid())
+  name      String   // Name des Housekeepers
+  email     String   @unique // E-Mail-Adresse
+  isActive  Boolean  @default(true) // Aktiv/Inaktiv
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([isActive])
+}
