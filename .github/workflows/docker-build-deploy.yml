@@ -16,8 +16,7 @@ env:
 jobs:
   build-and-push:
     runs-on: self-hosted
-    # Falls du mehrere Runner hast, kannst du Labels verwenden:
-    # runs-on: [self-hosted, macbook]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,7 +28,8 @@ jobs:
             image=moby/buildkit:master
             network=host
 
-      - name: Use temporary Docker config
+      # 🧹 Ensure a clean temporary Docker config
+      - name: Prepare temporary Docker config
         run: |
           mkdir -p /tmp/docker-config
           echo '{}' > /tmp/docker-config/config.json
@@ -44,19 +44,29 @@ jobs:
         env:
           DOCKER_CONFIG: /tmp/docker-config
 
+      # 🚀 Build & Push ARM64 image with caching
       - name: Build and push web app
         uses: docker/build-push-action@v5
+        env:
+          DOCKER_CONFIG: /tmp/docker-config
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/arm64
           push: true
+
+          # Optional manual override (from workflow_dispatch input)
           no-cache: ${{ github.event.inputs.no_cache == 'true' }}
+
+          # 🔥 Optimized caching configuration
           cache-from: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/domburg-booking:buildcache,ignore-error=true
-          cache-to: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/domburg-booking:buildcache,mode=max
+          cache-to: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/domburg-booking:buildcache,mode=max,compression=zstd
+
+          # 🔧 Pass build arguments to Dockerfile
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+
+          # 🏷️ Image tags
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/domburg-booking:latest
             ${{ env.DOCKERHUB_USERNAME }}/domburg-booking:${{ github.sha }}
-

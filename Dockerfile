@@ -1,25 +1,27 @@
 # =========================================================
-# 🚀 Next.js + Prisma Production Dockerfile
-#   - Uses Node.js for build (more memory-efficient than Bun in containers)
-#   - Produces small, clean final image
+# 🚀 Next.js + Prisma Production Dockerfile (cache-optimized)
 # =========================================================
 
 # ---------- 1. Builder Stage ----------
     FROM node:20-bookworm AS builder
     WORKDIR /app
     
+    # Enable BuildKit inline caching
+    ARG BUILDKIT_INLINE_CACHE=1
+    
+    # Install OpenSSL (required by Prisma)
     RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
     
-    # Copy only package manifest first for caching
+    # Copy only package manifests first for caching
     COPY package.json package-lock.json* ./
     
-    # Install dependencies with npm
-    RUN npm ci --only=production=false
+    # Install all dependencies efficiently with BuildKit caching
+    RUN npm ci --no-audit --no-fund --progress=false
     
-    # Copy the rest of the source code
+    # Copy the rest of the project
     COPY . .
     
-    # Environment variables for optimized build
+    # Environment variables for build
     ENV NODE_ENV=production
     ENV NEXT_TELEMETRY_DISABLED=1
     ENV CI=1
@@ -43,26 +45,22 @@
     ENV PORT=3000
     ENV HOSTNAME="0.0.0.0"
     
-    # Install OpenSSL for Prisma (required at runtime)
+    # Install OpenSSL for Prisma at runtime
     RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
     
-    # Install tsx globally for running seed scripts (as root, before switching to node user)
+    # Install tsx globally (for seed scripts)
     RUN npm install -g tsx
     
-    # Copy only what's needed for runtime with correct ownership
+    # Copy runtime assets
     COPY --chown=node:node --from=builder /app/.next/standalone ./
     COPY --chown=node:node --from=builder /app/.next/static ./.next/static
     COPY --chown=node:node --from=builder /app/public ./public
     COPY --chown=node:node --from=builder /app/prisma ./prisma
-    # Copy template directory for seed script
     COPY --chown=node:node --from=builder /app/src/template ./src/template
-    # Copy node_modules for seed script (bcryptjs, @prisma/client, etc.)
     COPY --chown=node:node --from=builder /app/node_modules ./node_modules
-    # Copy package.json and tsconfig.json for proper module resolution with tsx
     COPY --chown=node:node --from=builder /app/package.json ./package.json
     COPY --chown=node:node --from=builder /app/tsconfig.json ./tsconfig.json
     
-    # Run as non-root user for safety
     USER node
     
     EXPOSE 3000
