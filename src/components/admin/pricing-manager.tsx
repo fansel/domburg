@@ -386,19 +386,21 @@ export function PricingManager({
             </div>
           ) : (
             <Tabs defaultValue={`year-${defaultYear}`} className="space-y-4">
-              <TabsList className={`grid w-full gap-1 sm:gap-2 overflow-x-auto ${
-                availableYears.length === 1 ? 'grid-cols-1' :
-                availableYears.length === 2 ? 'grid-cols-2' :
-                availableYears.length === 3 ? 'grid-cols-3' :
-                availableYears.length === 4 ? 'grid-cols-2 sm:grid-cols-4' :
-                'grid-cols-2 sm:grid-cols-4 lg:grid-cols-6'
-              }`}>
-                {availableYears.map((year) => (
-                  <TabsTrigger key={year} value={`year-${year}`} className="flex-shrink-0">
-                    {year}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                <TabsList className={`inline-flex w-full sm:grid gap-1 sm:gap-2 ${
+                  availableYears.length === 1 ? 'sm:grid-cols-1' :
+                  availableYears.length === 2 ? 'sm:grid-cols-2' :
+                  availableYears.length === 3 ? 'sm:grid-cols-3' :
+                  availableYears.length === 4 ? 'sm:grid-cols-4' :
+                  'sm:grid-cols-4 lg:grid-cols-6'
+                }`}>
+                  {availableYears.map((year) => (
+                    <TabsTrigger key={year} value={`year-${year}`} className="flex-shrink-0 min-w-[60px] sm:min-w-0">
+                      {year}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
               
               {availableYears.map((year) => {
                 const yearPhases = getPhasesForYear(year);
@@ -1016,7 +1018,8 @@ const BeachHutSessionDialog = ({
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10">
           <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-          Neue Strandbudensaison
+          <span className="hidden sm:inline">Neue Strandbudensaison</span>
+          <span className="sm:hidden">Neue Saison</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
