@@ -13,8 +13,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const housekeeperIds = body.housekeeperIds as string[] | undefined;
+    // Parse request body safely
+    let body: any = {};
+    let housekeeperIds: string[] | undefined = undefined;
+    
+    try {
+      // Check if request has body
+      const contentType = request.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          body = await request.json();
+          housekeeperIds = body.housekeeperIds as string[] | undefined;
+        } catch (jsonError: any) {
+          // If JSON parsing fails, use undefined (will send to all housekeepers)
+          console.log("Failed to parse JSON body, sending to all housekeepers:", jsonError.message);
+        }
+      }
+    } catch (error: any) {
+      // If any error occurs, use undefined (will send to all housekeepers)
+      console.log("Error reading request body, sending to all housekeepers:", error.message);
+    }
 
     // Get housekeepers - either selected ones or all active ones
     let housekeepers;
@@ -28,8 +46,8 @@ export async function POST(request: NextRequest) {
     } else {
       // Fallback: alle aktiven Housekeeper
       housekeepers = await prisma.housekeeper.findMany({
-        where: { isActive: true },
-      });
+      where: { isActive: true },
+    });
     }
 
     if (housekeepers.length === 0) {
@@ -57,14 +75,14 @@ export async function POST(request: NextRequest) {
       housekeepers.map(async (housekeeper) => {
         try {
           const result = await sendTemplatedEmail(
-            "housekeeper_schedule_change",
-            housekeeper.email,
-            {
+          "housekeeper_schedule_change",
+          housekeeper.email,
+          {
               housekeeperName: housekeeper.name,
-              calendarUrl,
-            },
+            calendarUrl,
+          },
             replyTo,
-            undefined,
+          undefined,
             "housekeeper_notification"
           );
           return { success: result.success, email: housekeeper.email, error: result.error };

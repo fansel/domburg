@@ -19,9 +19,9 @@ export default async function AdminHousekeepingPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
-      <AdminHousekeepingView
-        lastSentAt={housekeeperLastSentSetting?.value || null}
-      />
+    <AdminHousekeepingView
+      lastSentAt={housekeeperLastSentSetting?.value || null}
+    />
     </div>
   );
 }

@@ -28,15 +28,19 @@ BEGIN
         -- Wenn Tabelle existiert mit korrekter Struktur, aber Migration nicht markiert ist
         IF required_columns_exist AND NOT migration_exists THEN
             INSERT INTO "_prisma_migrations" (
+                id,
                 migration_name,
                 applied_steps_count,
                 started_at,
-                finished_at
+                finished_at,
+                checksum
             ) VALUES (
+                gen_random_uuid(),
                 '20251109122011_add_housekeeper_model',
                 1,
                 NOW(),
-                NOW()
+                NOW(),
+                '0580d76a3805b63aad3ff64b6b3942fa6d96dbf807207ce2a99dcee2b0b88c41'
             );
             RAISE NOTICE 'Migration 20251109122011_add_housekeeper_model wurde als ausgeführt markiert (Tabelle existiert bereits mit korrekter Struktur)';
         ELSIF NOT required_columns_exist THEN
@@ -61,7 +65,7 @@ CREATE TABLE IF NOT EXISTS "Housekeeper" (
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'Housekeeper_email_key') THEN
-        CREATE UNIQUE INDEX "Housekeeper_email_key" ON "Housekeeper"("email");
+CREATE UNIQUE INDEX "Housekeeper_email_key" ON "Housekeeper"("email");
     END IF;
 END $$;
 
@@ -69,7 +73,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'Housekeeper_email_idx') THEN
-        CREATE INDEX "Housekeeper_email_idx" ON "Housekeeper"("email");
+CREATE INDEX "Housekeeper_email_idx" ON "Housekeeper"("email");
     END IF;
 END $$;
 
@@ -77,7 +81,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'Housekeeper_isActive_idx') THEN
-        CREATE INDEX "Housekeeper_isActive_idx" ON "Housekeeper"("isActive");
+CREATE INDEX "Housekeeper_isActive_idx" ON "Housekeeper"("isActive");
     END IF;
 END $$;
 

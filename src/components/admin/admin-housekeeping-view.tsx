@@ -90,8 +90,19 @@ export function AdminHousekeepingView({
         }),
       });
 
-      const data = await response.json();
+      // Check content type before parsing JSON
+      const contentType = response.headers.get("content-type");
+      const isJson = contentType && contentType.includes("application/json");
 
+      let data;
+      if (isJson) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Unerwartete Antwort vom Server: ${text.substring(0, 100)}`);
+      }
+
+      // Check if response is ok
       if (!response.ok) {
         throw new Error(data.error || "Fehler beim Versenden");
       }
@@ -109,6 +120,7 @@ export function AdminHousekeepingView({
         setIsDialogOpen(false);
       }
     } catch (error: any) {
+      console.error("Error sending notification:", error);
       toast({
         title: t("errors.general"),
         description: error.message || "Fehler beim Versenden der E-Mail",
