@@ -15,8 +15,12 @@
     # Copy only package manifests first for caching
     COPY package.json package-lock.json* ./
     
-    # Install all dependencies efficiently with BuildKit caching
-    RUN npm ci --no-audit --no-fund --progress=false
+    # Install all dependencies efficiently with BuildKit cache mount
+    # Caches npm packages between builds to avoid re-downloading
+    # The cache is automatically invalidated when package-lock.json changes
+    # because the COPY layer above will be invalidated, forcing npm ci to re-run
+    RUN --mount=type=cache,target=/root/.npm \
+        npm ci --no-audit --no-fund --progress=false
     
     # Copy the rest of the project
     COPY . .
