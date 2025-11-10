@@ -288,29 +288,78 @@ export async function calculateBookingPrice(
     });
     
     useBeachHut = activeSessions.length > 0;
+    
+    // Berechne Strandbuden-Preis nur wenn aktiviert UND NICHT Family-Preis
+    // WICHTIG: Berechne nur für die Tage, die tatsächlich in der Session liegen
+    if (useBeachHut && !useFamilyPrice && activeSessions.length > 0) {
+      const beachHutPricePerWeekSetting = await prisma.pricingSetting.findUnique({
+        where: { key: 'beach_hut_price_per_week' },
+      });
+      const beachHutPricePerDaySetting = await prisma.pricingSetting.findUnique({
+        where: { key: 'beach_hut_price_per_day' },
+      });
+      
+      const pricePerWeek = parseFloat(beachHutPricePerWeekSetting?.value || '100');
+      const pricePerDay = parseFloat(beachHutPricePerDaySetting?.value || '15');
+      
+      // Finde den Überlappungsbereich zwischen Buchung und allen aktiven Sessions
+      // WICHTIG: Berechne nur für die Tage, die tatsächlich in mindestens einer Session liegen
+      // Beispiel: Buchung 2.7-10.7, Session 1.7-8.7 → Überlappung 2.7-8.7 (nur 6 Nächte)
+      // Wenn mehrere Sessions überlappen, prüfe jeden Tag einzeln ob er in mindestens einer Session liegt
+      
+      // Iteriere durch jeden Tag der Buchung und prüfe ob er in mindestens einer Session liegt
+      let overlapNights = 0;
+      let currentDate = new Date(normalizedStartDate);
+      
+      while (currentDate < normalizedEndDate) {
+        // Prüfe ob dieser Tag in mindestens einer aktiven Session liegt
+        const isInSession = activeSessions.some((session: any) => {
+          const sessionStartTime = session.startDate.getTime();
+          const sessionEndTime = session.endDate.getTime();
+          const currentTime = currentDate.getTime();
+          
+          // Tag liegt in Session wenn: sessionStart <= currentDate < sessionEnd
+          // endDate ist exklusiv (wie bei Buchungen: endDate ist der Check-out-Tag, nicht mehr in der Session)
+          // Beispiel: Session 1.9. - 15.9. bedeutet: 1.9. bis 14.9. (15.9. ist exklusiv)
+          return currentTime >= sessionStartTime && currentTime < sessionEndTime;
+        });
+        
+        if (isInSession) {
+          overlapNights++;
+        }
+        
+        // Nächster Tag
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+      
+      // Berechne Preis basierend auf den Nächten im Überlappungsbereich
+      const weeks = Math.floor(overlapNights / 7);
+      const remainingDays = overlapNights % 7;
+      
+      beachHutPrice = (weeks * pricePerWeek) + (remainingDays * pricePerDay);
+    }
   } else {
     // Wenn keine Sessions definiert sind, ist Strandbude ganzjährig verfügbar
     useBeachHut = true;
-  }
-
-  // Berechne Strandbuden-Preis nur wenn aktiviert UND NICHT Family-Preis
-  // Bei Family-Preis ist Strandbude kostenlos (useBeachHut = true, aber beachHutPrice = 0)
-  if (useBeachHut && !useFamilyPrice) {
-    const beachHutPricePerWeekSetting = await prisma.pricingSetting.findUnique({
-      where: { key: 'beach_hut_price_per_week' },
-    });
-    const beachHutPricePerDaySetting = await prisma.pricingSetting.findUnique({
-      where: { key: 'beach_hut_price_per_day' },
-    });
     
-    const pricePerWeek = parseFloat(beachHutPricePerWeekSetting?.value || '100');
-    const pricePerDay = parseFloat(beachHutPricePerDaySetting?.value || '15');
-    
-    // Berechne Anzahl Wochen und verbleibende Tage
-    const weeks = Math.floor(nights / 7);
-    const remainingDays = nights % 7;
-    
-    beachHutPrice = (weeks * pricePerWeek) + (remainingDays * pricePerDay);
+    // Berechne Strandbuden-Preis nur wenn NICHT Family-Preis
+    if (!useFamilyPrice) {
+      const beachHutPricePerWeekSetting = await prisma.pricingSetting.findUnique({
+        where: { key: 'beach_hut_price_per_week' },
+      });
+      const beachHutPricePerDaySetting = await prisma.pricingSetting.findUnique({
+        where: { key: 'beach_hut_price_per_day' },
+      });
+      
+      const pricePerWeek = parseFloat(beachHutPricePerWeekSetting?.value || '100');
+      const pricePerDay = parseFloat(beachHutPricePerDaySetting?.value || '15');
+      
+      // Berechne Anzahl Wochen und verbleibende Tage (ganze Buchung)
+      const weeks = Math.floor(nights / 7);
+      const remainingDays = nights % 7;
+      
+      beachHutPrice = (weeks * pricePerWeek) + (remainingDays * pricePerDay);
+    }
   }
 
   const totalPrice = totalNightlyPrice + cleaningFee + beachHutPrice;
