@@ -36,8 +36,10 @@
         npx prisma generate && \
         echo "=== Prisma client generated ==="
     
-    # Build Next.js
-    RUN echo "=== Starting Next.js build ===" && \
+    # Build Next.js with cache mount for faster rebuilds
+    # Next.js cache is stored in .next/cache and persists between builds
+    RUN --mount=type=cache,target=/app/.next/cache \
+        echo "=== Starting Next.js build ===" && \
         npm run build && \
         echo "=== Build completed successfully ==="
     
