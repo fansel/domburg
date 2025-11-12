@@ -73,6 +73,7 @@ export default async function AdminSettingsPage() {
         canApproveBookings: true,
         canManagePricing: true,
         canManageBookingLimit: true,
+        canManageExpose: true,
         mustChangePassword: true,
         createdAt: true,
         updatedAt: true,

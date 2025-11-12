@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
           canApproveBookings: isSuperAdmin || (user.canApproveBookings !== false),
           canManagePricing: isSuperAdmin || (user.canManagePricing === true),
           canManageBookingLimit: isSuperAdmin || ((user as any).canManageBookingLimit === true),
+          canManageExpose: isSuperAdmin || ((user as any).canManageExpose === true),
         },
       });
     }

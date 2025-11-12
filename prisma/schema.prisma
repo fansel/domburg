@@ -24,6 +24,7 @@ model User {
   canApproveBookings    Boolean   @default(true) // Kann Buchungen genehmigen/ablehnen
   canManagePricing      Boolean   @default(false) // Kann Preise verwalten
   canManageBookingLimit Boolean   @default(false) // Kann Buchungslimit verwalten
+  canManageExpose       Boolean   @default(false) // Kann Expose verwalten
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   lastLoginAt        DateTime?
@@ -382,4 +383,48 @@ model Housekeeper {
 
   @@index([email])
   @@index([isActive])
+}
+
+// Expose für Ferienhaus-Präsentation
+model Expose {
+  id          String                @id @default(cuid())
+  title       String?               // Optionaler Titel für das Expose
+  description String?               @db.Text // Optionaler Beschreibungstext
+  imageUrl    String                // URL oder Base64-String des Bildes
+  imageText   String?               @db.Text // Text der zu diesem Bild gehört
+  sectionId   String?
+  placement   ExposeImagePlacement  @default(BELOW) // Position des Bildes relativ zum Abschnitt
+  order       Int                   @default(0) // Reihenfolge für Anzeige
+  isActive    Boolean               @default(true) // Aktiv/Inaktiv
+
+  section   ExposeSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
+  @@index([isActive])
+  @@index([sectionId])
+  @@index([placement])
+}
+
+model ExposeSection {
+  id        String  @id @default(cuid())
+  title     String? // Optionaler Titel für den Abschnitt
+  content   String  @db.Text // Inhalt des Abschnitts (Text oder HTML)
+  order     Int     @default(0)
+
+  exposes   Expose[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
+  @@index([title])
+}
+
+enum ExposeImagePlacement {
+  ABOVE
+  BELOW
+  GALLERY
 }

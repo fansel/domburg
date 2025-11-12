@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar, Search, ShieldCheck } from "lucide-react";
+import { Calendar, Search, ShieldCheck, Image } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -321,6 +321,18 @@ function HomePageContent() {
                   <Search className="mr-2 h-5 w-5" />
                   {t("booking.checkStatus")}
                 </Button>
+                
+                <Button
+                  className="w-full h-14 text-base font-medium rounded-xl border-2 border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-all"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => {
+                    router.push("/expose");
+                  }}
+                >
+                  <Image className="mr-2 h-5 w-5" />
+                  Zum Expose
+                </Button>
               </div>
             </div>
           </div>
@@ -402,6 +414,17 @@ function HomePageContent() {
             >
               <Search className="mr-2 h-5 w-5" />
               {t("booking.checkStatus")}
+            </Button>
+            <Button
+              className="w-full"
+              variant="outline"
+              size="lg"
+              onClick={() => {
+                router.push("/expose");
+              }}
+            >
+              <Image className="mr-2 h-5 w-5" />
+              Zum Expose
             </Button>
             
             <div className="pt-4 border-t">

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyToken, hasAdminRights } from '@/lib/auth';
 
-const publicPaths = ['/auth/login', '/auth/reset-password', '/auth/guest', '/booking/status', '/api/bookings/check', '/book', '/calendar', '/api/auth/validate-guest-code', '/api/auth/check', '/api/auth/reset-password', '/api/auth/request-password-reset', '/api/auth/change-password', '/change-password', '/dev/emails', '/api/dev', '/locales', '/api/cleaning', '/housekeeping'];
+const publicPaths = ['/auth/login', '/auth/reset-password', '/auth/guest', '/booking/status', '/api/bookings/check', '/book', '/calendar', '/api/auth/validate-guest-code', '/api/auth/check', '/api/auth/reset-password', '/api/auth/request-password-reset', '/api/auth/change-password', '/change-password', '/dev/emails', '/api/dev', '/locales', '/api/cleaning', '/housekeeping', '/expose', '/api/expose'];
 const adminPaths = ['/admin'];
 
 export async function middleware(request: NextRequest) {

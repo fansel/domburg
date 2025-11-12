@@ -500,7 +500,8 @@ export async function updateUserPermissions(
   canSeeBookings: boolean, 
   canApproveBookings: boolean,
   canManagePricing?: boolean,
-  canManageBookingLimit?: boolean
+  canManageBookingLimit?: boolean,
+  canManageExpose?: boolean
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -541,6 +542,11 @@ export async function updateUserPermissions(
       updateData.canManageBookingLimit = canManageBookingLimit;
     }
 
+    // canManageExpose nur aktualisieren, wenn explizit übergeben
+    if (canManageExpose !== undefined) {
+      updateData.canManageExpose = canManageExpose;
+    }
+
     await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -549,7 +555,7 @@ export async function updateUserPermissions(
     // Lade aktuellen User, um aktuelle Werte zu bekommen
     const updatedUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { canManagePricing: true, canManageBookingLimit: true } as any,
+      select: { canManagePricing: true, canManageBookingLimit: true, canManageExpose: true } as any,
     });
 
     // Activity Log
@@ -564,6 +570,7 @@ export async function updateUserPermissions(
           canApproveBookings, 
           canManagePricing: canManagePricing !== undefined ? canManagePricing : (updatedUser?.canManagePricing ?? false),
           canManageBookingLimit: canManageBookingLimit !== undefined ? canManageBookingLimit : ((updatedUser as any)?.canManageBookingLimit ?? false),
+          canManageExpose: canManageExpose !== undefined ? canManageExpose : ((updatedUser as any)?.canManageExpose ?? false),
           userEmail: user.email 
         },
       },

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, CalendarDays, User, Calendar, ShieldCheck, Euro, Menu, X, Key, Bell, Crown, BookOpen, Sparkles } from "lucide-react";
+import { LogOut, Settings, CalendarDays, User, Calendar, ShieldCheck, Euro, Menu, X, Key, Bell, Crown, BookOpen, Sparkles, Image } from "lucide-react";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -28,6 +28,7 @@ export function Navbar({ user }: NavbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [canSeeBookings, setCanSeeBookings] = useState(true); // Default true, wird nach API-Call aktualisiert
   const [canManagePricing, setCanManagePricing] = useState(false); // Default false, wird nach API-Call aktualisiert
+  const [canManageExpose, setCanManageExpose] = useState(false); // Default false, wird nach API-Call aktualisiert
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useTranslation();
@@ -41,6 +42,7 @@ export function Navbar({ user }: NavbarProps) {
           if (data.authenticated && data.permissions) {
             setCanSeeBookings(data.role === "SUPERADMIN" || data.permissions.canSeeBookings);
             setCanManagePricing(data.role === "SUPERADMIN" || data.permissions.canManagePricing);
+            setCanManageExpose(data.role === "SUPERADMIN" || data.permissions.canManageExpose);
           }
         })
         .catch(err => console.error("Error fetching permissions:", err));
@@ -64,12 +66,13 @@ export function Navbar({ user }: NavbarProps) {
 
   // Filtere Navigation Items basierend auf Berechtigungen
   const allNavItems = [
-    { href: "/admin/bookings", icon: CalendarDays, label: t("nav.requests"), pathMatch: "/admin/bookings", requiresBookingView: true, requiresPricing: false },
-    { href: "/admin/calendar", icon: Calendar, label: t("nav.calendar"), pathMatch: "/admin/calendar", requiresBookingView: true, requiresPricing: false },
-    { href: "/admin/housekeeping", icon: Sparkles, label: "Housekeeping", pathMatch: "/admin/housekeeping", requiresBookingView: false, requiresPricing: false },
-    { href: "/admin/pricing", icon: Euro, label: t("nav.pricing"), pathMatch: "/admin/pricing", requiresBookingView: false, requiresPricing: true },
-    { href: "/admin/settings", icon: ShieldCheck, label: t("nav.settings"), pathMatch: "/admin/settings", requiresBookingView: false, requiresPricing: false },
-    { href: "/admin/wiki", icon: BookOpen, label: "Wiki", pathMatch: "/admin/wiki", requiresBookingView: false, requiresPricing: false },
+    { href: "/admin/bookings", icon: CalendarDays, label: t("nav.requests"), pathMatch: "/admin/bookings", requiresBookingView: true, requiresPricing: false, requiresExpose: false },
+    { href: "/admin/expose", icon: Image, label: "Expose", pathMatch: "/admin/expose", requiresBookingView: false, requiresPricing: false, requiresExpose: true },
+    { href: "/admin/calendar", icon: Calendar, label: t("nav.calendar"), pathMatch: "/admin/calendar", requiresBookingView: true, requiresPricing: false, requiresExpose: false },
+    { href: "/admin/housekeeping", icon: Sparkles, label: "Housekeeping", pathMatch: "/admin/housekeeping", requiresBookingView: false, requiresPricing: false, requiresExpose: false },
+    { href: "/admin/pricing", icon: Euro, label: t("nav.pricing"), pathMatch: "/admin/pricing", requiresBookingView: false, requiresPricing: true, requiresExpose: false },
+    { href: "/admin/settings", icon: ShieldCheck, label: t("nav.settings"), pathMatch: "/admin/settings", requiresBookingView: false, requiresPricing: false, requiresExpose: false },
+    { href: "/admin/wiki", icon: BookOpen, label: "Wiki", pathMatch: "/admin/wiki", requiresBookingView: false, requiresPricing: false, requiresExpose: false },
   ];
 
   // Nur Items anzeigen, für die der User berechtigt ist
@@ -78,6 +81,9 @@ export function Navbar({ user }: NavbarProps) {
       return false;
     }
     if (item.requiresPricing && user.role !== "SUPERADMIN" && !canManagePricing) {
+      return false;
+    }
+    if (item.requiresExpose && user.role !== "SUPERADMIN" && !canManageExpose) {
       return false;
     }
     return true;
@@ -92,6 +98,9 @@ export function Navbar({ user }: NavbarProps) {
     }
     if (item.pathMatch === "/admin/housekeeping") {
       return pathname === "/admin/housekeeping";
+    }
+    if (item.pathMatch === "/admin/expose") {
+      return pathname === "/admin/expose";
     }
     return pathname === item.pathMatch;
   };
