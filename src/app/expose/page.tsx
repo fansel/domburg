@@ -309,21 +309,27 @@ export default function ExposePage() {
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#e8e6e3]">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-5">
-          <div className="flex items-center relative">
+          <div className="grid grid-cols-3 items-center">
             {/* Zurück-Button links */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/")}
-              className="text-[#6b6a66] hover:text-[#2c2a26] hover:bg-[#f5f4f2]"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Zurück
-            </Button>
+            <div className="flex justify-start">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/")}
+                className="text-[#6b6a66] hover:text-[#2c2a26] hover:bg-[#f5f4f2]"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Zurück
+              </Button>
+            </div>
             {/* Titel zentriert */}
-            <h1 className="text-2xl font-light tracking-tight text-[#2c2a26] absolute left-1/2 transform -translate-x-1/2">
-              Exposé
-            </h1>
+            <div className="flex justify-center">
+              <h1 className="text-2xl font-light tracking-tight text-[#2c2a26]">
+                Exposé
+              </h1>
+            </div>
+            {/* Platzhalter rechts für Balance */}
+            <div></div>
           </div>
         </div>
       </div>
