@@ -35,15 +35,21 @@ export async function POST(request: NextRequest) {
     // Das entspricht der Art, wie Daten in der Datenbank gespeichert werden
     const parseDateFromISO = (dateStr: string): Date => {
       const date = new Date(dateStr);
-      // new Date(dateStr) konvertiert UTC zurück zu lokaler Zeit
-      // Extrahiere die lokalen Komponenten (das ist das Datum, das der Benutzer sieht)
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const day = date.getDate();
+      // WICHTIG: Extrahiere die lokalen Komponenten (Jahr, Monat, Tag) wie sie in Europe/Amsterdam erscheinen
+      // und erstelle dann ein UTC-Datum mit diesen Komponenten
+      // Dies stellt sicher, dass das Datum korrekt interpretiert wird, unabhängig von der Server-Zeitzone
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Amsterdam',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const dateStrFormatted = formatter.format(date); // Format: "YYYY-MM-DD"
+      const [year, month, day] = dateStrFormatted.split('-').map(Number);
       // Erstelle ein UTC-Datum mit diesen Komponenten
       // Dies entspricht der Art, wie Daten in der Datenbank gespeichert werden
       // und wie formatDate() sie interpretiert
-      return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     };
 
     const startDateObj = parseDateFromISO(startDate);

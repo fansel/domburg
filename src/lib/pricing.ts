@@ -88,6 +88,8 @@ export async function calculateBookingPrice(
   const normalizeDate = (date: Date): Date => {
     const normalized = new Date(date);
     // Verwende UTC für konsistente Berechnung
+    // WICHTIG: Diese Funktion wird für interne Berechnungen verwendet
+    // Die Datumsinterpretation erfolgt bereits in parseDateFromISO (API) oder im Frontend
     normalized.setUTCHours(0, 0, 0, 0);
     return normalized;
   };
@@ -394,10 +396,10 @@ export async function calculateBookingPrice(
   
   // Suche alle Phasen die den Starttag enthalten, sortiert nach Priorität
   // WICHTIG: Ignoriere das Jahr und prüfe nur Monat/Tag (für jahresübergreifende Phasen)
-  const matchingPhases = pricingPhases
+  const matchingPhases = normalizedPhases
     .filter(phase => {
-      const phaseStart = normalizeDate(phase.startDate);
-      const phaseEnd = normalizeDate(phase.endDate);
+      const phaseStart = phase.startDate;
+      const phaseEnd = phase.endDate;
       
       // Methode 1: Normale Datumsprüfung (für exakte Jahresphasen)
       if (normalizedStartDate >= phaseStart && normalizedStartDate <= phaseEnd) {
@@ -501,19 +503,20 @@ export async function calculateBookingPrice(
         return weekdayMap[weekday] ?? 0;
       };
       
-      // Verwende die ORIGINALEN Daten (vor Normalisierung) für Wochentag-Berechnung
-      // Die Normalisierung setzt auf UTC-Mitternacht, was das Datum verschieben kann
-      const startDay = getDayOfWeekInTimezone(startDate); // 0 = Sonntag, 6 = Samstag
+      // WICHTIG: Verwende die NORMALISIERTEN Daten für Wochentag-Berechnung
+      // Die Normalisierung stellt sicher, dass das Datum korrekt interpretiert wird
+      // unabhängig davon, wie es vom Frontend gesendet wurde (UTC vs. lokale Zeit)
+      const startDay = getDayOfWeekInTimezone(normalizedStartDate); // 0 = Sonntag, 6 = Samstag
       
       // WICHTIG: endDate ist exklusiv (letzter gebuchter Tag ist endDate - 1 Tag)
       // Für eine Buchung von Samstag zu Samstag: Start = Samstag, End = nächster Samstag
       // Der letzte gebuchte Tag ist also der Tag VOR endDate
-      // Erstelle ein neues Datum für den letzten gebuchten Tag (1 Tag vor endDate)
-      const lastBookedDate = new Date(endDate);
-      lastBookedDate.setDate(lastBookedDate.getDate() - 1);
+      // Erstelle ein neues Datum für den letzten gebuchten Tag (1 Tag vor normalizedEndDate)
+      const lastBookedDate = new Date(normalizedEndDate);
+      lastBookedDate.setUTCDate(lastBookedDate.getUTCDate() - 1);
       const lastBookedDay = getDayOfWeekInTimezone(lastBookedDate); // 0 = Sonntag, 6 = Samstag
       
-      const endDay = getDayOfWeekInTimezone(endDate); // 0 = Sonntag, 6 = Samstag
+      const endDay = getDayOfWeekInTimezone(normalizedEndDate); // 0 = Sonntag, 6 = Samstag
       
       // Debug: Log für besseres Verständnis
       const isValidCheck = startDay === 6 && 
