@@ -5,13 +5,19 @@ import prisma from "@/lib/prisma";
 export async function GET(request: NextRequest) {
   try {
     // GET ist öffentlich zugänglich (Gäste müssen wissen, bis wann sie buchen können)
-    const setting = await prisma.setting.findUnique({
-      where: { key: "BOOKING_LIMIT_DATE" },
-    });
+    const [dateSetting, enabledSetting] = await Promise.all([
+      prisma.setting.findUnique({
+        where: { key: "BOOKING_LIMIT_DATE" },
+      }),
+      prisma.setting.findUnique({
+        where: { key: "BOOKING_LIMIT_DATE_ENABLED" },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
-      date: setting?.value || null,
+      date: dateSetting?.value || null,
+      enabled: enabledSetting?.value === "true",
     });
   } catch (error: any) {
     console.error("Error loading booking limit setting:", error);
@@ -43,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { date } = await request.json();
+    const { date, enabled } = await request.json();
 
     // Validiere Datum falls gesetzt
     if (date && date !== "") {
@@ -56,15 +62,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await prisma.setting.upsert({
-      where: { key: "BOOKING_LIMIT_DATE" },
-      update: { value: date || "" },
-      create: {
-        key: "BOOKING_LIMIT_DATE",
-        value: date || "",
-        description: "Buchungen erlauben bis zu diesem Datum",
-      },
-    });
+    await Promise.all([
+      prisma.setting.upsert({
+        where: { key: "BOOKING_LIMIT_DATE" },
+        update: { value: date || "" },
+        create: {
+          key: "BOOKING_LIMIT_DATE",
+          value: date || "",
+          description: "Buchungen erlauben bis zu diesem Datum",
+        },
+      }),
+      prisma.setting.upsert({
+        where: { key: "BOOKING_LIMIT_DATE_ENABLED" },
+        update: { value: enabled === true ? "true" : "false" },
+        create: {
+          key: "BOOKING_LIMIT_DATE_ENABLED",
+          value: enabled === true ? "true" : "false",
+          description: "Aktiviert das explizite Buchungslimit",
+        },
+      }),
+    ]);
 
     // Activity Log
     await prisma.activityLog.create({
@@ -73,7 +90,7 @@ export async function POST(request: NextRequest) {
         action: "SETTINGS_UPDATED",
         entity: "Settings",
         entityId: "BOOKING_LIMIT_DATE",
-        details: { date: date || null },
+        details: { date: date || null, enabled: enabled === true },
       },
     });
 

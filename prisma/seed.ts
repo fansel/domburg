@@ -7,6 +7,16 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starte Seeding...');
 
+  // Lade Expose-Seed-Daten (falls vorhanden)
+  let exposeSeedData: any = null;
+  try {
+    // Dynamischer Import für TypeScript-Kompatibilität
+    const exposeSeedModule = await import('../src/template/expose-seed');
+    exposeSeedData = exposeSeedModule.exposeSeedData;
+  } catch (e) {
+    console.log('⚠️  Keine Expose-Seed-Daten gefunden, überspringe Expose-Seeding');
+  }
+
   // Standard-Superadmin mit Username/Passwort
   const hashedPassword = await bcrypt.hash('admin123', 10);
   const admin = await prisma.user.upsert({
@@ -204,6 +214,10 @@ async function main() {
     console.log(`  ✅ ${template.name} erstellt/aktualisiert`);
   }
   console.log('✅ Email-Templates Prüfung abgeschlossen');
+
+  // Expose-Daten seeden (falls vorhanden) - nur wenn explizit gewünscht
+  // Überspringe Expose-Seeding in der Haupt-Seed-Funktion
+  // Verwende stattdessen: npx tsx scripts/seed-expose.ts
 
   console.log('🎉 Seeding abgeschlossen!');
 }

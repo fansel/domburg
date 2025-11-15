@@ -747,24 +747,41 @@ export function BookingForm() {
                           <div className="p-4 lg:p-5 bg-yellow-50 border border-yellow-200 rounded-lg">
                             <p className="text-sm lg:text-base font-semibold text-yellow-800 mb-2">{t("bookingForm.bookingNote")}:</p>
                             {pricing.warnings.map((warning: string, index: number) => {
-                              // Übersetze Warnungen im Frontend
-                              let translatedWarning = warning;
-                              
-                              // Erkenne Samstag-zu-Samstag Warnung
-                              if (warning.includes('Samstag zu Samstag') || warning.includes('Samstag-zu-Samstag')) {
-                                translatedWarning = t("bookingForm.saturdayToSaturdayRequired");
-                              }
-                              // Erkenne Mindestnächte-Warnung (wenn minNights vorhanden ist, verwende die bereits übersetzte Version)
-                              else if (pricing.minNights && (warning.includes('Mindestbuchung') || warning.includes('Mindest'))) {
-                                // Verwende die bereits übersetzte Version aus dem Dialog
-                                const bookingNights = pricing.nights || nights;
-                                translatedWarning = `${t("bookingForm.youWantToBook")} ${bookingNights} ${bookingNights === 1 ? t("bookingForm.night") : t("bookingForm.nights")} ${t("bookingForm.nightsButMinimum")} ${pricing.minNights} ${pricing.minNights === 1 ? t("bookingForm.night") : t("bookingForm.nights")} ${t("bookingForm.nightsRequired")}`;
-                              }
-                              
+                              // Backend-Warnungen sind bereits vollständig formuliert, verwende sie direkt
+                              // Nur für Übersetzungen in andere Sprachen könnten wir hier noch etwas machen
                               return (
-                                <p key={index} className="text-xs lg:text-sm text-yellow-700">{translatedWarning}</p>
+                                <p key={index} className="text-xs lg:text-sm text-yellow-700">{warning}</p>
                               );
                             })}
+                          </div>
+                        )}
+                        
+                        {/* Debug-Informationen für Production-Debugging */}
+                        {pricing?.debug && (
+                          <div className="p-4 lg:p-5 bg-gray-50 border border-gray-300 rounded-lg mt-4">
+                            <details className="cursor-pointer">
+                              <summary className="text-sm lg:text-base font-semibold text-gray-800 mb-2">
+                                🔍 Debug-Informationen (für Support)
+                              </summary>
+                              <div className="mt-3 space-y-3 text-xs lg:text-sm">
+                                {pricing.debug.saturdayCheck && (
+                                  <div className="bg-white p-3 rounded border">
+                                    <p className="font-semibold mb-2">Samstag-zu-Samstag Prüfung:</p>
+                                    <pre className="whitespace-pre-wrap text-xs overflow-auto">
+                                      {JSON.stringify(pricing.debug.saturdayCheck, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {pricing.debug.phaseConstraints && (
+                                  <div className="bg-white p-3 rounded border">
+                                    <p className="font-semibold mb-2">Phase Constraints:</p>
+                                    <pre className="whitespace-pre-wrap text-xs overflow-auto">
+                                      {JSON.stringify(pricing.debug.phaseConstraints, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
                           </div>
                         )}
                       </div>
@@ -871,29 +888,30 @@ export function BookingForm() {
           <AlertDialogHeader className="space-y-3">
             <AlertDialogTitle className="text-xl font-semibold">{t("bookingForm.bookingNote")}</AlertDialogTitle>
             <AlertDialogDescription className="space-y-4 text-base">
-              {warningDialog.minNights ? (
-                <div className="space-y-3">
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    <p className="text-sm text-gray-600">
-                      {t("bookingForm.youWantToBook")} <strong className="text-gray-900">{warningDialog.nights} {warningDialog.nights === 1 ? t("bookingForm.night") : t("bookingForm.nights")}</strong> {t("bookingForm.nightsButMinimum")} <strong className="text-gray-900">{warningDialog.minNights} {warningDialog.minNights === 1 ? t("bookingForm.night") : t("bookingForm.nights")}</strong> {t("bookingForm.nightsRequired")}
-                    </p>
-                  </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <p className="text-sm text-amber-900">{t("bookingForm.requestWarning")}</p>
-                  </div>
+              <div className="space-y-3">
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  {warningDialog.warnings.map((warning, index) => {
+                    // Backend-Warnungen sind bereits vollständig formuliert
+                    // Für bessere Formatierung: Erkenne Zahlen und mache sie fett
+                    const parts = warning.split(/(\d+)/);
+                    return (
+                      <p key={index} className="text-sm text-gray-600">
+                        {parts.map((part, i) => {
+                          if (/^\d+$/.test(part)) {
+                            return <strong key={i} className="text-gray-900">{part}</strong>;
+                          }
+                          return <span key={i}>{part}</span>;
+                        })}
+                      </p>
+                    );
+                  })}
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    {warningDialog.warnings.map((warning, index) => (
-                      <p key={index} className="text-sm text-gray-600">{warning}</p>
-                    ))}
-                  </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <p className="text-sm text-amber-900">{t("bookingForm.periodWarning")}</p>
-                  </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm text-amber-900">
+                    {warningDialog.minNights ? t("bookingForm.requestWarning") : t("bookingForm.periodWarning")}
+                  </p>
                 </div>
-              )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0 mt-6">

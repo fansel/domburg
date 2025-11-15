@@ -50,7 +50,7 @@ export default async function AdminSettingsPage() {
   const canManageBookingLimit = isSuperAdmin || (fullUser?.canManageBookingLimit === true);
 
   // Lade Daten
-  const [guestTokens, adminUsers, calendarSettings, emailTemplates, smtpSettings, publicUrlSetting, replyToSetting, emailLogs, bookingLimitSetting, housekeeperEmailsSetting, housekeeperLastSentSetting] = await Promise.all([
+  const [guestTokens, adminUsers, calendarSettings, emailTemplates, smtpSettings, publicUrlSetting, replyToSetting, emailLogs, bookingLimitSetting, bookingLimitEnabledSetting, bookingAdvanceSetting, housekeeperEmailsSetting, housekeeperLastSentSetting] = await Promise.all([
     prisma.guestAccessToken.findMany({
       orderBy: { createdAt: "desc" },
     }),
@@ -110,6 +110,12 @@ export default async function AdminSettingsPage() {
     }),
     prisma.setting.findUnique({
       where: { key: "BOOKING_LIMIT_DATE" },
+    }),
+    prisma.setting.findUnique({
+      where: { key: "BOOKING_LIMIT_DATE_ENABLED" },
+    }),
+    prisma.setting.findUnique({
+      where: { key: "BOOKING_ADVANCE_OCTOBER_TO_NEXT_YEAR" },
     }),
     prisma.setting.findUnique({
       where: { key: "HOUSEKEEPER_EMAILS" },
@@ -195,7 +201,11 @@ export default async function AdminSettingsPage() {
               <div className="space-y-6">
                 <PublicUrlManager initialUrl={publicUrlSetting?.value || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"} />
                 {(isSuperAdmin || canManageBookingLimit) && (
-                  <BookingLimitSettingManager initialDate={bookingLimitSetting?.value || undefined} />
+                  <BookingLimitSettingManager 
+                    initialDate={bookingLimitSetting?.value || undefined}
+                    initialEnabled={bookingLimitEnabledSetting?.value === "true"}
+                    initialAdvanceEnabled={bookingAdvanceSetting?.value === "true"}
+                  />
                 )}
                 <BookingHistoryResetManager />
               </div>

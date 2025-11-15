@@ -58,31 +58,63 @@ export function BookingCalendar({
     const start = today; // Ab heute
     
     // Lade maximale Buchungsdatum von der API
-    let end: Date;
+    // Priorität: BOOKING_LIMIT_DATE (wenn aktiviert) > BOOKING_ADVANCE_OCTOBER_TO_NEXT_YEAR (wenn aktiviert)
+    let end: Date | null = null;
     try {
-      const settingResponse = await fetch('/api/admin/booking-advance-setting');
-      const settingData = await settingResponse.json();
-      const enabled = settingData.enabled === true;
-      const currentMonth = today.getMonth() + 1;
-      const currentYear = today.getFullYear();
+      // Prüfe zuerst explizites Buchungslimit (nur wenn aktiviert)
+      const limitResponse = await fetch('/api/admin/booking-limit-setting');
+      const limitData = await limitResponse.json();
       
-      if (enabled && currentMonth >= 10) {
-        // Ab Oktober: Bis Ende des nächsten Jahres
-        end = new Date(currentYear + 1, 11, 31);
-      } else {
-        // Vor Oktober: Bis Ende des aktuellen Jahres
-        end = new Date(currentYear, 11, 31);
+      if (limitData.enabled === true && limitData.date && limitData.date !== "") {
+        // Parse Datum als lokales Datum (YYYY-MM-DD Format)
+        const dateParts = limitData.date.split('-');
+        if (dateParts.length === 3) {
+          const year = parseInt(dateParts[0], 10);
+          const month = parseInt(dateParts[1], 10) - 1; // Monat ist 0-basiert
+          const day = parseInt(dateParts[2], 10);
+          const limitDate = new Date(year, month, day, 23, 59, 59, 999);
+          if (!isNaN(limitDate.getTime())) {
+            end = limitDate;
+            setMaxBookingDate(limitDate);
+          }
+        }
       }
-      setMaxBookingDate(end);
+      
+      // Wenn kein explizites Limit gesetzt ist, prüfe Oktober-Regel
+      if (end === null) {
+        const settingResponse = await fetch('/api/admin/booking-advance-setting');
+        const settingData = await settingResponse.json();
+        const enabled = settingData.enabled === true;
+        
+        if (enabled) {
+          const currentMonth = today.getMonth() + 1;
+          const currentYear = today.getFullYear();
+          
+          if (currentMonth >= 10) {
+            // Ab Oktober: Bis Ende des nächsten Jahres
+            end = new Date(currentYear + 1, 11, 31);
+          } else {
+            // Vor Oktober: Bis Ende des aktuellen Jahres
+            end = new Date(currentYear, 11, 31);
+          }
+          setMaxBookingDate(end);
+        } else {
+          // Beide Limits deaktiviert - kein Limit (zeige 2 Jahre in die Zukunft)
+          end = new Date(today.getFullYear() + 2, 11, 31);
+          setMaxBookingDate(null); // null = kein Limit
+        }
+      }
     } catch {
-      // Fallback: 12 Monate in die Zukunft
-      end = new Date(today.getFullYear(), today.getMonth() + 12, 0);
-      setMaxBookingDate(end);
+      // Fallback: 2 Jahre in die Zukunft wenn kein Limit
+      end = new Date(today.getFullYear() + 2, 11, 31);
+      setMaxBookingDate(null);
     }
 
     try {
+      // Wenn kein Limit, verwende 2 Jahre in die Zukunft für Verfügbarkeitsprüfung
+      const availabilityEnd = end || new Date(today.getFullYear() + 2, 11, 31);
       const response = await fetch(
-        `/api/bookings/availability?start=${start.toISOString()}&end=${end.toISOString()}`
+        `/api/bookings/availability?start=${start.toISOString()}&end=${availabilityEnd.toISOString()}`
       );
       const data = await response.json();
       setBlockedDates(data.blockedDates || []);
@@ -133,7 +165,8 @@ export function BookingCalendar({
   };
   
   const isDateAfterMaxBookingDate = (date: Date): boolean => {
-    if (!maxBookingDate) return false;
+    // Wenn maxBookingDate null ist, gibt es kein Limit
+    if (maxBookingDate === null) return false;
     const maxDate = new Date(maxBookingDate);
     maxDate.setHours(23, 59, 59, 999);
     return date > maxDate;
@@ -212,7 +245,18 @@ export function BookingCalendar({
 
   // Maximal erlaubter Monat: Basierend auf maxBookingDate
   const nextMonth = () => {
-    if (!maxBookingDate) return;
+    // Wenn kein Limit (null), erlaube 2 Jahre in die Zukunft
+    if (maxBookingDate === null) {
+      const maxAllowed = new Date(today.getFullYear() + 2, 11, 31);
+      const maxMonth = new Date(maxAllowed.getFullYear(), maxAllowed.getMonth(), 1);
+      const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+      const newMonthTime = new Date(newMonth.getFullYear(), newMonth.getMonth(), 1).getTime();
+      const maxAllowedTime = maxMonth.getTime();
+      if (newMonthTime <= maxAllowedTime) {
+        setCurrentMonth(newMonth);
+      }
+      return;
+    }
     
     const maxMonth = new Date(maxBookingDate.getFullYear(), maxBookingDate.getMonth(), 1);
     const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
@@ -230,10 +274,16 @@ export function BookingCalendar({
   const canGoBack = currentMonthTime > firstAllowedTime;
   
   // Prüfe ob Vorwärts-Button deaktiviert werden soll (basierend auf maxBookingDate)
-  const canGoForward = maxBookingDate ? (() => {
+  const canGoForward = (() => {
+    if (maxBookingDate === null) {
+      // Kein Limit: Erlaube bis 2 Jahre in die Zukunft
+      const maxAllowed = new Date(today.getFullYear() + 2, 11, 31);
+      const maxMonth = new Date(maxAllowed.getFullYear(), maxAllowed.getMonth(), 1);
+      return currentMonthTime < maxMonth.getTime();
+    }
     const maxMonth = new Date(maxBookingDate.getFullYear(), maxBookingDate.getMonth(), 1);
     return currentMonthTime < maxMonth.getTime();
-  })() : false;
+  })();
 
   // Monatsnamen aus Übersetzungen
   const monthNames = [

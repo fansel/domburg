@@ -24,6 +24,27 @@ export interface PriceCalculation {
     endDate?: string;
   }>;
   warnings?: string[]; // Warnungen zu Saison-Regeln (blockieren nicht die Buchung)
+  debug?: {
+    saturdayCheck?: {
+      startDay: number;
+      startDayName: string;
+      endDay: number;
+      endDayName: string;
+      lastBookedDay: number;
+      lastBookedDayName: string;
+      nights: number;
+      isMultipleOf7: boolean;
+      isValidSaturdayToSaturday: boolean;
+      willShowWarning: boolean;
+    };
+    phaseConstraints?: {
+      phaseName: string;
+      minNights: number | null;
+      saturdayToSaturday: boolean;
+      minNightsViolated: boolean;
+      saturdayToSaturdayViolated: boolean;
+    };
+  };
 }
 
 export async function calculateBookingPrice(
@@ -414,21 +435,52 @@ export async function calculateBookingPrice(
     })
     .sort((a, b) => (a.priority || 0) - (b.priority || 0)); // Aufsteigend: niedrigere Zahl = höhere Priorität
   
+  console.log('Matching phases for start date:', {
+    startDate: normalizedStartDate.toISOString(),
+    matchingPhasesCount: matchingPhases.length,
+    matchingPhases: matchingPhases.map((p: any) => ({
+      name: p.name,
+      priority: p.priority,
+      saturdayToSaturday: p.saturdayToSaturday,
+      startDate: p.startDate,
+      endDate: p.endDate
+    }))
+  });
+  
   if (matchingPhases.length > 0) {
     const phase = matchingPhases[0] as any;
     startDatePhase = phase;
     
-    // Prüfe Mindestanzahl Nächte
+    // Prüfe beide Constraints: minNights UND saturdayToSaturday
+    // Wenn beide aktiviert sind UND beide verletzt sind, zeige kombinierte Warnung
     const minNights = phase.minNights;
-    if (minNights != null && nights < minNights) {
-      const warningMsg = `Für diese Saison ist eine Mindestbuchung von ${minNights} Nächten erforderlich. Du buchst ${nights} ${nights === 1 ? 'Nacht' : 'Nächte'}.`;
-      warnings.push(warningMsg);
-      // Speichere minNights für bessere Extraktion im Frontend
-      (warnings as any).minNights = minNights;
-    }
-
-    // Prüfe Samstag-zu-Samstag Regel
     const saturdayToSaturday = phase.saturdayToSaturday;
+    
+    // Prüfe ob Constraints verletzt sind (ohne sofort Warnung hinzuzufügen)
+    const minNightsViolated = minNights != null && nights < minNights;
+    let saturdayToSaturdayViolated = false;
+    
+    const phaseConstraintsDebug = {
+      phaseName: phase.name,
+      minNights: minNights,
+      saturdayToSaturday: saturdayToSaturday,
+      saturdayToSaturdayType: typeof saturdayToSaturday,
+      nights: nights,
+      minNightsViolated: minNightsViolated,
+      saturdayToSaturdayActive: saturdayToSaturday === true,
+      saturdayToSaturdayViolated: saturdayToSaturdayViolated,
+      willCheckSaturday: saturdayToSaturday === true
+    };
+    
+    console.log('Phase constraints check:', phaseConstraintsDebug);
+    
+    // Speichere Debug-Info für Response
+    if (!(warnings as any).debug) {
+      (warnings as any).debug = {};
+    }
+    (warnings as any).debug.phaseConstraints = phaseConstraintsDebug;
+    
+    // Prüfe Samstag-zu-Samstag Regel (speichere Ergebnis, füge noch keine Warnung hinzu)
     if (saturdayToSaturday === true) {
       // Konvertiere Daten in Europe/Amsterdam Zeitzone für Wochentag-Berechnung
       // Das Datum kommt als UTC, muss aber in der lokalen Zeitzone interpretiert werden
@@ -464,7 +516,15 @@ export async function calculateBookingPrice(
       const endDay = getDayOfWeekInTimezone(endDate); // 0 = Sonntag, 6 = Samstag
       
       // Debug: Log für besseres Verständnis
-      console.log('Saturday check (Europe/Amsterdam):', {
+      const isValidCheck = startDay === 6 && 
+        nights > 0 && 
+        nights % 7 === 0 && (
+          endDay === 6 || 
+          endDay === 0 || 
+          lastBookedDay === 6
+        );
+      
+      const saturdayCheckDebug = {
         startDate: normalizedStartDate.toISOString(),
         startDay,
         startDayName: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][startDay],
@@ -477,35 +537,91 @@ export async function calculateBookingPrice(
         isStartSaturday: startDay === 6,
         isLastDaySaturday: lastBookedDay === 6,
         nights,
-        willShowWarning: !(startDay === 6 && (endDay === 0 || lastBookedDay === 6 || (nights > 0 && nights % 7 === 0)))
-      });
+        isMultipleOf7: nights % 7 === 0,
+        isValidSaturdayToSaturday: isValidCheck,
+        willShowWarning: !isValidCheck
+      };
+      
+      console.log('Saturday check (Europe/Amsterdam):', saturdayCheckDebug);
+      
+      // Speichere Debug-Info für Response
+      if (!(warnings as any).debug) {
+        (warnings as any).debug = {};
+      }
+      (warnings as any).debug.saturdayCheck = saturdayCheckDebug;
       
       // Eine Samstag-zu-Samstag-Buchung ist gültig wenn:
-      // 1. Starttag ist Samstag (6) UND Endtag ist Samstag (6) UND Anzahl Nächte ist Vielfaches von 7
-      // ODER
-      // 2. Starttag ist Samstag (6) UND Endtag ist Sonntag (0) - dann ist letzter Tag = Samstag
-      // ODER
-      // 3. Starttag ist Samstag (6) UND letzter gebuchter Tag ist Samstag (6)
+      // 1. Starttag ist Samstag (6) UND Anzahl Nächte ist Vielfaches von 7
+      // UND
+      // 2. Entweder: Endtag ist Samstag (6) ODER Endtag ist Sonntag (0, dann ist letzter Tag = Samstag) ODER letzter gebuchter Tag ist Samstag (6)
       // 
       // Wenn jemand "Samstag bis Samstag" im Kalender auswählt:
       // - startDate = Samstag, endDate = nächster Samstag
       // - lastBookedDay = Freitag (endDate - 1)
       // - Aber: Anzahl Nächte = 7, also ist es eine volle Woche = gültig
-      const isValidSaturdayToSaturday = startDay === 6 && (
-        // Fall 1: Start = Samstag UND End = Samstag UND 7 Nächte (oder Vielfaches)
-        (endDay === 6 && nights > 0 && nights % 7 === 0) ||
-        // Fall 2: Start = Samstag UND End = Sonntag (dann ist letzter Tag = Samstag)
-        endDay === 0 ||
-        // Fall 3: Start = Samstag UND letzter gebuchter Tag = Samstag
-        lastBookedDay === 6
-      );
+      const isValidSaturdayToSaturday = startDay === 6 && 
+        nights > 0 && 
+        nights % 7 === 0 && (
+          // Endtag ist Samstag ODER Sonntag (dann ist letzter Tag = Samstag) ODER letzter gebuchter Tag ist Samstag
+          endDay === 6 || 
+          endDay === 0 || 
+          lastBookedDay === 6
+        );
       
-      if (!isValidSaturdayToSaturday) {
-        warnings.push('Für diese Saison sind nur Buchungen von Samstag zu Samstag möglich.');
+      saturdayToSaturdayViolated = !isValidSaturdayToSaturday;
+      
+      // Aktualisiere Debug-Info mit finalem Ergebnis
+      if ((warnings as any).debug?.saturdayCheck) {
+        (warnings as any).debug.saturdayCheck.isValidSaturdayToSaturday = isValidSaturdayToSaturday;
+        (warnings as any).debug.saturdayCheck.willShowWarning = saturdayToSaturdayViolated;
+      }
+      
+      // Aktualisiere auch phaseConstraints Debug-Info
+      if ((warnings as any).debug?.phaseConstraints) {
+        (warnings as any).debug.phaseConstraints.saturdayToSaturdayViolated = saturdayToSaturdayViolated;
+      }
+    }
+    
+    // Füge Warnungen hinzu: beide Warnungen separat, wenn beide Constraints aktiviert und verletzt sind
+    console.log('Adding warnings:', {
+      minNightsViolated,
+      saturdayToSaturdayViolated,
+      minNightsActive: minNights != null,
+      saturdayToSaturdayActive: saturdayToSaturday === true,
+      bothActive: minNights != null && saturdayToSaturday === true,
+      bothViolated: minNightsViolated && saturdayToSaturdayViolated
+    });
+    
+    // Füge Warnungen hinzu: kombinierte Warnung wenn beide verletzt sind, sonst einzelne Warnungen
+    if (minNightsViolated && saturdayToSaturdayViolated) {
+      // Beide Constraints verletzt: kombinierte Warnung ohne doppelten gemeinsamen Teil
+      const combinedWarning = `Du möchtest ${nights} ${nights === 1 ? 'Nacht' : 'Nächte'} buchen. Für diese Saison ist jedoch eine Mindestbuchung von ${minNights} ${minNights === 1 ? 'Nacht' : 'Nächte'} erforderlich und nur Buchungen von Samstag zu Samstag möglich.`;
+      warnings.push(combinedWarning);
+      (warnings as any).minNights = minNights;
+      console.log('Added combined warning');
+    } else {
+      // Einzelne Warnungen
+      if (minNightsViolated) {
+        const warningMsg = `Du möchtest ${nights} ${nights === 1 ? 'Nacht' : 'Nächte'} buchen. Für diese Saison ist jedoch eine Mindestbuchung von ${minNights} ${minNights === 1 ? 'Nacht' : 'Nächte'} erforderlich.`;
+        warnings.push(warningMsg);
+        (warnings as any).minNights = minNights;
+        console.log('Added minNights warning');
+      }
+      
+      if (saturdayToSaturdayViolated) {
+        const saturdayWarning = `Du möchtest ${nights} ${nights === 1 ? 'Nacht' : 'Nächte'} buchen. Für diese Saison sind jedoch nur Buchungen von Samstag zu Samstag möglich.`;
+        warnings.push(saturdayWarning);
+        console.log('Added saturdayToSaturday warning');
       }
     }
   }
 
+  // Extrahiere Debug-Info aus warnings-Array (falls vorhanden)
+  const debugInfo = (warnings as any).debug || undefined;
+  
+  // Entferne Debug-Info aus warnings-Array für saubere Warnungen
+  const cleanWarnings = warnings.filter((w: any) => typeof w === 'string');
+  
   const result = {
     nights,
     basePrice: totalNightlyPrice,
@@ -520,7 +636,9 @@ export async function calculateBookingPrice(
     pricePerNight: totalNightlyPrice / nights,
     breakdown,
     nightBreakdown: nightBreakdown.length > 0 ? nightBreakdown : undefined,
-    warnings: warnings.length > 0 ? warnings : undefined,
+    warnings: cleanWarnings.length > 0 ? cleanWarnings : undefined,
+    // Debug-Informationen für Production-Debugging
+    debug: debugInfo,
   };
   
   return result;
@@ -536,25 +654,60 @@ export async function getMinStayNights(): Promise<number> {
 
 /**
  * Berechnet das maximale Buchungsdatum basierend auf der Einstellung
- * Regel: Ab Oktober (Monat >= 10) für das ganze nächste Jahr, sonst bis Ende des aktuellen Jahres
+ * Priorität:
+ * 1. BOOKING_LIMIT_DATE (falls gesetzt) - explizites Limit
+ * 2. BOOKING_ADVANCE_OCTOBER_TO_NEXT_YEAR - Regel: Ab Oktober für das ganze nächste Jahr, sonst bis Ende des aktuellen Jahres
  */
-export async function getMaxBookingDate(): Promise<Date> {
-  const setting = await prisma.setting.findUnique({
+export async function getMaxBookingDate(): Promise<Date | null> {
+  // Prüfe zuerst explizites Buchungslimit (nur wenn aktiviert)
+  const [limitSetting, limitEnabledSetting] = await Promise.all([
+    prisma.setting.findUnique({
+      where: { key: "BOOKING_LIMIT_DATE" },
+    }),
+    prisma.setting.findUnique({
+      where: { key: "BOOKING_LIMIT_DATE_ENABLED" },
+    }),
+  ]);
+  
+  const limitEnabled = limitEnabledSetting?.value === "true";
+  
+  if (limitEnabled && limitSetting?.value && limitSetting.value !== "") {
+    // Parse Datum als lokales Datum (YYYY-MM-DD Format)
+    const dateParts = limitSetting.value.split('-');
+    if (dateParts.length === 3) {
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1; // Monat ist 0-basiert
+      const day = parseInt(dateParts[2], 10);
+      const limitDate = new Date(year, month, day, 23, 59, 59, 999);
+      if (!isNaN(limitDate.getTime())) {
+        return limitDate;
+      }
+    }
+  }
+  
+  // Fallback: Alte Regel basierend auf Oktober (nur wenn aktiviert)
+  const advanceSetting = await prisma.setting.findUnique({
     where: { key: "BOOKING_ADVANCE_OCTOBER_TO_NEXT_YEAR" },
   });
   
-  const enabled = setting?.value === "true";
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1; // 1-12
-  const currentYear = now.getFullYear();
+  const advanceEnabled = advanceSetting?.value === "true";
   
-  if (enabled && currentMonth >= 10) {
-    // Ab Oktober: Maximale Buchung bis Ende des nächsten Jahres
-    return new Date(currentYear + 1, 11, 31); // 31. Dezember des nächsten Jahres
-  } else {
-    // Vor Oktober: Maximale Buchung bis Ende des aktuellen Jahres
-    return new Date(currentYear, 11, 31); // 31. Dezember des aktuellen Jahres
+  if (advanceEnabled) {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentYear = now.getFullYear();
+    
+    if (currentMonth >= 10) {
+      // Ab Oktober: Maximale Buchung bis Ende des nächsten Jahres
+      return new Date(currentYear + 1, 11, 31); // 31. Dezember des nächsten Jahres
+    } else {
+      // Vor Oktober: Maximale Buchung bis Ende des aktuellen Jahres
+      return new Date(currentYear, 11, 31); // 31. Dezember des aktuellen Jahres
+    }
   }
+  
+  // Wenn beide Limits deaktiviert sind, kein Limit (return null = unbegrenzt)
+  return null;
 }
 
 export async function validateBookingDates(
@@ -576,17 +729,38 @@ export async function validateBookingDates(
 
   // Prüfe maximales Buchungsdatum (Vorausplanung)
   const maxBookingDate = await getMaxBookingDate();
-  maxBookingDate.setHours(23, 59, 59, 999);
-  if (endDate > maxBookingDate) {
-    const setting = await prisma.setting.findUnique({
-      where: { key: "BOOKING_ADVANCE_OCTOBER_TO_NEXT_YEAR" },
+  
+  // Wenn kein Limit gesetzt ist (null), überspringe diese Prüfung
+  if (maxBookingDate !== null) {
+    // Normalisiere beide Daten auf Mitternacht für korrekten Vergleich
+    const normalizedEndDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    const normalizedMaxDate = new Date(maxBookingDate.getFullYear(), maxBookingDate.getMonth(), maxBookingDate.getDate());
+    if (normalizedEndDate > normalizedMaxDate) {
+    // Prüfe ob explizites Limit gesetzt ist
+    const limitSetting = await prisma.setting.findUnique({
+      where: { key: "BOOKING_LIMIT_DATE" },
     });
-    const enabled = setting?.value === "true";
-    const currentMonth = new Date().getMonth() + 1;
     
-    if (enabled && currentMonth >= 10) {
-      return { valid: false, error: `Buchungen sind nur bis zum 31. Dezember ${maxBookingDate.getFullYear()} möglich` };
-    } else {
+    if (limitSetting?.value && limitSetting.value !== "") {
+      // Parse Datum als lokales Datum (YYYY-MM-DD Format)
+      const dateParts = limitSetting.value.split('-');
+      if (dateParts.length === 3) {
+        const year = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1; // Monat ist 0-basiert
+        const day = parseInt(dateParts[2], 10);
+        const limitDate = new Date(year, month, day);
+        if (!isNaN(limitDate.getTime())) {
+          const formattedDate = limitDate.toLocaleDateString('de-DE', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+          return { valid: false, error: `Buchungen sind nur bis zum ${formattedDate} möglich` };
+        }
+      }
+    }
+    
+      // Fallback: Alte Regel
       return { valid: false, error: `Buchungen sind nur bis zum 31. Dezember ${maxBookingDate.getFullYear()} möglich` };
     }
   }
