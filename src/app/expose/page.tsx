@@ -309,10 +309,8 @@ export default function ExposePage() {
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#e8e6e3]">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-5">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-light tracking-tight text-[#2c2a26]">
-              Exposé
-            </h1>
+          <div className="flex items-center relative">
+            {/* Zurück-Button links */}
             <Button
               variant="ghost"
               size="sm"
@@ -322,6 +320,10 @@ export default function ExposePage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Zurück
             </Button>
+            {/* Titel zentriert */}
+            <h1 className="text-2xl font-light tracking-tight text-[#2c2a26] absolute left-1/2 transform -translate-x-1/2">
+              Exposé
+            </h1>
           </div>
         </div>
       </div>
