@@ -42,10 +42,62 @@ export default function ExposePage() {
   const [sections, setSections] = useState<ExposeSection[]>([]);
   const [contacts, setContacts] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isChecking, setIsChecking] = useState(true);
+  const [isValidated, setIsValidated] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
+  // Prüfe Zugangscode beim Laden der Seite
   useEffect(() => {
+    async function checkAccess() {
+      try {
+        // Prüfe erst über API ob User eingeloggt ist
+        const authRes = await fetch("/api/auth/check");
+        const authData = await authRes.json();
+        
+        // Wenn eingeloggt und Housekeeper -> zur Cleaning-Seite
+        if (authData.authenticated && authData.user) {
+          const isHousekeeper = authData.user.name === 'Housekeeper' || 
+                                authData.user.email?.includes('housekeeper-');
+          
+          if (isHousekeeper) {
+            router.push("/housekeeping");
+            return;
+          }
+          
+          // Wenn Admin oder Superadmin eingeloggt -> Zugriff erlauben
+          if (authData.role === 'ADMIN' || authData.role === 'SUPERADMIN') {
+            setIsValidated(true);
+            setIsChecking(false);
+            return;
+          }
+        }
+        
+        // Prüfe ob Gastcode validiert wurde (normale Gäste)
+        const validated = sessionStorage.getItem("guestCodeValidated");
+        if (validated === "true") {
+          setIsValidated(true);
+        } else {
+          // Nicht validiert -> zur Startseite mit Redirect-Parameter
+          const currentPath = window.location.pathname;
+          router.push(`/?redirect=${encodeURIComponent(currentPath)}`);
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking access:", error);
+        router.push("/");
+        return;
+      } finally {
+        setIsChecking(false);
+      }
+    }
+    
+    checkAccess();
+  }, [router]);
+
+  useEffect(() => {
+    if (!isValidated) return;
+    
     const loadExposes = async () => {
       try {
         const response = await fetch("/api/expose");
@@ -75,7 +127,7 @@ export default function ExposePage() {
     };
 
     loadExposes();
-  }, [toast]);
+  }, [toast, isValidated]);
 
   const sectionImagesMap = useMemo(() => {
     const map = new Map<string, { above: Expose[]; below: Expose[] }>();
@@ -279,6 +331,18 @@ export default function ExposePage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [lightboxOpen, exposes.length]);
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (!isValidated) {
+    return null; // Wird zur Startseite weitergeleitet
+  }
 
   if (isLoading) {
     return (
