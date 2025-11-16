@@ -206,6 +206,27 @@ export async function findCalendarConflicts(): Promise<BookingConflict[]> {
     // Hole alle blockierten Daten aus Google Calendar
     const blockedDates = await getBlockedDatesFromCalendar();
 
+    // Lade alle APPROVED Buchungen mit googleEventId für schnelle Lookup
+    // Dies hilft zu prüfen, ob ein Event "Buchung:" zu einer APPROVED Buchung gehört
+    const approvedBookingsWithEventId = await prisma.booking.findMany({
+      where: {
+        status: "APPROVED",
+        googleEventId: { not: null },
+      },
+      select: {
+        id: true,
+        googleEventId: true,
+      },
+    });
+    
+    // Erstelle eine Map für schnelle Lookup: eventId -> bookingId
+    const eventIdToBookingId = new Map<string, string>();
+    for (const booking of approvedBookingsWithEventId) {
+      if (booking.googleEventId) {
+        eventIdToBookingId.set(booking.googleEventId, booking.id);
+      }
+    }
+
     const conflicts: BookingConflict[] = [];
     const processedConflictKeys = new Set<string>();
 
@@ -226,11 +247,18 @@ export async function findCalendarConflicts(): Promise<BookingConflict[]> {
 
           // Prüfe ob dieser Kalendereintrag zu dieser Buchung gehört (via googleEventId)
           const isSameEvent = booking.googleEventId === blockedDate.id;
+          
+          // Prüfe ob dieses Event zu einer anderen APPROVED Buchung gehört
+          // (wenn ja, dann ist es kein Konflikt, sondern eine andere genehmigte Buchung)
+          const belongsToOtherApprovedBooking = blockedDate.id && 
+            eventIdToBookingId.has(blockedDate.id) &&
+            eventIdToBookingId.get(blockedDate.id) !== booking.id;
 
           // Nur als Konflikt markieren wenn:
           // 1. Es KEIN App-Booking ist (also manuell eingetragen), ODER
-          // 2. Es ein App-Booking ist, aber NICHT zu dieser Buchung gehört
-          if (!isAppBooking || (isAppBooking && !isSameEvent)) {
+          // 2. Es ein App-Booking ist, aber NICHT zu dieser Buchung gehört UND nicht zu einer anderen APPROVED Buchung gehört
+          // (wenn es zu einer anderen APPROVED Buchung gehört, wird es von findOverlappingRequests erkannt)
+          if (!isAppBooking || (isAppBooking && !isSameEvent && !belongsToOtherApprovedBooking)) {
             // Erstelle einen eindeutigen Key für diesen Konflikt (vermeidet Duplikate)
             const conflictKey = `${booking.id}-${blockedDate.id}`;
             

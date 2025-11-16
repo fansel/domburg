@@ -95,7 +95,6 @@ interface CreateEventParams {
   endDate: Date;
   guestEmail?: string;
   guestName?: string;
-  colorId?: string; // Google Calendar Farb-ID
 }
 
 // Event im Google Calendar erstellen
@@ -106,7 +105,6 @@ export async function createCalendarEvent({
   endDate,
   guestEmail,
   guestName,
-  colorId,
 }: CreateEventParams): Promise<string | null> {
   // Nutze Datenbank-Credentials (oder Fallback auf ENV)
   const calendar = await getCalendarClient();
@@ -128,40 +126,15 @@ export async function createCalendarEvent({
       ? `${description}\n\nGast: ${guestName || guestEmail}`
       : `Gast: ${guestName || guestEmail}`;
 
-    // Konvertiere Daten zu lokaler Zeitzone (Europe/Amsterdam) für korrekte Datumsanzeige
-    const getLocalDateString = (date: Date): string => {
-      const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Europe/Amsterdam',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      return formatter.format(date);
-    };
-
-    const startDateStr = getLocalDateString(startDate);
-    
-    // WICHTIG: Google Calendar verwendet bei ganztägigen Events ein EXKLUSIVES End-Datum
-    // Für ein Event von 9. bis 10. November (Check-in 9., Check-out 10.)
-    // muss end.date = 11. November sein, damit es am 9. UND 10. angezeigt wird
-    const endDatePlusOne = new Date(endDate);
-    endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
-    const endDateStr = getLocalDateString(endDatePlusOne);
-    
-    console.log(`[createCalendarEvent] Creating event "${summary}"`);
-    console.log(`[createCalendarEvent] Check-in: ${startDateStr} (from ${startDate.toISOString()})`);
-    console.log(`[createCalendarEvent] Check-out: ${getLocalDateString(endDate)} (from ${endDate.toISOString()})`);
-    console.log(`[createCalendarEvent] Google Calendar end.date: ${endDateStr} (exclusive, +1 day)`);
-    
-    const event: any = {
+    const event = {
       summary,
       description: fullDescription,
       start: {
-        date: startDateStr,
+        date: startDate.toISOString().split('T')[0],
         timeZone: 'Europe/Amsterdam',
       },
       end: {
-        date: endDateStr,
+        date: endDate.toISOString().split('T')[0],
         timeZone: 'Europe/Amsterdam',
       },
       // attendees entfernt - Service Accounts können keine Einladungen senden
@@ -173,18 +146,12 @@ export async function createCalendarEvent({
         ],
       },
     };
-    
-    // Setze colorId falls angegeben
-    if (colorId) {
-      event.colorId = colorId;
-    }
 
     const response = await calendar.events.insert({
       calendarId,
       requestBody: event,
     });
 
-    console.log(`[createCalendarEvent] Created successfully with ID: ${response.data.id}`);
     return response.data.id || null;
   } catch (error) {
     console.error('Error creating calendar event:', error);
@@ -212,36 +179,15 @@ export async function updateCalendarEvent(
       // Leerer String = Farbe entfernen (auf Standardfarbe zurücksetzen)
       updateData.colorId = params.colorId === '' ? null : params.colorId;
     }
-    // Konvertiere Daten zu lokaler Zeitzone (Europe/Amsterdam) für korrekte Datumsanzeige
-    const getLocalDateString = (date: Date): string => {
-      const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Europe/Amsterdam',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      return formatter.format(date);
-    };
-
     if (params.startDate) {
-      const startDateStr = getLocalDateString(params.startDate);
-      console.log(`[updateCalendarEvent] Setting check-in date: ${startDateStr} (from ${params.startDate.toISOString()})`);
       updateData.start = {
-        date: startDateStr,
+        date: params.startDate.toISOString().split('T')[0],
         timeZone: 'Europe/Amsterdam',
       };
     }
     if (params.endDate) {
-      // WICHTIG: Google Calendar verwendet bei ganztägigen Events ein EXKLUSIVES End-Datum
-      // Für ein Event von 9. bis 10. November (Check-in 9., Check-out 10.)
-      // muss end.date = 11. November sein, damit es am 9. UND 10. angezeigt wird
-      const endDatePlusOne = new Date(params.endDate);
-      endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
-      const endDateStr = getLocalDateString(endDatePlusOne);
-      console.log(`[updateCalendarEvent] Setting check-out date: ${getLocalDateString(params.endDate)} (from ${params.endDate.toISOString()})`);
-      console.log(`[updateCalendarEvent] Google Calendar end.date: ${endDateStr} (exclusive, +1 day)`);
       updateData.end = {
-        date: endDateStr,
+        date: params.endDate.toISOString().split('T')[0],
         timeZone: 'Europe/Amsterdam',
       };
     }

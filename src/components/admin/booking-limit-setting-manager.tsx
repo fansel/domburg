@@ -40,8 +40,8 @@ export function BookingLimitSettingManager({
           body: JSON.stringify({ date: date || null, enabled }),
         }),
         fetch("/api/admin/booking-advance-setting", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ enabled: advanceEnabled }),
         }),
       ]);
@@ -105,23 +105,23 @@ export function BookingLimitSettingManager({
         </div>
         
         {enabled && (
-          <div className="space-y-2">
-            <Label htmlFor="booking-limit-date" className="text-sm font-medium">
-              Buchungen erlauben bis
-            </Label>
-            <Input
-              id="booking-limit-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              min={today}
-              className="w-full sm:w-auto"
-            />
-            <p className="text-xs text-muted-foreground">
-              {date 
-                ? `Buchungen sind bis zum ${new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} erlaubt.`
+        <div className="space-y-2">
+          <Label htmlFor="booking-limit-date" className="text-sm font-medium">
+            Buchungen erlauben bis
+          </Label>
+          <Input
+            id="booking-limit-date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            min={today}
+            className="w-full sm:w-auto"
+          />
+          <p className="text-xs text-muted-foreground">
+            {date 
+              ? `Buchungen sind bis zum ${new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} erlaubt.`
                 : "Bitte wählen Sie ein Datum aus."}
-            </p>
+          </p>
           </div>
         )}
         
@@ -141,7 +141,7 @@ export function BookingLimitSettingManager({
                 Wenn aktiviert: Ab Oktober können Gäste für das komplette nächste Jahr (1. Januar bis 31. Dezember) buchen.
                 <br />
                 Wenn deaktiviert: Gäste können für das aktuelle Jahr und den Rest des Jahres buchen.
-              </p>
+          </p>
             </div>
             <Switch
               id="booking-advance-enabled"

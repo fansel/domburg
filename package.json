@@ -16,6 +16,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:housekeeping": "tsx scripts/seed-housekeeping-template.ts",
     "db:seed:expose": "tsx scripts/seed-expose.ts",
+    "db:seed:email-templates": "tsx scripts/seed-email-templates.ts",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",

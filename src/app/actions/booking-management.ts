@@ -48,8 +48,23 @@ export async function updateBooking(
     // Prepare update data
     const updateData: any = {};
 
-    if (data.startDate) updateData.startDate = new Date(data.startDate);
-    if (data.endDate) updateData.endDate = new Date(data.endDate);
+    // WICHTIG: Parse Datumsstrings konsistent mit Europe/Amsterdam Timezone
+    // (gleiche Logik wie in createBooking)
+    const parseDateFromISO = (dateStr: string): Date => {
+      const date = new Date(dateStr);
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Amsterdam',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const dateStrFormatted = formatter.format(date);
+      const [year, month, day] = dateStrFormatted.split('-').map(Number);
+      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    };
+
+    if (data.startDate) updateData.startDate = parseDateFromISO(data.startDate);
+    if (data.endDate) updateData.endDate = parseDateFromISO(data.endDate);
     if (data.numberOfAdults !== undefined) updateData.numberOfAdults = data.numberOfAdults;
     if (data.numberOfChildren !== undefined) updateData.numberOfChildren = data.numberOfChildren;
     if (data.guestName !== undefined) updateData.guestName = data.guestName;
@@ -60,9 +75,9 @@ export async function updateBooking(
     // Recalculate price if dates or guests changed
     if (data.startDate || data.endDate || data.numberOfAdults !== undefined || data.numberOfChildren !== undefined) {
       const startDate = data.startDate
-        ? new Date(data.startDate)
+        ? parseDateFromISO(data.startDate)
         : booking.startDate;
-      const endDate = data.endDate ? new Date(data.endDate) : booking.endDate;
+      const endDate = data.endDate ? parseDateFromISO(data.endDate) : booking.endDate;
       const numberOfAdults = data.numberOfAdults !== undefined ? data.numberOfAdults : booking.numberOfAdults;
       const numberOfChildren = data.numberOfChildren !== undefined ? data.numberOfChildren : booking.numberOfChildren;
       const totalGuests = numberOfAdults + numberOfChildren;

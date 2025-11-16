@@ -407,22 +407,10 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
       const end = new Date(booking.endDate);
       end.setHours(0, 0, 0, 0);
       
-      const startKey = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
-      const endKey = `${end.getFullYear()}-${end.getMonth()}-${end.getDate()}`;
-      
-      // Check-in Tag immer anzeigen
-      if (start.getMonth() === month && start.getFullYear() === year) {
-        const key = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`;
-        const existing = map.get(key) || [];
-        existing.push(booking as any);
-        map.set(key, existing);
-      }
-      
-      // Tage zwischen Check-in und Check-out anzeigen
+      // Alle Tage von Check-in bis einschließlich Check-out anzeigen
       let current = new Date(start);
-      current.setDate(current.getDate() + 1); // Überspringe Check-in Tag
       
-      while (current < end) {
+      while (current <= end) {
         if (current.getMonth() === month && current.getFullYear() === year) {
           const key = `${current.getFullYear()}-${current.getMonth()}-${current.getDate()}`;
           const existing = map.get(key) || [];
@@ -430,16 +418,6 @@ export function BookingCalendarView({ bookings, calendarEvents = [], initialMont
           map.set(key, existing);
         }
         current.setDate(current.getDate() + 1);
-      }
-      
-      // Check-out Tag nur anzeigen, wenn er auch ein Check-in Tag ist
-      if (bookingCheckInDates.has(endKey)) {
-        if (end.getMonth() === month && end.getFullYear() === year) {
-          const key = `${end.getFullYear()}-${end.getMonth()}-${end.getDate()}`;
-          const existing = map.get(key) || [];
-          existing.push(booking as any);
-          map.set(key, existing);
-        }
       }
     });
     

@@ -436,12 +436,6 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
                     ))}
                   </div>
                 )}
-                {pricing.cleaningFee > 0 && (
-                  <div className="flex justify-between">
-                    <span>Reinigungsgebühr</span>
-                    <span>{formatCurrency(pricing.cleaningFee)}</span>
-                  </div>
-                )}
                 {pricing.beachHutPrice !== undefined && (
                   <div className="flex justify-between">
                     <span>Strandbude</span>
@@ -452,13 +446,18 @@ export function AdminBookingForm({ open, onOpenChange, initialStartDate, initial
                     </span>
                   </div>
                 )}
-                <div className="space-y-1 border-t pt-1 mt-1">
+                <div className="space-y-1 border-t pt-2 mt-2">
                   <div className="flex justify-between font-medium">
-                    <span>Gesamt</span>
+                    <span>Zu überweisen:</span>
                     <span>{formatCurrency(pricing.totalPrice - pricing.cleaningFee)}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground text-right">
-                    zuzüglich {formatCurrency(pricing.cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(pricing.totalPrice)}
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>+ Endreinigung in Bar:</span>
+                    <span>{formatCurrency(pricing.cleaningFee)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium border-t pt-1 mt-1">
+                    <span>Gesamtpreis</span>
+                    <span>{formatCurrency(pricing.totalPrice)}</span>
                   </div>
                 </div>
               </div>

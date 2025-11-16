@@ -115,11 +115,13 @@ export function GoogleCalendarManager({ initialSettings }: GoogleCalendarManager
       const created = result.createdCount || 0;
       const updated = result.updatedCount || 0;
       const deleted = result.deletedCount || 0;
+      const syncedFromCalendar = result.syncedFromCalendarCount || 0;
       
       const parts: string[] = [];
       if (created > 0) parts.push(`${created} erstellt`);
       if (updated > 0) parts.push(`${updated} aktualisiert`);
       if (deleted > 0) parts.push(`${deleted} gelöscht`);
+      if (syncedFromCalendar > 0) parts.push(`${syncedFromCalendar} vom Kalender synchronisiert`);
       
       const description = parts.length > 0 
         ? `Events: ${parts.join(", ")}`

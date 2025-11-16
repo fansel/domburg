@@ -309,16 +309,16 @@ function BookingStatusPageContent() {
                 const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
                 const beachHutPrice = pricingDetails?.beachHutPrice;
                 const useFamilyPrice = pricingDetails?.useFamilyPrice || false;
-                const basePrice = parseFloat(booking.totalPrice); // booking.totalPrice enthält bereits alles inkl. Strandbude
-                const endPrice = basePrice + cleaningFee;
+                // WICHTIG: booking.totalPrice enthält bereits Cleaning Fee + Strandbude
+                const totalPrice = parseFloat(booking.totalPrice.toString());
                 
                 return (
                   <div className="flex items-start gap-3">
                     <Euro className="h-5 w-5 text-primary mt-0.5" />
-                    <div className="flex-1">
+                    <div className="flex-1 space-y-2">
                       <p className="font-semibold">{t("bookingForm.totalPrice")}</p>
                       {pricingDetails?.basePrice && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground">
                           Übernachtungen: {formatCurrency(pricingDetails.basePrice)}
                         </p>
                       )}
@@ -329,12 +329,17 @@ function BookingStatusPageContent() {
                             : formatCurrency(beachHutPrice)}
                         </p>
                       )}
-                      <p className="text-sm font-medium mt-1">
-                        {formatCurrency(basePrice)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        zuzüglich {formatCurrency(cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(endPrice)}
-                      </p>
+                      <div className="pt-2 border-t space-y-1">
+                        <p className="text-sm font-medium">
+                          Zu überweisen: {formatCurrency(totalPrice - cleaningFee)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          + Endreinigung in Bar: {formatCurrency(cleaningFee)}
+                        </p>
+                        <p className="text-sm font-semibold mt-2 pt-2 border-t">
+                          Gesamtpreis: {formatCurrency(totalPrice)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 );

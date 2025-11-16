@@ -481,7 +481,7 @@ export async function calculateBookingPrice(
       (warnings as any).debug = {};
     }
     (warnings as any).debug.phaseConstraints = phaseConstraintsDebug;
-    
+
     // Prüfe Samstag-zu-Samstag Regel (speichere Ergebnis, füge noch keine Warnung hinzu)
     if (saturdayToSaturday === true) {
       // Konvertiere Daten in Europe/Amsterdam Zeitzone für Wochentag-Berechnung
@@ -567,9 +567,9 @@ export async function calculateBookingPrice(
         nights % 7 === 0 && (
           // Endtag ist Samstag ODER Sonntag (dann ist letzter Tag = Samstag) ODER letzter gebuchter Tag ist Samstag
           endDay === 6 || 
-          endDay === 0 || 
-          lastBookedDay === 6
-        );
+        endDay === 0 ||
+        lastBookedDay === 6
+      );
       
       saturdayToSaturdayViolated = !isValidSaturdayToSaturday;
       
@@ -624,7 +624,7 @@ export async function calculateBookingPrice(
   
   // Entferne Debug-Info aus warnings-Array für saubere Warnungen
   const cleanWarnings = warnings.filter((w: any) => typeof w === 'string');
-  
+
   const result = {
     nights,
     basePrice: totalNightlyPrice,
@@ -696,17 +696,17 @@ export async function getMaxBookingDate(): Promise<Date | null> {
   const advanceEnabled = advanceSetting?.value === "true";
   
   if (advanceEnabled) {
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1; // 1-12
-    const currentYear = now.getFullYear();
-    
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentYear = now.getFullYear();
+  
     if (currentMonth >= 10) {
-      // Ab Oktober: Maximale Buchung bis Ende des nächsten Jahres
-      return new Date(currentYear + 1, 11, 31); // 31. Dezember des nächsten Jahres
-    } else {
-      // Vor Oktober: Maximale Buchung bis Ende des aktuellen Jahres
-      return new Date(currentYear, 11, 31); // 31. Dezember des aktuellen Jahres
-    }
+    // Ab Oktober: Maximale Buchung bis Ende des nächsten Jahres
+    return new Date(currentYear + 1, 11, 31); // 31. Dezember des nächsten Jahres
+  } else {
+    // Vor Oktober: Maximale Buchung bis Ende des aktuellen Jahres
+    return new Date(currentYear, 11, 31); // 31. Dezember des aktuellen Jahres
+  }
   }
   
   // Wenn beide Limits deaktiviert sind, kein Limit (return null = unbegrenzt)

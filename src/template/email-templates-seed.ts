@@ -193,7 +193,10 @@ Familie Waubke`,
         {{/if}}
         <p><strong>Zeitraum:</strong> {{startDate}} bis {{endDate}}</p>
         <p><strong>Gäste:</strong> {{numberOfGuests}}</p>
-        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}{{#if cleaningFee}}<br><span style="font-size: 0.9em; color: #666;">zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}</span>{{/if}}</p>
+        <p><strong>Preisübersicht:</strong><br>
+        <span style="font-weight: 600;">Zu überweisen: €{{totalPrice}}</span><br>
+        <span style="font-size: 0.9em; color: #666;">+ Endreinigung in Bar: €{{cleaningFee}}</span><br>
+        <span style="font-weight: 600; font-size: 1.1em;">Gesamtpreis: €{{endPrice}}</span></p>
       </div>
       
       <p>Wir schauen uns deine Anfrage gleich an und melden uns schnellstmöglich zurück.</p>
@@ -220,8 +223,10 @@ Verwendeter Zugangscode: {{guestCode}}
 {{/if}}
 Zeitraum: {{startDate}} bis {{endDate}}
 Gäste: {{numberOfGuests}}
-Gesamtpreis: €{{totalPrice}}{{#if cleaningFee}}
-zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}{{/if}}
+Preisübersicht:
+Zu überweisen: €{{totalPrice}}
++ Endreinigung in Bar: €{{cleaningFee}}
+Gesamtpreis: €{{endPrice}}
 
 Wir schauen uns deine Anfrage gleich an und melden uns schnellstmöglich zurück.
 
@@ -281,7 +286,10 @@ Familie Waubke`,
         {{/if}}
         <p><strong>Zeitraum:</strong> {{startDate}} bis {{endDate}}</p>
         <p><strong>Gäste:</strong> {{numberOfGuests}}</p>
-        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}{{#if cleaningFee}}<br><span style="font-size: 0.9em; color: #666;">zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}</span>{{/if}}</p>
+        <p><strong>Preisübersicht:</strong><br>
+        <span style="font-weight: 600;">Zu überweisen: €{{totalPrice}}</span><br>
+        <span style="font-size: 0.9em; color: #666;">+ Endreinigung in Bar: €{{cleaningFee}}</span><br>
+        <span style="font-weight: 600; font-size: 1.1em;">Gesamtpreis: €{{endPrice}}</span></p>
       </div>
       
       <p>Falls du noch Fragen hast, schreib uns einfach zurück - wir helfen gerne!</p>
@@ -306,8 +314,10 @@ Verwendeter Zugangscode: {{guestCode}}
 {{/if}}
 Zeitraum: {{startDate}} bis {{endDate}}
 Gäste: {{numberOfGuests}}
-Gesamtpreis: €{{totalPrice}}{{#if cleaningFee}}
-zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}{{/if}}
+Preisübersicht:
+Zu überweisen: €{{totalPrice}}
++ Endreinigung in Bar: €{{cleaningFee}}
+Gesamtpreis: €{{endPrice}}
 
 Falls du noch Fragen hast, schreib uns einfach zurück - wir helfen gerne!
 
@@ -565,7 +575,10 @@ Familie Waubke`,
         <h3>Anfrage-Details:</h3>
         <p><strong>Zeitraum:</strong> {{startDate}} bis {{endDate}}</p>
         <p><strong>Gäste:</strong> {{numberOfGuests}}</p>
-        <p><strong>Gesamtpreis:</strong> €{{totalPrice}}{{#if cleaningFee}}<br><span style="font-size: 0.9em; color: #666;">zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}</span>{{/if}}</p>
+        <p><strong>Preisübersicht:</strong><br>
+        <span style="font-weight: 600;">Zu überweisen: €{{totalPrice}}</span><br>
+        <span style="font-size: 0.9em; color: #666;">+ Endreinigung in Bar: €{{cleaningFee}}</span><br>
+        <span style="font-weight: 600; font-size: 1.1em;">Gesamtpreis: €{{endPrice}}</span></p>
         
         {{#if message}}
         <p><strong>Nachricht:</strong><br>{{message}}</p>
@@ -591,8 +604,10 @@ ANFRAGE-DETAILS:
 ----------------
 Zeitraum: {{startDate}} bis {{endDate}}
 Gäste: {{numberOfGuests}}
-Gesamtpreis: €{{totalPrice}}{{#if cleaningFee}}
-zuzüglich €{{cleaningFee}} Endreinigung (in Bar) = Endpreis €{{endPrice}}{{/if}}
+Preisübersicht:
+Zu überweisen: €{{totalPrice}}
++ Endreinigung in Bar: €{{cleaningFee}}
+Gesamtpreis: €{{endPrice}}
 
 {{#if message}}
 NACHRICHT:

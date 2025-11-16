@@ -125,16 +125,20 @@ export async function testGoogleCalendarConnection() {
   }
 }
 
-export async function syncAllBookingsToCalendar() {
+export async function syncAllBookingsToCalendar(skipAuth = false) {
   try {
-    const user = await getCurrentUser();
-    if (!user || !hasAdminRights(user.role)) {
-      return { success: false, error: "Keine Berechtigung" };
+    let user = null;
+    if (!skipAuth) {
+      user = await getCurrentUser();
+      if (!user || !hasAdminRights(user.role)) {
+        return { success: false, error: "Keine Berechtigung" };
+      }
     }
 
     let createdCount = 0;
     let deletedCount = 0;
     let updatedCount = 0;
+    let syncedFromCalendarCount = 0;
     const errors: string[] = [];
 
     const calendar = await getCalendarClient();
@@ -150,7 +154,9 @@ export async function syncAllBookingsToCalendar() {
     });
 
     // 1. Erstelle/Aktualisiere Events für APPROVED Buchungen
-    console.log(`=== SYNC: Processing ${approvedBookings.length} APPROVED bookings ===`);
+    console.log(`\n=== SYNC: STARTE SYNCHRONISATION ===`);
+    console.log(`[SYNC] Gefunden: ${approvedBookings.length} APPROVED Buchungen`);
+    console.log(`[SYNC] ==========================================\n`);
     
     for (const booking of approvedBookings) {
       try {
@@ -168,59 +174,286 @@ export async function syncAllBookingsToCalendar() {
         const localStart = getLocalDateString(booking.startDate);
         const localEnd = getLocalDateString(booking.endDate);
         
-        console.log(`Processing booking ${booking.bookingCode} (${booking.guestName}):`);
-        console.log(`  DB (UTC): ${booking.startDate.toISOString().split('T')[0]} → ${booking.endDate.toISOString().split('T')[0]}`);
-        console.log(`  Local (AMS): ${localStart} → ${localEnd}`);
+        console.log(`\n[SYNC] Processing booking ${booking.bookingCode} (${booking.guestName || booking.guestEmail}):`);
+        console.log(`  [SYNC] DB (UTC): ${booking.startDate.toISOString().split('T')[0]} → ${booking.endDate.toISOString().split('T')[0]}`);
+        console.log(`  [SYNC] Local (AMS): ${localStart} → ${localEnd}`);
         
         let needsNewEvent = false;
         
         // Prüfe ob Event mit googleEventId im Kalender existiert
         if (booking.googleEventId) {
-          console.log(`  - Has googleEventId: ${booking.googleEventId}`);
+          console.log(`  [SYNC] Event-ID vorhanden: ${booking.googleEventId}`);
+          console.log(`  [SYNC] Prüfe ob Event im Google Kalender existiert...`);
           try {
             const calendarIdSetting = await prisma.setting.findUnique({
               where: { key: "GOOGLE_CALENDAR_ID" },
             });
             
             if (calendarIdSetting?.value) {
-              await calendar.events.get({
+              const eventResponse = await calendar.events.get({
                 calendarId: calendarIdSetting.value,
                 eventId: booking.googleEventId,
               });
-              // Event existiert - aktualisiere es mit korrekten Daten (falls alte UTC-Konvertierung)
-              console.log(`  - Event exists in calendar, updating...`);
-              const colorId = getBookingColorId(booking.id);
-              const success = await updateCalendarEvent(booking.googleEventId, {
-                summary: `Buchung: ${booking.guestName || booking.guestEmail}`,
-                description: booking.message || "",
-                startDate: booking.startDate,
-                endDate: booking.endDate,
-                colorId,
-              });
-              if (success) {
-                console.log(`  - Updated successfully`);
-                updatedCount++;
+              
+              const event = eventResponse.data;
+              
+              // Prüfe ob Event-Daten vorhanden sind
+              if (!event) {
+                console.log(`  [SYNC] ⚠️  Event-Daten sind null/undefined`);
+                console.log(`  [SYNC] → Lösche alte googleEventId aus Datenbank`);
+                await prisma.booking.update({
+                  where: { id: booking.id },
+                  data: { googleEventId: null },
+                });
+                console.log(`  [SYNC] → Erstelle neues Event...`);
+                needsNewEvent = true;
+                // Kein continue - Event-Erstellung wird später ausgeführt
+              } else if (event.status === 'cancelled') {
+                // Prüfe ob Event wirklich sichtbar ist (nicht cancelled)
+                console.log(`  [SYNC] ⚠️  Event ist als "cancelled" markiert - nicht sichtbar!`);
+                console.log(`  [SYNC] → Lösche alte googleEventId aus Datenbank`);
+                await prisma.booking.update({
+                  where: { id: booking.id },
+                  data: { googleEventId: null },
+                });
+                console.log(`  [SYNC] → Erstelle neues Event...`);
+                needsNewEvent = true;
+                // Kein continue - Event-Erstellung wird später ausgeführt
+              } else {
+                // Event existiert und ist sichtbar
+                console.log(`  [SYNC] ✅ Event gefunden im Google Kalender (Status: ${event.status})`);
+                console.log(`  [SYNC] Event-Details:`, {
+                  id: event.id,
+                  summary: event.summary,
+                  start: event.start?.date,
+                  end: event.end?.date,
+                  status: event.status,
+                });
+              
+                // Prüfe ob sich das Datum im Google Kalender geändert hat
+                if (event.start?.date && event.end?.date) {
+                  // Verwende die gleiche parseDateFromISO Funktion für konsistente Datumsinterpretation
+                  const parseDateFromISO = (dateStr: string): Date => {
+                    const date = new Date(dateStr);
+                    const formatter = new Intl.DateTimeFormat('en-CA', {
+                      timeZone: 'Europe/Amsterdam',
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                    });
+                    const dateStrFormatted = formatter.format(date);
+                    const [year, month, day] = dateStrFormatted.split('-').map(Number);
+                    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+                  };
+                  
+                  // Google Calendar verwendet bei ganztägigen Events ein EXKLUSIVES End-Datum
+                  // z.B. Event von 7. bis 9. November wird als end="2025-11-10" zurückgegeben
+                  // Wir müssen einen Tag abziehen, um das korrekte inklusive End-Datum zu erhalten
+                  const calendarStart = parseDateFromISO(event.start.date);
+                  const calendarEnd = parseDateFromISO(event.end.date);
+                  calendarEnd.setUTCDate(calendarEnd.getUTCDate() - 1); // Exklusives End-Datum zu inklusivem konvertieren (UTC)
+                  
+                  // Normalisiere Datenbank-Daten für Vergleich (verwende gleiche Methode)
+                  // booking.startDate und booking.endDate sind bereits UTC-Daten
+                  // Normalisiere sie auf UTC-Mitternacht für konsistenten Vergleich
+                  const dbStart = new Date(booking.startDate);
+                  dbStart.setUTCHours(0, 0, 0, 0);
+                  const dbEnd = new Date(booking.endDate);
+                  dbEnd.setUTCHours(0, 0, 0, 0);
+                  
+                  // Normalisiere Kalender-Daten für Vergleich (beide sind jetzt UTC)
+                  calendarStart.setUTCHours(0, 0, 0, 0);
+                  calendarEnd.setUTCHours(0, 0, 0, 0);
+                  
+                  // Prüfe ob sich das Datum geändert hat
+                  const datesChanged = 
+                    calendarStart.getTime() !== dbStart.getTime() || 
+                    calendarEnd.getTime() !== dbEnd.getTime();
+                  
+                  if (datesChanged) {
+                    console.log(`  [SYNC] 🔄 Datum wurde im Google Kalender geändert!`);
+                    console.log(`    [SYNC] DB: ${dbStart.toISOString().split('T')[0]} → ${dbEnd.toISOString().split('T')[0]}`);
+                    console.log(`    [SYNC] GC: ${calendarStart.toISOString().split('T')[0]} → ${calendarEnd.toISOString().split('T')[0]}`);
+                    console.log(`  [SYNC] → Synchronisiere Datenbank mit Google Kalender...`);
+                    
+                    // Prüfe nochmal, ob Buchung noch APPROVED ist
+                    const currentBooking = await prisma.booking.findUnique({
+                      where: { id: booking.id },
+                      select: { status: true },
+                    });
+                    
+                    if (currentBooking?.status === BookingStatus.APPROVED) {
+                      // Aktualisiere Datenbank mit neuen Daten aus Google Kalender
+                      // parseDateFromISO wurde bereits oben definiert
+                      const newStartDate = parseDateFromISO(event.start.date);
+                      const newEndDate = parseDateFromISO(event.end.date);
+                      newEndDate.setUTCDate(newEndDate.getUTCDate() - 1); // Exklusives End-Datum zu inklusivem (UTC)
+                      
+                      console.log(`  [SYNC] → Berechne Preis neu für neue Daten...`);
+                      // Berechne Preis neu für neue Daten
+                      const { calculateBookingPrice } = await import("@/lib/pricing");
+                      const existingPricingDetails = booking.pricingDetails as any;
+                      const useFamilyPrice = existingPricingDetails?.useFamilyPrice || false;
+                      const { totalPrice, ...pricingDetails } = await calculateBookingPrice(
+                        newStartDate,
+                        newEndDate,
+                        useFamilyPrice
+                      );
+                      
+                      // Format-Funktion für Datum
+                      const formatDateForNotes = (date: Date): string => {
+                        return new Intl.DateTimeFormat("de-DE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          timeZone: "Europe/Amsterdam",
+                        }).format(date);
+                      };
+                      
+                      // Erstelle Admin-Notiz-Eintrag für Datumsänderung
+                      const now = new Date();
+                      const timestamp = new Intl.DateTimeFormat("de-DE", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: "Europe/Amsterdam",
+                      }).format(now);
+                      
+                      const dateChangeNote = `\n\n[${timestamp}] Datum im Google Kalender geändert:\n` +
+                        `  Alt: ${formatDateForNotes(booking.startDate)} → ${formatDateForNotes(booking.endDate)}\n` +
+                        `  Neu: ${formatDateForNotes(newStartDate)} → ${formatDateForNotes(newEndDate)}`;
+                      
+                      const updatedAdminNotes = (booking.adminNotes || "") + dateChangeNote;
+                      
+                      console.log(`  [SYNC] → Aktualisiere Datenbank (Datum + Preis + Admin-Notizen)...`);
+                      await prisma.booking.update({
+                        where: { id: booking.id },
+                        data: {
+                          startDate: newStartDate,
+                          endDate: newEndDate,
+                          totalPrice,
+                          pricingDetails: pricingDetails as any,
+                          adminNotes: updatedAdminNotes,
+                        },
+                      });
+                      
+                      console.log(`  [SYNC] ✅ Datenbank erfolgreich aktualisiert (Datum + Preis neu berechnet, Admin-Notizen aktualisiert)`);
+                      syncedFromCalendarCount++;
+                      // Überspringe weitere Verarbeitung für diese Buchung, da sie bereits synchronisiert wurde
+                      continue;
+                    } else {
+                      console.log(`  [SYNC] ⚠️  Buchung ist nicht mehr APPROVED (${currentBooking?.status}), überspringe Synchronisation`);
+                    }
+                  } else {
+                    // Datum unverändert - prüfe ob andere Details geändert wurden
+                    console.log(`  [SYNC] ✅ Datum stimmt überein`);
+                    
+                    const expectedSummary = `Buchung: ${booking.guestName || booking.guestEmail}`;
+                    const expectedDescription = booking.message || "";
+                    const expectedColorId = getBookingColorId(booking.id);
+                    
+                    // Prüfe ob sich Summary, Description oder ColorId geändert haben
+                    const summaryChanged = event.summary !== expectedSummary;
+                    const descriptionChanged = (event.description || "") !== expectedDescription;
+                    const colorIdChanged = event.colorId !== expectedColorId;
+                    
+                    if (summaryChanged || descriptionChanged || colorIdChanged) {
+                      console.log(`  [SYNC] → Event-Details haben sich geändert (Summary: ${summaryChanged}, Description: ${descriptionChanged}, ColorId: ${colorIdChanged})`);
+                      console.log(`  [SYNC] → Aktualisiere Event-Details...`);
+                      const success = await updateCalendarEvent(booking.googleEventId, {
+                        summary: expectedSummary,
+                        description: expectedDescription,
+                        startDate: booking.startDate,
+                        endDate: booking.endDate,
+                        colorId: expectedColorId,
+                      });
+                      if (success) {
+                        console.log(`  [SYNC] ✅ Event erfolgreich aktualisiert`);
+                        updatedCount++;
+                      } else {
+                        console.log(`  [SYNC] ❌ Fehler beim Aktualisieren des Events`);
+                        console.log(`  [SYNC] → Lösche alte googleEventId aus Datenbank und erstelle neues Event...`);
+                        await prisma.booking.update({
+                          where: { id: booking.id },
+                          data: { googleEventId: null },
+                        });
+                        needsNewEvent = true;
+                      }
+                    } else {
+                      console.log(`  [SYNC] ✅ Event ist bereits synchronisiert - keine Änderungen nötig`);
+                    }
+                  }
+                } else {
+                  // Event existiert, aber kein Datum vorhanden - aktualisiere mit DB-Daten
+                  console.log(`  [SYNC] ⚠️  Event existiert, aber kein Datum vorhanden`);
+                  console.log(`  [SYNC] → Aktualisiere Event mit Datenbank-Daten...`);
+                  const colorId = getBookingColorId(booking.id);
+                  const success = await updateCalendarEvent(booking.googleEventId, {
+                    summary: `Buchung: ${booking.guestName || booking.guestEmail}`,
+                    description: booking.message || "",
+                    startDate: booking.startDate,
+                    endDate: booking.endDate,
+                    colorId,
+                  });
+                  if (success) {
+                    console.log(`  [SYNC] ✅ Event erfolgreich aktualisiert`);
+                    updatedCount++;
+                  } else {
+                    console.log(`  [SYNC] ❌ Fehler beim Aktualisieren des Events`);
+                    console.log(`  [SYNC] → Lösche alte googleEventId aus Datenbank und erstelle neues Event...`);
+                    await prisma.booking.update({
+                      where: { id: booking.id },
+                      data: { googleEventId: null },
+                    });
+                    needsNewEvent = true;
+                  }
+                }
               }
             } else {
+              console.log(`  [SYNC] ⚠️  Keine Calendar-ID konfiguriert`);
+              console.log(`  [SYNC] → Erstelle neues Event...`);
               needsNewEvent = true;
             }
           } catch (error: any) {
             // Event existiert nicht mehr im Kalender (404)
             if (error.code === 404) {
-              console.log(`  - Event not found in calendar (404), will create new`);
+              console.log(`  [SYNC] ❌ Event nicht im Google Kalender gefunden (404)`);
+              console.log(`  [SYNC] → Lösche alte googleEventId aus Datenbank...`);
+              await prisma.booking.update({
+                where: { id: booking.id },
+                data: { googleEventId: null },
+              });
+              console.log(`  [SYNC] → Erstelle neues Event...`);
               needsNewEvent = true;
             } else {
+              console.log(`  [SYNC] ❌ Unerwarteter Fehler: ${error.message}`);
               throw error;
             }
           }
         } else {
-          console.log(`  - No googleEventId, will create new`);
+          console.log(`  [SYNC] ⚠️  Keine googleEventId vorhanden`);
+          console.log(`  [SYNC] → Erstelle neues Event...`);
           needsNewEvent = true;
         }
 
-        // Erstelle neues Event falls nötig
+        // Erstelle neues Event falls nötig, aber nur wenn Buchung noch APPROVED ist
         if (needsNewEvent) {
-          console.log(`  - Creating new calendar event...`);
+          console.log(`  [SYNC] Prüfe ob Buchung noch APPROVED ist...`);
+          // Prüfe nochmal, ob Buchung noch APPROVED ist (könnte zwischenzeitlich storniert worden sein)
+          const currentBooking = await prisma.booking.findUnique({
+            where: { id: booking.id },
+            select: { status: true },
+          });
+
+          if (currentBooking?.status !== BookingStatus.APPROVED) {
+            console.log(`  [SYNC] ⚠️  Buchung ist nicht mehr APPROVED (${currentBooking?.status}), überspringe Event-Erstellung`);
+            continue;
+          }
+
+          console.log(`  [SYNC] ✅ Buchung ist noch APPROVED`);
+          console.log(`  [SYNC] → Erstelle neues Event im Google Kalender...`);
           const colorId = getBookingColorId(booking.id);
           const eventId = await createCalendarEvent({
             summary: `Buchung: ${booking.guestName || booking.guestEmail}`,
@@ -233,14 +466,35 @@ export async function syncAllBookingsToCalendar() {
           });
 
           if (eventId) {
-            console.log(`  - Created successfully with ID: ${eventId}`);
-            await prisma.booking.update({
+            console.log(`  [SYNC] ✅ Event erfolgreich erstellt mit ID: ${eventId}`);
+            console.log(`  [SYNC] → Prüfe ob Buchung noch APPROVED ist (vor Update)...`);
+            // Prüfe nochmal vor dem Update, ob Buchung noch APPROVED ist
+            const bookingBeforeUpdate = await prisma.booking.findUnique({
               where: { id: booking.id },
-              data: { googleEventId: eventId },
+              select: { status: true },
             });
-            createdCount++;
+
+            if (bookingBeforeUpdate?.status === BookingStatus.APPROVED) {
+              console.log(`  [SYNC] → Speichere googleEventId in Datenbank...`);
+              await prisma.booking.update({
+                where: { id: booking.id },
+                data: { googleEventId: eventId },
+              });
+              console.log(`  [SYNC] ✅ googleEventId erfolgreich gespeichert`);
+              createdCount++;
+            } else {
+              console.log(`  [SYNC] ⚠️  Buchung wurde vor Update storniert (${bookingBeforeUpdate?.status})`);
+              console.log(`  [SYNC] → Lösche gerade erstelltes Event...`);
+              // Lösche das gerade erstellte Event, da Buchung storniert wurde
+              try {
+                await deleteCalendarEvent(eventId);
+                console.log(`  [SYNC] ✅ Event erfolgreich gelöscht`);
+              } catch (deleteError) {
+                console.error(`  [SYNC] ❌ Fehler beim Löschen des Events ${eventId}:`, deleteError);
+              }
+            }
           } else {
-            console.log(`  - Failed to create event (no ID returned)`);
+            console.log(`  [SYNC] ❌ Fehler beim Erstellen des Events (keine ID zurückgegeben)`);
           }
         }
       } catch (error: any) {
@@ -260,38 +514,35 @@ export async function syncAllBookingsToCalendar() {
     for (const booking of cancelledWithEvent) {
       try {
         if (booking.googleEventId) {
-          await deleteCalendarEvent(booking.googleEventId);
-          await prisma.booking.update({
-            where: { id: booking.id },
-            data: { googleEventId: null },
-          });
-          deletedCount++;
+          const deleted = await deleteCalendarEvent(booking.googleEventId);
+          // deleteCalendarEvent gibt true zurück, auch wenn Event bereits gelöscht war (410)
+          if (deleted) {
+            await prisma.booking.update({
+              where: { id: booking.id },
+              data: { googleEventId: null },
+            });
+            deletedCount++;
+          }
         }
       } catch (error: any) {
-        // Ignoriere 410 (Already deleted) - Event wurde bereits manuell gelöscht
-        if (error.code === 410) {
-          await prisma.booking.update({
-            where: { id: booking.id },
-            data: { googleEventId: null },
-          });
-          deletedCount++;
-        } else {
-          console.error(`Error deleting event for booking ${booking.bookingCode}:`, error);
-          errors.push(`Löschen ${booking.bookingCode}: ${error.message}`);
-        }
+        // Falls deleteCalendarEvent einen anderen Fehler wirft
+        console.error(`Error deleting event for booking ${booking.bookingCode}:`, error);
+        errors.push(`Löschen ${booking.bookingCode}: ${error.message}`);
       }
     }
 
-    // Activity log
-    await prisma.activityLog.create({
-      data: {
-        userId: user.id,
-        action: "CALENDAR_SYNC",
-        entity: "Booking",
-        entityId: "BULK_SYNC",
-        details: { createdCount, updatedCount, deletedCount, errors: errors.length > 0 ? errors : undefined },
-      },
-    });
+    // Activity log (nur wenn User vorhanden)
+    if (user) {
+      await prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          action: "CALENDAR_SYNC",
+          entity: "Booking",
+          entityId: "BULK_SYNC",
+          details: { createdCount, updatedCount, deletedCount, syncedFromCalendarCount, errors: errors.length > 0 ? errors : undefined },
+        },
+      });
+    }
 
     if (errors.length > 0 && createdCount === 0 && updatedCount === 0 && deletedCount === 0) {
       return { success: false, error: `Alle Synchronisationen fehlgeschlagen: ${errors[0]}` };
@@ -305,6 +556,7 @@ export async function syncAllBookingsToCalendar() {
       createdCount,
       updatedCount, 
       deletedCount,
+      syncedFromCalendarCount,
       partialErrors: errors.length > 0 ? errors : undefined 
     };
   } catch (error: any) {

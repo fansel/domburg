@@ -355,11 +355,10 @@ export async function sendBookingConfirmationToGuest({
     statusUrl,
   };
   
-  // Füge cleaningFee hinzu, falls vorhanden
-  if (cleaningFee !== undefined) {
-    variables.cleaningFee = formatEmailPrice(cleaningFee);
-    variables.endPrice = formatEmailPrice(totalPrice + cleaningFee); // Endpreis MIT Cleaning Fee
-  }
+  // Füge cleaningFee hinzu (immer, da immer vorhanden)
+  const finalCleaningFee = cleaningFee !== undefined ? cleaningFee : 80; // Fallback auf 80€
+  variables.cleaningFee = formatEmailPrice(finalCleaningFee);
+  variables.endPrice = formatEmailPrice(totalPrice + finalCleaningFee); // Endpreis MIT Cleaning Fee
   
   // Füge guestCode hinzu, falls vorhanden
   if (guestCode) {
@@ -409,11 +408,10 @@ export async function sendBookingApprovalToGuest({
     // adminNotes wird NICHT an Gäste gesendet - nur für interne Admin-Notizen
   };
   
-  // Füge cleaningFee hinzu, falls vorhanden
-  if (cleaningFee !== undefined) {
-    variables.cleaningFee = formatEmailPrice(cleaningFee);
-    variables.endPrice = formatEmailPrice(totalPrice + cleaningFee); // Endpreis MIT Cleaning Fee
-  }
+  // Füge cleaningFee hinzu (immer, da immer vorhanden)
+  const finalCleaningFee = cleaningFee !== undefined ? cleaningFee : 80; // Fallback auf 80€
+  variables.cleaningFee = formatEmailPrice(finalCleaningFee);
+  variables.endPrice = formatEmailPrice(totalPrice + finalCleaningFee); // Endpreis MIT Cleaning Fee
   
   if (guestCode) {
     variables.guestCode = guestCode;
@@ -580,11 +578,10 @@ export async function sendBookingNotificationToAdmin({
     adminUrl,
   };
   
-  // Füge cleaningFee hinzu, falls vorhanden
-  if (cleaningFee !== undefined) {
-    variables.cleaningFee = formatEmailPrice(cleaningFee);
-    variables.endPrice = formatEmailPrice(totalPrice + cleaningFee); // Endpreis MIT Cleaning Fee
-  }
+  // Füge cleaningFee hinzu (immer, da immer vorhanden)
+  const finalCleaningFee = cleaningFee !== undefined ? cleaningFee : 80; // Fallback auf 80€
+  variables.cleaningFee = formatEmailPrice(finalCleaningFee);
+  variables.endPrice = formatEmailPrice(totalPrice + finalCleaningFee); // Endpreis MIT Cleaning Fee
   
   if (guestCode) {
     variables.guestCode = guestCode;

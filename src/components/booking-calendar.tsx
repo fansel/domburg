@@ -82,22 +82,22 @@ export function BookingCalendar({
       
       // Wenn kein explizites Limit gesetzt ist, prüfe Oktober-Regel
       if (end === null) {
-        const settingResponse = await fetch('/api/admin/booking-advance-setting');
-        const settingData = await settingResponse.json();
-        const enabled = settingData.enabled === true;
+      const settingResponse = await fetch('/api/admin/booking-advance-setting');
+      const settingData = await settingResponse.json();
+      const enabled = settingData.enabled === true;
         
         if (enabled) {
-          const currentMonth = today.getMonth() + 1;
-          const currentYear = today.getFullYear();
-          
+      const currentMonth = today.getMonth() + 1;
+      const currentYear = today.getFullYear();
+      
           if (currentMonth >= 10) {
-            // Ab Oktober: Bis Ende des nächsten Jahres
-            end = new Date(currentYear + 1, 11, 31);
-          } else {
-            // Vor Oktober: Bis Ende des aktuellen Jahres
-            end = new Date(currentYear, 11, 31);
-          }
-          setMaxBookingDate(end);
+        // Ab Oktober: Bis Ende des nächsten Jahres
+        end = new Date(currentYear + 1, 11, 31);
+      } else {
+        // Vor Oktober: Bis Ende des aktuellen Jahres
+        end = new Date(currentYear, 11, 31);
+      }
+      setMaxBookingDate(end);
         } else {
           // Beide Limits deaktiviert - kein Limit (zeige 2 Jahre in die Zukunft)
           end = new Date(today.getFullYear() + 2, 11, 31);

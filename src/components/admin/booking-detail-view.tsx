@@ -472,8 +472,8 @@ export function BookingDetailView({
               const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
               const beachHutPrice = pricingDetails?.beachHutPrice;
               const useFamilyPrice = pricingDetails?.useFamilyPrice || false;
-              const basePrice = parseFloat(booking.totalPrice.toString()); // booking.totalPrice enthält bereits alles inkl. Strandbude
-              const endPrice = basePrice + cleaningFee;
+              // WICHTIG: booking.totalPrice enthält bereits Cleaning Fee + Strandbude
+              const totalPrice = parseFloat(booking.totalPrice.toString());
               
               return (
                 <div className="mt-4 p-4 bg-muted rounded-lg space-y-3">
@@ -493,14 +493,19 @@ export function BookingDetailView({
                       </span>
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between text-sm border-t pt-2 mt-2">
+                    <span className="font-medium">Zu überweisen:</span>
+                    <span className="font-medium">{formatCurrency(totalPrice - cleaningFee)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">+ Endreinigung in Bar:</span>
+                    <span className="font-medium">{formatCurrency(cleaningFee)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t pt-2 mt-2">
                     <span className="text-sm font-medium">Gesamtpreis:</span>
                     <span className="text-2xl font-bold">
-                      {formatCurrency(basePrice)}
+                      {formatCurrency(totalPrice)}
                     </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    zuzüglich {formatCurrency(cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(endPrice)}
                   </div>
                 </div>
               );

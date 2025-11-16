@@ -45,9 +45,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Serialisiere totalPrice (Decimal zu String)
+    const serializedBooking = {
+      ...booking,
+      totalPrice: booking.totalPrice?.toString() || null,
+      startDate: booking.startDate.toISOString(),
+      endDate: booking.endDate.toISOString(),
+      createdAt: booking.createdAt.toISOString(),
+    };
+
     return NextResponse.json({
       success: true,
-      booking,
+      booking: serializedBooking,
     });
   } catch (error) {
     console.error('Error checking booking:', error);

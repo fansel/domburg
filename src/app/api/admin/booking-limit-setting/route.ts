@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     // GET ist öffentlich zugänglich (Gäste müssen wissen, bis wann sie buchen können)
     const [dateSetting, enabledSetting] = await Promise.all([
       prisma.setting.findUnique({
-        where: { key: "BOOKING_LIMIT_DATE" },
+      where: { key: "BOOKING_LIMIT_DATE" },
       }),
       prisma.setting.findUnique({
         where: { key: "BOOKING_LIMIT_DATE_ENABLED" },
@@ -64,13 +64,13 @@ export async function POST(request: NextRequest) {
 
     await Promise.all([
       prisma.setting.upsert({
-        where: { key: "BOOKING_LIMIT_DATE" },
-        update: { value: date || "" },
-        create: {
-          key: "BOOKING_LIMIT_DATE",
-          value: date || "",
-          description: "Buchungen erlauben bis zu diesem Datum",
-        },
+      where: { key: "BOOKING_LIMIT_DATE" },
+      update: { value: date || "" },
+      create: {
+        key: "BOOKING_LIMIT_DATE",
+        value: date || "",
+        description: "Buchungen erlauben bis zu diesem Datum",
+      },
       }),
       prisma.setting.upsert({
         where: { key: "BOOKING_LIMIT_DATE_ENABLED" },

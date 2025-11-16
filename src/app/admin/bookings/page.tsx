@@ -114,26 +114,17 @@ export default async function AdminBookingsPage() {
               {booking.totalPrice && (() => {
                 const pricingDetails = booking.pricingDetails as any;
                 const cleaningFee = pricingDetails?.cleaningFee || 80; // Fallback auf 80€
-                const beachHutPrice = pricingDetails?.beachHutPrice;
-                const useFamilyPrice = pricingDetails?.useFamilyPrice || false;
-                const basePrice = parseFloat(booking.totalPrice.toString()); // booking.totalPrice enthält bereits alles inkl. Strandbude
-                const endPrice = basePrice + cleaningFee;
+                // WICHTIG: booking.totalPrice enthält bereits Cleaning Fee + Strandbude
+                const totalPrice = parseFloat(booking.totalPrice.toString());
+                const priceWithoutCleaning = totalPrice - cleaningFee;
                 
                 return (
-                  <div className="text-xs sm:text-sm space-y-1">
-                    <div>
-                      <span className="font-medium">Preis:</span>{" "}
-                      {formatCurrency(basePrice)}
+                  <div className="text-xs sm:text-sm">
+                    <div className="font-medium">
+                      {formatCurrency(priceWithoutCleaning)} / {formatCurrency(totalPrice)}
                     </div>
-                    {beachHutPrice !== undefined && (
-                      <div className="text-[10px] sm:text-xs text-muted-foreground pl-4">
-                        inkl. Strandbude {beachHutPrice === 0 && useFamilyPrice 
-                          ? "0€ (Family)" 
-                          : formatCurrency(beachHutPrice)}
-                      </div>
-                    )}
-                    <div className="text-[10px] sm:text-xs text-muted-foreground pl-4">
-                      zuzüglich {formatCurrency(cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(endPrice)}
+                    <div className="text-[10px] sm:text-xs text-muted-foreground">
+                      ohne / mit Endreinigung
                     </div>
                   </div>
                 );

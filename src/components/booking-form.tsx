@@ -449,13 +449,16 @@ export function BookingForm() {
                             </div>
                           ) : (
                             <div className="space-y-2 lg:space-y-3">
+                              {/* Zeige Zusammenfassung nur wenn keine Aufteilung vorhanden ist */}
+                              {(!pricing.nightBreakdown || pricing.nightBreakdown.length === 0) && (
                               <div className="flex justify-between items-center">
                                 <span className="text-xs lg:text-sm text-gray-600">{pricing.nights} {pricing.nights === 1 ? t("bookingForm.night") : t("bookingForm.nights")}</span>
                                 <span className="font-medium text-xs lg:text-sm">{formatCurrency(pricing.basePrice)}</span>
                               </div>
+                              )}
+                              {/* Zeige Aufteilung wenn vorhanden */}
                               {pricing.nightBreakdown && pricing.nightBreakdown.length > 0 && (
-                                <div className="text-xs lg:text-sm space-y-1 pt-2 border-t border-gray-200">
-                                  <div className="text-gray-500 mb-1 text-xs">Aufgeteilt in Nächte:</div>
+                                <div className="text-xs lg:text-sm space-y-1">
                                   {pricing.nightBreakdown.map((night, index) => (
                                     <div key={index} className="flex justify-between items-center">
                                       <span className="text-gray-600">
@@ -482,11 +485,16 @@ export function BookingForm() {
                               )}
                               <div className="space-y-1 pt-2 border-t border-gray-200">
                               <div className="flex justify-between items-center">
-                                <span className="text-xs lg:text-sm font-semibold text-gray-900">{t("bookingForm.totalPrice")}</span>
+                                  <span className="text-xs lg:text-sm font-semibold text-gray-900">Zu überweisen:</span>
                                 <span className="text-base lg:text-lg font-bold text-primary">{formatCurrency(pricing.totalPrice - pricing.cleaningFee)}</span>
                               </div>
-                              <div className="text-[10px] lg:text-xs text-muted-foreground text-right">
-                                zuzüglich {formatCurrency(pricing.cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(pricing.totalPrice)}
+                                <div className="flex justify-between items-center py-1">
+                                  <span className="text-xs lg:text-sm text-gray-600">+ Endreinigung in Bar:</span>
+                                  <span className="text-xs lg:text-sm font-medium text-gray-700">{formatCurrency(pricing.cleaningFee)}</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                                  <span className="text-xs lg:text-sm font-semibold text-gray-900">{t("bookingForm.totalPrice")}</span>
+                                  <span className="text-base lg:text-lg font-bold text-primary">{formatCurrency(pricing.totalPrice)}</span>
                               </div>
                               </div>
                             </div>
@@ -755,35 +763,6 @@ export function BookingForm() {
                             })}
                           </div>
                         )}
-                        
-                        {/* Debug-Informationen für Production-Debugging */}
-                        {pricing?.debug && (
-                          <div className="p-4 lg:p-5 bg-gray-50 border border-gray-300 rounded-lg mt-4">
-                            <details className="cursor-pointer">
-                              <summary className="text-sm lg:text-base font-semibold text-gray-800 mb-2">
-                                🔍 Debug-Informationen (für Support)
-                              </summary>
-                              <div className="mt-3 space-y-3 text-xs lg:text-sm">
-                                {pricing.debug.saturdayCheck && (
-                                  <div className="bg-white p-3 rounded border">
-                                    <p className="font-semibold mb-2">Samstag-zu-Samstag Prüfung:</p>
-                                    <pre className="whitespace-pre-wrap text-xs overflow-auto">
-                                      {JSON.stringify(pricing.debug.saturdayCheck, null, 2)}
-                                    </pre>
-                                  </div>
-                                )}
-                                {pricing.debug.phaseConstraints && (
-                                  <div className="bg-white p-3 rounded border">
-                                    <p className="font-semibold mb-2">Phase Constraints:</p>
-                                    <pre className="whitespace-pre-wrap text-xs overflow-auto">
-                                      {JSON.stringify(pricing.debug.phaseConstraints, null, 2)}
-                                    </pre>
-                                  </div>
-                                )}
-                              </div>
-                            </details>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -797,13 +776,16 @@ export function BookingForm() {
                       </div>
                     ) : pricing ? (
                       <div className="space-y-4 lg:space-y-5 mb-4 lg:mb-6">
+                        {/* Zeige Zusammenfassung nur wenn keine Aufteilung vorhanden ist */}
+                        {(!pricing.nightBreakdown || pricing.nightBreakdown.length === 0) && (
                         <div className="flex justify-between items-center py-1">
                           <span className="text-sm lg:text-base text-gray-600">{pricing.nights} {pricing.nights === 1 ? t("bookingForm.night") : t("bookingForm.nights")}</span>
                           <span className="font-medium text-sm lg:text-base">{formatCurrency(pricing.basePrice)}</span>
                         </div>
+                        )}
+                        {/* Zeige Aufteilung wenn vorhanden */}
                         {pricing.nightBreakdown && pricing.nightBreakdown.length > 0 && (
-                          <div className="text-xs lg:text-sm space-y-1 pt-2 border-t border-gray-200">
-                            <div className="text-gray-500 mb-1">Aufgeteilt in Nächte:</div>
+                          <div className="text-xs lg:text-sm space-y-1">
                             {pricing.nightBreakdown.map((night, index) => (
                               <div key={index} className="flex justify-between items-center">
                                 <span className="text-gray-600">
@@ -818,10 +800,6 @@ export function BookingForm() {
                             ))}
                           </div>
                         )}
-                        <div className="flex justify-between items-center py-1 text-xs lg:text-sm">
-                          <span className="text-gray-600">{t("bookingForm.pricePerNightShort")} {formatCurrency(pricing.pricePerNight)}</span>
-                          <span className="text-gray-500">{t("bookingForm.pricePerNightLabel")}</span>
-                        </div>
                         <div className="flex justify-between items-center py-1 text-sm lg:text-base border-t pt-3 lg:pt-4">
                           <span className="text-gray-600">{t("bookingForm.finalCleaning")}</span>
                           <span className="font-medium">{formatCurrency(pricing.cleaningFee)}</span>
@@ -838,13 +816,20 @@ export function BookingForm() {
                         )}
                         <div className="space-y-2 pt-3 lg:pt-4 border-t-2 border-primary/20">
                           <div className="flex justify-between items-center">
-                            <span className="text-lg lg:text-2xl font-bold text-gray-900">{t("bookingForm.totalPrice")}</span>
-                            <span className="text-2xl lg:text-3xl font-bold text-primary flex items-center gap-2">
-                              <Euro className="h-6 w-6 lg:h-7 lg:w-7" /> {formatCurrency(pricing.totalPrice - pricing.cleaningFee)}
+                            <span className="text-base lg:text-lg font-semibold text-gray-900">Zu überweisen:</span>
+                            <span className="text-xl lg:text-2xl font-bold text-primary flex items-center gap-2">
+                              <Euro className="h-5 w-5 lg:h-6 lg:w-6" /> {formatCurrency(pricing.totalPrice - pricing.cleaningFee)}
                             </span>
                           </div>
-                          <div className="text-xs lg:text-sm text-muted-foreground text-right">
-                            zuzüglich {formatCurrency(pricing.cleaningFee)} Endreinigung (in Bar) = Endpreis {formatCurrency(pricing.totalPrice)}
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm lg:text-base text-gray-600">+ Endreinigung in Bar:</span>
+                            <span className="text-sm lg:text-base font-medium text-gray-700">{formatCurrency(pricing.cleaningFee)}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+                            <span className="text-lg lg:text-2xl font-bold text-gray-900">{t("bookingForm.totalPrice")}</span>
+                            <span className="text-2xl lg:text-3xl font-bold text-primary flex items-center gap-2">
+                              <Euro className="h-6 w-6 lg:h-7 lg:w-7" /> {formatCurrency(pricing.totalPrice)}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -888,8 +873,8 @@ export function BookingForm() {
           <AlertDialogHeader className="space-y-3">
             <AlertDialogTitle className="text-xl font-semibold">{t("bookingForm.bookingNote")}</AlertDialogTitle>
             <AlertDialogDescription className="space-y-4 text-base">
-              <div className="space-y-3">
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="space-y-3">
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                   {warningDialog.warnings.map((warning, index) => {
                     // Backend-Warnungen sind bereits vollständig formuliert
                     // Für bessere Formatierung: Erkenne Zahlen und mache sie fett
@@ -902,16 +887,16 @@ export function BookingForm() {
                           }
                           return <span key={i}>{part}</span>;
                         })}
-                      </p>
+                    </p>
                     );
                   })}
-                </div>
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                   <p className="text-sm text-amber-900">
                     {warningDialog.minNights ? t("bookingForm.requestWarning") : t("bookingForm.periodWarning")}
                   </p>
+                  </div>
                 </div>
-              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0 mt-6">

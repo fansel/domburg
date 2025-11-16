@@ -2,10 +2,12 @@
  * Cron Jobs für automatische Aufgaben
  */
 
-import cron from 'node-cron';
+import cron, { ScheduledTask } from 'node-cron';
 
-let conflictCheckJob: cron.ScheduledTask | null = null;
+let conflictCheckJob: ScheduledTask | null = null;
+let calendarSyncJob: ScheduledTask | null = null;
 let isRunning = false; // Verhindert mehrfache gleichzeitige Ausführungen
+let isSyncRunning = false; // Verhindert mehrfache gleichzeitige Synchronisationen
 
 /**
  * Prüft Konflikte für manuelle Kalender-Events
@@ -375,7 +377,6 @@ export function startConflictCheckCron() {
       console.error('[Cron] Unhandled error in conflict check job:', error);
     }
   }, {
-    scheduled: true,
     timezone: "Europe/Berlin", // Passend für Domburg
   });
 
@@ -393,6 +394,81 @@ export function stopConflictCheckCron() {
     conflictCheckJob.stop();
     conflictCheckJob = null;
     console.log('[Cron] Conflict check job stopped');
+  }
+}
+
+/**
+ * Synchronisiert alle Buchungen mit Google Calendar
+ * Wird intern aufgerufen (ohne User-Context)
+ */
+async function syncBookingsToCalendar() {
+  // Verhindere mehrfache gleichzeitige Ausführungen
+  if (isSyncRunning) {
+    console.log('[Cron] Calendar sync already running, skipping...');
+    return;
+  }
+
+  isSyncRunning = true;
+  const startTime = Date.now();
+  try {
+    console.log('[Cron] Starting calendar sync...');
+    
+    const { syncAllBookingsToCalendar } = await import('../app/actions/google-calendar');
+    // skipAuth=true für Cron-Job (kein User-Context)
+    const result = await syncAllBookingsToCalendar(true);
+    
+    const duration = Date.now() - startTime;
+    
+    if (result.success) {
+      const created = result.createdCount || 0;
+      const updated = result.updatedCount || 0;
+      const deleted = result.deletedCount || 0;
+      const syncedFromCalendar = result.syncedFromCalendarCount || 0;
+      
+      console.log(`[Cron] Calendar sync completed (took ${duration}ms): ${created} created, ${updated} updated, ${deleted} deleted, ${syncedFromCalendar} synced from calendar`);
+    } else {
+      console.error(`[Cron] Calendar sync failed (took ${duration}ms):`, result.error);
+    }
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(`[Cron] Error syncing calendar (took ${duration}ms):`, error);
+  } finally {
+    isSyncRunning = false;
+  }
+}
+
+/**
+ * Startet den Cron-Job für Google Calendar Synchronisation (alle 30 Minuten)
+ */
+export function startCalendarSyncCron() {
+  // Stoppe existierenden Job falls vorhanden
+  if (calendarSyncJob) {
+    calendarSyncJob.stop();
+  }
+
+  // Starte neuen Job: alle 30 Minuten (*/30 * * * *)
+  calendarSyncJob = cron.schedule('*/30 * * * *', async () => {
+    try {
+      // Verwende setImmediate um nicht den Event Loop zu blockieren
+      await Promise.resolve().then(() => syncBookingsToCalendar());
+    } catch (error: any) {
+      console.error('[Cron] Unhandled error in calendar sync job:', error);
+    }
+  }, {
+    timezone: "Europe/Berlin", // Passend für Domburg
+  });
+
+  console.log('[Cron] Calendar sync job scheduled: every 30 minutes');
+}
+
+/**
+ * Stoppt den Calendar Sync Cron-Job
+ */
+export function stopCalendarSyncCron() {
+  if (calendarSyncJob) {
+    calendarSyncJob.stop();
+    calendarSyncJob = null;
+    console.log('[Cron] Calendar sync job stopped');
   }
 }
 

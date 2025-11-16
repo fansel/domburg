@@ -50,6 +50,13 @@ export default async function BookingDetailPage({
     notFound();
   }
 
+  // Serialisiere Booking für Client Component (Decimal zu String konvertieren)
+  const serializedBooking = {
+    ...booking,
+    totalPrice: booking.totalPrice?.toString() || null,
+    pricingDetails: booking.pricingDetails ? JSON.parse(JSON.stringify(booking.pricingDetails)) : null,
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
@@ -69,7 +76,7 @@ export default async function BookingDetailPage({
           </Link>
         </div>
 
-        <BookingDetailView booking={booking} currentUser={user} />
+        <BookingDetailView booking={serializedBooking} currentUser={user} />
       </div>
     </div>
   );

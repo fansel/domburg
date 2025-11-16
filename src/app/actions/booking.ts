@@ -36,8 +36,28 @@ export async function createBooking(formData: {
     // Optional: User holen wenn eingeloggt (für Admin-Buchungen)
     const user = await getCurrentUser();
 
-    const startDate = new Date(formData.startDate);
-    const endDate = new Date(formData.endDate);
+    // WICHTIG: Parse Datumsstrings konsistent mit Europe/Amsterdam Timezone
+    // Frontend sendet toISOString(), was das Datum zu UTC konvertiert
+    // Um konsistent zu sein, müssen wir das Datum so interpretieren, dass es
+    // in Europe/Amsterdam das gleiche Datum ergibt wie der Benutzer ausgewählt hat
+    const parseDateFromISO = (dateStr: string): Date => {
+      const date = new Date(dateStr);
+      // Extrahiere die lokalen Komponenten (Jahr, Monat, Tag) wie sie in Europe/Amsterdam erscheinen
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Amsterdam',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const dateStrFormatted = formatter.format(date); // Format: "YYYY-MM-DD"
+      const [year, month, day] = dateStrFormatted.split('-').map(Number);
+      // Erstelle ein UTC-Datum mit diesen Komponenten
+      // Dies entspricht der Art, wie Daten in der Datenbank gespeichert werden
+      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    };
+
+    const startDate = parseDateFromISO(formData.startDate);
+    const endDate = parseDateFromISO(formData.endDate);
 
     // E-Mail validieren
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

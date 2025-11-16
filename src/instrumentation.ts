@@ -31,6 +31,7 @@ export async function register() {
       try {
         const cronModule = await import('./lib/cron');
         cronModule.startConflictCheckCron();
+        cronModule.startCalendarSyncCron();
         console.log('[Instrumentation] Cron jobs initialized successfully');
       } catch (error: any) {
         console.error('[Instrumentation] Error initializing cron jobs:', error);
