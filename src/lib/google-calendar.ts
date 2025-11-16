@@ -95,6 +95,7 @@ interface CreateEventParams {
   endDate: Date;
   guestEmail?: string;
   guestName?: string;
+  colorId?: string;
 }
 
 // Event im Google Calendar erstellen
@@ -105,6 +106,7 @@ export async function createCalendarEvent({
   endDate,
   guestEmail,
   guestName,
+  colorId,
 }: CreateEventParams): Promise<string | null> {
   // Nutze Datenbank-Credentials (oder Fallback auf ENV)
   const calendar = await getCalendarClient();
@@ -126,15 +128,38 @@ export async function createCalendarEvent({
       ? `${description}\n\nGast: ${guestName || guestEmail}`
       : `Gast: ${guestName || guestEmail}`;
 
-    const event = {
+    // WICHTIG: Verwende UTC-Formatierung für konsistente Datumsinterpretation
+    // Google Calendar gibt Datumsstrings ohne Zeitzone zurück, daher verwenden wir UTC
+    // Dies ist konsistent mit der parseDateFromISO Funktion beim Synchronisieren
+    const getUTCDateString = (date: Date): string => {
+      return date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    };
+
+    const startDateStr = getUTCDateString(startDate);
+    
+    // WICHTIG: Google Calendar verwendet bei ganztägigen Events ein EXKLUSIVES End-Datum
+    // Für ein Event von 11. bis 12. November (Check-in 11., Check-out 12.)
+    // muss end.date = 13. November sein, damit es am 11. UND 12. angezeigt wird
+    // endDate ist das inklusive End-Datum (z.B. 12. November)
+    // Wir müssen einen Tag hinzufügen, um das exklusive End-Datum zu erhalten (z.B. 13. November)
+    const endDatePlusOne = new Date(endDate);
+    endDatePlusOne.setUTCDate(endDatePlusOne.getUTCDate() + 1); // UTC, um Zeitzonenprobleme zu vermeiden
+    const endDateStr = getUTCDateString(endDatePlusOne);
+    
+    console.log(`[createCalendarEvent] Creating event "${summary}"`);
+    console.log(`[createCalendarEvent] Check-in: ${startDateStr} (from ${startDate.toISOString()})`);
+    console.log(`[createCalendarEvent] Check-out: ${getUTCDateString(endDate)} (from ${endDate.toISOString()})`);
+    console.log(`[createCalendarEvent] Google Calendar end.date: ${endDateStr} (exclusive, +1 day)`);
+    
+    const event: any = {
       summary,
       description: fullDescription,
       start: {
-        date: startDate.toISOString().split('T')[0],
+        date: startDateStr,
         timeZone: 'Europe/Amsterdam',
       },
       end: {
-        date: endDate.toISOString().split('T')[0],
+        date: endDateStr,
         timeZone: 'Europe/Amsterdam',
       },
       // attendees entfernt - Service Accounts können keine Einladungen senden
@@ -146,6 +171,11 @@ export async function createCalendarEvent({
         ],
       },
     };
+    
+    // Setze colorId falls angegeben
+    if (colorId) {
+      event.colorId = colorId;
+    }
 
     const response = await calendar.events.insert({
       calendarId,
@@ -186,8 +216,12 @@ export async function updateCalendarEvent(
       };
     }
     if (params.endDate) {
+      // WICHTIG: Google Calendar verwendet exklusives End-Datum
+      // Wir müssen einen Tag hinzufügen, genau wie in createCalendarEvent
+      const endDatePlusOne = new Date(params.endDate);
+      endDatePlusOne.setUTCDate(endDatePlusOne.getUTCDate() + 1);
       updateData.end = {
-        date: params.endDate.toISOString().split('T')[0],
+        date: endDatePlusOne.toISOString().split('T')[0],
         timeZone: 'Europe/Amsterdam',
       };
     }

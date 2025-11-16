@@ -232,17 +232,22 @@ export async function syncAllBookingsToCalendar(skipAuth = false) {
               
                 // Prüfe ob sich das Datum im Google Kalender geändert hat
                 if (event.start?.date && event.end?.date) {
-                  // Verwende die gleiche parseDateFromISO Funktion für konsistente Datumsinterpretation
+                  // WICHTIG: Konsistente Datumsinterpretation mit createCalendarEvent
+                  // Google Calendar gibt Datumsstrings im Format "YYYY-MM-DD" zurück
+                  // Diese wurden beim Erstellen mit getLocalDateString (timeZone: 'Europe/Amsterdam') formatiert
+                  // ABER: getLocalDateString formatiert ein UTC-Datum in Amsterdam-Zeit
+                  // Wenn endDate = 2025-11-12 00:00:00 UTC ist, dann ist es in Amsterdam 2025-11-12 01:00:00 oder 02:00:00
+                  // getLocalDateString gibt "2025-11-12" zurück
+                  // Dann addieren wir 1 Tag: "2025-11-13"
+                  // Google Calendar speichert end.date = "2025-11-13" (exklusiv)
+                  // Beim Synchronisieren müssen wir "2025-11-13" als UTC-Datum interpretieren
+                  // und dann 1 Tag abziehen, um das inklusive End-Datum zu erhalten
                   const parseDateFromISO = (dateStr: string): Date => {
-                    const date = new Date(dateStr);
-                    const formatter = new Intl.DateTimeFormat('en-CA', {
-                      timeZone: 'Europe/Amsterdam',
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                    });
-                    const dateStrFormatted = formatter.format(date);
-                    const [year, month, day] = dateStrFormatted.split('-').map(Number);
+                    // Parse direkt als UTC-Datum (YYYY-MM-DD Format)
+                    // Da getLocalDateString ein UTC-Datum in Amsterdam-Zeit formatiert,
+                    // aber Google Calendar die Datumsstrings ohne Zeitzone zurückgibt,
+                    // interpretieren wir sie direkt als UTC (wie in der Datenbank gespeichert)
+                    const [year, month, day] = dateStr.split('-').map(Number);
                     return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
                   };
                   
@@ -287,8 +292,27 @@ export async function syncAllBookingsToCalendar(skipAuth = false) {
                       // parseDateFromISO wurde bereits oben definiert
                       const newStartDate = parseDateFromISO(event.start.date);
                       const newEndDate = parseDateFromISO(event.end.date);
-                      newEndDate.setUTCDate(newEndDate.getUTCDate() - 1); // Exklusives End-Datum zu inklusivem (UTC)
                       
+                      // Debug-Logging für Datumskonvertierung
+                      console.log(`  [SYNC] 🔍 Datumskonvertierung:`);
+                      console.log(`    [SYNC] Google Calendar start.date: ${event.start.date}`);
+                      console.log(`    [SYNC] Google Calendar end.date: ${event.end.date} (exklusiv)`);
+                      console.log(`    [SYNC] Nach parseDateFromISO - Start: ${newStartDate.toISOString()}`);
+                      console.log(`    [SYNC] Nach parseDateFromISO - End (vor -1): ${newEndDate.toISOString()}`);
+                      
+                      // WICHTIG: Google Calendar verwendet exklusives End-Datum
+                      // Wenn end.date = "2025-12-02" ist, bedeutet das, dass das Event am 1. Dezember endet
+                      // Wir müssen einen Tag abziehen, um das inklusive End-Datum zu erhalten
+                      const utcDay = newEndDate.getUTCDate();
+                      const utcMonth = newEndDate.getUTCMonth();
+                      const utcYear = newEndDate.getUTCFullYear();
+                      
+                      console.log(`    [SYNC] Vor Reduzierung - UTC: ${utcYear}-${utcMonth + 1}-${utcDay}`);
+                      
+                      newEndDate.setUTCDate(utcDay - 1); // Exklusives End-Datum zu inklusivem (UTC)
+                      
+                      console.log(`    [SYNC] Nach -1 Tag - End (inklusiv): ${newEndDate.toISOString()}`);
+                      console.log(`    [SYNC] Nach -1 Tag - UTC: ${newEndDate.getUTCFullYear()}-${newEndDate.getUTCMonth() + 1}-${newEndDate.getUTCDate()}`);
                       console.log(`  [SYNC] → Berechne Preis neu für neue Daten...`);
                       // Berechne Preis neu für neue Daten
                       const { calculateBookingPrice } = await import("@/lib/pricing");
@@ -327,6 +351,9 @@ export async function syncAllBookingsToCalendar(skipAuth = false) {
                       
                       const updatedAdminNotes = (booking.adminNotes || "") + dateChangeNote;
                       
+                      console.log(`  [SYNC] → Speichere in Datenbank:`);
+                      console.log(`    [SYNC] Start: ${newStartDate.toISOString()}`);
+                      console.log(`    [SYNC] End: ${newEndDate.toISOString()}`);
                       console.log(`  [SYNC] → Aktualisiere Datenbank (Datum + Preis + Admin-Notizen)...`);
                       await prisma.booking.update({
                         where: { id: booking.id },
@@ -340,6 +367,30 @@ export async function syncAllBookingsToCalendar(skipAuth = false) {
                       });
                       
                       console.log(`  [SYNC] ✅ Datenbank erfolgreich aktualisiert (Datum + Preis neu berechnet, Admin-Notizen aktualisiert)`);
+                      
+                      // WICHTIG: Aktualisiere auch das Event in Google Calendar mit den neuen Daten
+                      // damit es beim nächsten Synchronisieren konsistent ist
+                      console.log(`  [SYNC] → Aktualisiere Event in Google Calendar mit neuen Daten...`);
+                      const { updateCalendarEvent } = await import("@/lib/google-calendar");
+                      const { getBookingColorId } = await import("@/lib/utils");
+                      const expectedSummary = `Buchung: ${booking.guestName || booking.guestEmail}`;
+                      const expectedDescription = booking.message || "";
+                      const expectedColorId = getBookingColorId(booking.id);
+                      
+                      const updateSuccess = await updateCalendarEvent(booking.googleEventId, {
+                        summary: expectedSummary,
+                        description: expectedDescription,
+                        startDate: newStartDate,
+                        endDate: newEndDate,
+                        colorId: expectedColorId,
+                      });
+                      
+                      if (updateSuccess) {
+                        console.log(`  [SYNC] ✅ Event in Google Calendar erfolgreich aktualisiert`);
+                      } else {
+                        console.log(`  [SYNC] ⚠️  Fehler beim Aktualisieren des Events in Google Calendar`);
+                      }
+                      
                       syncedFromCalendarCount++;
                       // Überspringe weitere Verarbeitung für diese Buchung, da sie bereits synchronisiert wurde
                       continue;
